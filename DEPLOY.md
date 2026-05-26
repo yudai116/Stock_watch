@@ -8,7 +8,6 @@
 
 ## 前提
 コードはすでに GitHub の `yudai116/Stock_watch` リポジトリに入っています。
-GitHubで新しいリポジトリを作る必要はありません。
 
 ---
 
@@ -17,11 +16,9 @@ GitHubで新しいリポジトリを作る必要はありません。
 1. [vercel.com](https://vercel.com) にアクセス → 「Sign Up」→ **GitHub でサインアップ**
 2. 「Add New...」→「Project」をクリック
 3. リポジトリ一覧から **`yudai116/Stock_watch`** を選択
-4. 設定画面で以下を変更:
-   - **Root Directory**: `frontend` と入力（重要！）
-   - それ以外はデフォルトのまま
-5. 「Deploy」をクリック
-6. 2〜3分後にデプロイ完了 → URLが発行される（例: `https://stock-watch.vercel.app`）
+4. 設定画面はデフォルトのままで「**Deploy**」をクリック
+   - Root Directory の変更は不要
+5. 2〜3分後にデプロイ完了 → URLが発行される（例: `https://stock-watch-green.vercel.app`）
 
 ---
 
