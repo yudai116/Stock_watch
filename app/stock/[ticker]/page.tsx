@@ -98,12 +98,14 @@ export default function StockDetailPage({ params }: Props) {
         <div>
           <h2 className="text-white font-semibold mb-3">スコアの見方</h2>
           <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 space-y-3 text-sm text-gray-400">
-            <p><span className="text-emerald-400 font-medium">RSI (25点)</span>: 売られすぎ水準からの回復で高得点。30以下は過剰売られ。</p>
-            <p><span className="text-blue-400 font-medium">MACD (25点)</span>: MACDラインのシグナル上抜けで高得点。ゴールデンクロスが最高点。</p>
-            <p><span className="text-purple-400 font-medium">ボリンジャーバンド (25点)</span>: 価格が下限帯付近で高得点。%Bで位置を計算。</p>
-            <p><span className="text-orange-400 font-medium">移動平均線 (25点)</span>: EMA20上抜け・ゴールデンクロス帯で高得点。</p>
+            <p><span className="text-emerald-400 font-medium">RSI (最大25点)</span>: 売られすぎからの回復で高得点。RSI30以下が狙い目。</p>
+            <p><span className="text-blue-400 font-medium">MACD (最大25点)</span>: シグナル線上抜け（ゴールデンクロス）で最高点。</p>
+            <p><span className="text-purple-400 font-medium">ボリンジャーバンド (最大25点)</span>: 下限帯付近・突破で高得点。%Bで計算。</p>
+            <p><span className="text-orange-400 font-medium">移動平均線 (最大25点)</span>: EMA20上抜け・ゴールデンクロス帯で高得点。</p>
+            <p><span className="text-cyan-400 font-medium">アナリスト評価 (最大30点)</span>: 機関投資家推奨の買い/売り比率をスコア化。</p>
             <div className="border-t border-gray-800 pt-3 text-xs">
-              <p className="text-yellow-400">⚠️ スコアはテクニカル指標のみに基づきます。ファンダメンタル分析（PER等）も併用してください。</p>
+              <p className="text-gray-500">合計スコア = テクニカル×70% + アナリスト評価×30%</p>
+              <p className="text-yellow-400 mt-1">⚠️ 投資判断は自己責任でお願いします。</p>
             </div>
           </div>
         </div>

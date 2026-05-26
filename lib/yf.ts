@@ -2,11 +2,12 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const YFClass = require("yahoo-finance2").default;
 const yf = new YFClass() as InstanceType<typeof YFClass>;
-import { computeScore, getPeLabel } from "./scorer";
+import { computeScore, getPeLabel, scoreAnalyst } from "./scorer";
 import { calcRSI, calcMACD, calcBollinger, calcEMA } from "./indicators";
+import { getSector, DEFAULT_SECTOR_WATCHLIST } from "./sectors";
 import type { StockScore, StockDetail, OHLCVPoint, SeriesPoint, MACDPoint, BBPoint } from "@/types";
 
-export const DEFAULT_WATCHLIST = ["7203.T", "6758.T", "9984.T", "7974.T", "AAPL", "MSFT", "NVDA", "TSLA"];
+export const DEFAULT_WATCHLIST = DEFAULT_SECTOR_WATCHLIST;
 
 function detectMarket(ticker: string) {
   return ticker.toUpperCase().endsWith(".T") ? "JP" : "US";
@@ -44,7 +45,9 @@ async function fetchHistory(ticker: string): Promise<HistoricalRow[]> {
 
 async function fetchQuote(ticker: string) {
   try {
-    const q = await yf.quoteSummary(ticker, { modules: ["price", "summaryDetail"] });
+    const q = await yf.quoteSummary(ticker, {
+      modules: ["price", "summaryDetail", "recommendationTrend"],
+    });
     return q;
   } catch {
     return null;
@@ -55,12 +58,14 @@ export async function buildStockScore(ticker: string): Promise<StockScore> {
   const upper = ticker.toUpperCase();
   const market = detectMarket(upper);
   const currency = getCurrency(market);
+  const sectorInfo = getSector(upper);
 
   const [rows, quote] = await Promise.all([fetchHistory(upper), fetchQuote(upper)]);
   if (rows.length < 30) throw new Error(`Not enough data for ${upper}`);
 
   const closes = rows.map((r) => r.close);
-  const scores = computeScore(closes);
+  const technicalScores = computeScore(closes);
+  const technicalTotal = technicalScores.total; // 0-100
 
   const price = closes[closes.length - 1];
   const prevClose = closes[closes.length - 2];
@@ -71,6 +76,16 @@ export async function buildStockScore(ticker: string): Promise<StockScore> {
   const forwardPe = (quote?.summaryDetail?.forwardPE as number | undefined) ?? null;
   const cleanPe = (pe: number | null) => (pe && pe > 0 && pe < 5000 ? Math.round(pe * 100) / 100 : null);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const trendData = (quote as any)?.recommendationTrend?.trend?.[0] ?? null;
+  const analystResult = scoreAnalyst(trendData);
+  const hasAnalyst = analystResult.count > 0;
+
+  // Blend: 70% technical + 30% analyst (when analyst data available)
+  const blendedScore = hasAnalyst
+    ? Math.min(100, Math.round(technicalTotal * 0.7 + analystResult.score))
+    : technicalTotal;
+
   return {
     ticker: upper,
     market: market as "JP" | "US",
@@ -78,16 +93,27 @@ export async function buildStockScore(ticker: string): Promise<StockScore> {
     price: Math.round(price * 100) / 100,
     currency,
     change_pct: changePct,
-    score: scores.total,
+    score: blendedScore,
     score_components: {
-      rsi: scores.rsi,
-      macd: scores.macd,
-      bollinger: scores.bollinger,
-      moving_avg: scores.moving_avg,
+      rsi: technicalScores.rsi,
+      macd: technicalScores.macd,
+      bollinger: technicalScores.bollinger,
+      moving_avg: technicalScores.moving_avg,
+      analyst: {
+        score: hasAnalyst ? analystResult.score : 0,
+        max: 30,
+        value: null,
+        signal: analystResult.signal,
+      },
     },
     trailing_pe: cleanPe(trailingPe),
     forward_pe: cleanPe(forwardPe),
     pe_label: getPeLabel(trailingPe, market),
+    analyst_score: hasAnalyst ? analystResult.score : null,
+    analyst_signal: analystResult.signal,
+    analyst_count: analystResult.count,
+    sector: sectorInfo.key,
+    sector_label: sectorInfo.label,
     last_updated: new Date().toISOString(),
   };
 }
@@ -96,12 +122,14 @@ export async function buildStockDetail(ticker: string): Promise<StockDetail> {
   const upper = ticker.toUpperCase();
   const market = detectMarket(upper);
   const currency = getCurrency(market);
+  const sectorInfo = getSector(upper);
 
   const [rows, quote] = await Promise.all([fetchHistory(upper), fetchQuote(upper)]);
   if (rows.length < 30) throw new Error(`Not enough data for ${upper}`);
 
   const closes = rows.map((r) => r.close);
-  const scores = computeScore(closes);
+  const technicalScores = computeScore(closes);
+  const technicalTotal = technicalScores.total;
 
   const price = closes[closes.length - 1];
   const prevClose = closes[closes.length - 2];
@@ -110,6 +138,15 @@ export async function buildStockDetail(ticker: string): Promise<StockDetail> {
   const trailingPe = (quote?.summaryDetail?.trailingPE as number | undefined) ?? null;
   const forwardPe = (quote?.summaryDetail?.forwardPE as number | undefined) ?? null;
   const cleanPe = (pe: number | null | undefined) => (pe && pe > 0 && pe < 5000 ? Math.round(pe * 100) / 100 : null);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const trendData = (quote as any)?.recommendationTrend?.trend?.[0] ?? null;
+  const analystResult = scoreAnalyst(trendData);
+  const hasAnalyst = analystResult.count > 0;
+
+  const blendedScore = hasAnalyst
+    ? Math.min(100, Math.round(technicalTotal * 0.7 + analystResult.score))
+    : technicalTotal;
 
   const rsiArr = calcRSI(closes);
   const { macdLine, signalLine, histogram } = calcMACD(closes);
@@ -146,16 +183,27 @@ export async function buildStockDetail(ticker: string): Promise<StockDetail> {
     price: Math.round(price * 100) / 100,
     currency,
     change_pct: changePct,
-    score: scores.total,
+    score: blendedScore,
     score_components: {
-      rsi: scores.rsi,
-      macd: scores.macd,
-      bollinger: scores.bollinger,
-      moving_avg: scores.moving_avg,
+      rsi: technicalScores.rsi,
+      macd: technicalScores.macd,
+      bollinger: technicalScores.bollinger,
+      moving_avg: technicalScores.moving_avg,
+      analyst: {
+        score: hasAnalyst ? analystResult.score : 0,
+        max: 30,
+        value: null,
+        signal: analystResult.signal,
+      },
     },
     trailing_pe: cleanPe(trailingPe),
     forward_pe: cleanPe(forwardPe),
     pe_label: getPeLabel(trailingPe, market),
+    analyst_score: hasAnalyst ? analystResult.score : null,
+    analyst_signal: analystResult.signal,
+    analyst_count: analystResult.count,
+    sector: sectorInfo.key,
+    sector_label: sectorInfo.label,
     last_updated: new Date().toISOString(),
     history,
     rsi_series: rsiSeries,

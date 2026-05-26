@@ -18,10 +18,16 @@ export interface StockScore {
     macd: ScoreComponent;
     bollinger: ScoreComponent;
     moving_avg: ScoreComponent;
+    analyst: ScoreComponent;
   };
   trailing_pe: number | null;
   forward_pe: number | null;
   pe_label: string | null;
+  analyst_score: number | null;
+  analyst_signal: string | null;
+  analyst_count: number;
+  sector: string;
+  sector_label: string;
   last_updated: string;
 }
 

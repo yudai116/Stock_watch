@@ -42,6 +42,38 @@ export function peLabelColor(label: string | null): string {
   return "text-red-400";
 }
 
+export function analystSignalToJa(signal: string | null): string {
+  if (!signal) return "—";
+  const map: Record<string, string> = {
+    strong_buy: "強い買い",
+    buy: "買い",
+    hold: "中立",
+    sell: "売り",
+    strong_sell: "強い売り",
+    no_data: "—",
+  };
+  return map[signal] ?? signal;
+}
+
+export function analystSignalColor(signal: string | null): string {
+  if (!signal || signal === "no_data") return "text-gray-400";
+  if (signal === "strong_buy" || signal === "buy") return "text-emerald-400";
+  if (signal === "hold") return "text-yellow-400";
+  return "text-red-400";
+}
+
+export function sectorBadgeColor(color: string): string {
+  const map: Record<string, string> = {
+    violet: "bg-violet-900/60 text-violet-300",
+    blue: "bg-blue-900/60 text-blue-300",
+    cyan: "bg-cyan-900/60 text-cyan-300",
+    purple: "bg-purple-900/60 text-purple-300",
+    amber: "bg-amber-900/60 text-amber-300",
+    gray: "bg-gray-800 text-gray-400",
+  };
+  return map[color] ?? "bg-gray-800 text-gray-400";
+}
+
 export function signalToJa(signal: string): string {
   const map: Record<string, string> = {
     extreme_oversold: "極度売られすぎ",

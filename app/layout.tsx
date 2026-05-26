@@ -26,7 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <span className="text-xs text-gray-500">Powered by Yahoo Finance</span>
           </div>
         </nav>
-        <main className="max-w-7xl mx-auto px-4 py-6">{children}</main>
+        <main className="max-w-2xl mx-auto px-4 py-5">{children}</main>
       </body>
     </html>
   );

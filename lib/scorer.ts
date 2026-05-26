@@ -183,6 +183,35 @@ export function scoreMovingAverage(closes: number[]): ScoreResult {
   };
 }
 
+export interface AnalystTrend {
+  strongBuy: number;
+  buy: number;
+  hold: number;
+  sell: number;
+  strongSell: number;
+}
+
+export function scoreAnalyst(trend: AnalystTrend | null): { score: number; signal: string; count: number } {
+  if (!trend) return { score: 0, signal: "no_data", count: 0 };
+  const { strongBuy, buy, hold, sell, strongSell } = trend;
+  const total = strongBuy + buy + hold + sell + strongSell;
+  if (total === 0) return { score: 0, signal: "no_data", count: 0 };
+
+  // Weighted: strongBuy=2, buy=1, hold=0, sell=-1, strongSell=-2
+  const weighted = strongBuy * 2 + buy - sell - strongSell * 2;
+  const ratio = weighted / (total * 2); // [-1, 1]
+  const score = Math.round(((ratio + 1) / 2) * 30); // [0, 30]
+
+  let signal: string;
+  if (score >= 24) signal = "strong_buy";
+  else if (score >= 18) signal = "buy";
+  else if (score >= 12) signal = "hold";
+  else if (score >= 6) signal = "sell";
+  else signal = "strong_sell";
+
+  return { score, signal, count: total };
+}
+
 export function computeScore(closes: number[]) {
   const rsi = scoreRSI(closes);
   const macd = scoreMACD(closes);
