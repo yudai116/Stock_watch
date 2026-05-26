@@ -1,66 +1,67 @@
-# デプロイ手順 — スマホからいつでもアクセスできるようにする
+# デプロイ手順 — Vercelで完全無料
 
-## 構成
-- **バックエンド**: Railway（無料枠 $5/月）
-- **フロントエンド**: Vercel（完全無料）
+## 構成（サーバー1つだけ）
+- **Vercel のみ** — フロントエンド + バックエンドAPI の両方（完全無料）
+- Python サーバー不要。Next.js の API Routes が Yahoo Finance から直接データ取得
 
 ---
 
 ## ステップ1: GitHubにリポジトリを公開する
 
 1. [GitHub](https://github.com) でアカウントを作成（未登録の場合）
-2. 新しいリポジトリを作成（例: `stock-watch`）
-3. ローカルでコマンドを実行:
+2. 右上「+」→「New repository」→ 名前: `stock-watch`、Public で作成
+3. ローカルPCのターミナルで実行:
    ```bash
+   cd Stock_watch
    git remote set-url origin https://github.com/あなたのユーザー名/stock-watch.git
    git push -u origin main
    ```
+   ※ ブランチ名が `claude/stock-price-dashboard-QrhiS` の場合は `main` に変更してプッシュ
 
 ---
 
-## ステップ2: バックエンドをRailwayにデプロイ
+## ステップ2: Vercelにデプロイ
 
-1. [railway.app](https://railway.app) にアクセス → GitHubアカウントでサインアップ
-2. 「New Project」→「Deploy from GitHub repo」→ リポジトリを選択
-3. **Root Directory** に `backend` と入力
-4. デプロイ後、「Settings」→「Environment Variables」で以下を設定:
-
-   | 変数名 | 値 |
-   |--------|----|
-   | `CORS_ALLOW_ALL` | `true` |
-   | `WATCHLIST_FILE` | `data/watchlist.json` |
-
-5. 「Settings」→「Domains」→「Generate Domain」でURLを生成
-   - 例: `https://stock-watch-backend.up.railway.app`
-   - **このURLをメモする**
+1. [vercel.com](https://vercel.com) にアクセス → 「Sign Up」→ GitHub でサインアップ
+2. 「Add New...」→「Project」→ `stock-watch` リポジトリを選択
+3. 設定画面で以下を変更:
+   - **Root Directory**: `frontend` と入力
+   - それ以外はデフォルトのまま
+4. 「Deploy」をクリック
+5. 2〜3分後にデプロイ完了 → URLが発行される（例: `https://stock-watch.vercel.app`）
 
 ---
 
-## ステップ3: フロントエンドをVercelにデプロイ
+## ステップ3: スマホでアクセス
 
-1. [vercel.com](https://vercel.com) にアクセス → GitHubアカウントでサインアップ
-2. 「Add New Project」→ リポジトリを選択
-3. **Root Directory** に `frontend` と入力
-4. 「Environment Variables」に以下を追加:
+VercelのURL をスマホのブラウザで開くだけ！
 
-   | 変数名 | 値 |
-   |--------|----|
-   | `NEXT_PUBLIC_API_URL` | ステップ2でメモしたRailwayのURL |
-
-5. 「Deploy」をクリック
-6. デプロイ完了後、VercelがURLを発行 (例: `https://stock-watch.vercel.app`)
+**ホーム画面に追加する方法:**
+- iPhone: Safari で開く → 共有ボタン → 「ホーム画面に追加」
+- Android: Chrome で開く → メニュー → 「ホーム画面に追加」
 
 ---
 
-## ステップ4: スマホでアクセス
+## ウォッチリストのカスタマイズ
 
-VercelのURL（例: `https://stock-watch.vercel.app`）をスマホのブラウザで開くだけ。
-ホーム画面に追加すれば、アプリのように使えます。
+デフォルト銘柄を変更したい場合:
+1. Vercel の「Settings」→「Environment Variables」
+2. 以下を追加:
+
+   | 変数名 | 値（カンマ区切りで銘柄コード）|
+   |--------|-------------------------------|
+   | `WATCHLIST` | `7203.T,6758.T,AAPL,MSFT,NVDA` |
+
+3. 「Redeploy」で反映
 
 ---
 
-## 注意事項
+## 費用
 
-- Railwayの無料枠は月$5のクレジット。通常の使い方では数ヶ月は無料で使えます
-- Vercelは個人利用は完全無料
-- ウォッチリスト（銘柄一覧）はRailwayサーバー上に保存されます
+| サービス | 費用 |
+|--------|------|
+| Vercel | **完全無料**（個人利用） |
+| GitHub | **完全無料** |
+| Yahoo Finance API | **完全無料**（利用制限なし） |
+
+**合計: 0円**
