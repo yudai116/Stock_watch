@@ -6,46 +6,42 @@
 
 ---
 
-## ステップ1: GitHubにリポジトリを公開する
-
-1. [GitHub](https://github.com) でアカウントを作成（未登録の場合）
-2. 右上「+」→「New repository」→ 名前: `stock-watch`、Public で作成
-3. ローカルPCのターミナルで実行:
-   ```bash
-   cd Stock_watch
-   git remote set-url origin https://github.com/あなたのユーザー名/stock-watch.git
-   git push -u origin main
-   ```
-   ※ ブランチ名が `claude/stock-price-dashboard-QrhiS` の場合は `main` に変更してプッシュ
+## 前提
+コードはすでに GitHub の `yudai116/Stock_watch` リポジトリに入っています。
+GitHubで新しいリポジトリを作る必要はありません。
 
 ---
 
-## ステップ2: Vercelにデプロイ
+## ステップ1: Vercelにデプロイ
 
-1. [vercel.com](https://vercel.com) にアクセス → 「Sign Up」→ GitHub でサインアップ
-2. 「Add New...」→「Project」→ `stock-watch` リポジトリを選択
-3. 設定画面で以下を変更:
-   - **Root Directory**: `frontend` と入力
+1. [vercel.com](https://vercel.com) にアクセス → 「Sign Up」→ **GitHub でサインアップ**
+2. 「Add New...」→「Project」をクリック
+3. リポジトリ一覧から **`yudai116/Stock_watch`** を選択
+4. 設定画面で以下を変更:
+   - **Root Directory**: `frontend` と入力（重要！）
    - それ以外はデフォルトのまま
-4. 「Deploy」をクリック
-5. 2〜3分後にデプロイ完了 → URLが発行される（例: `https://stock-watch.vercel.app`）
+5. 「Deploy」をクリック
+6. 2〜3分後にデプロイ完了 → URLが発行される（例: `https://stock-watch.vercel.app`）
 
 ---
 
-## ステップ3: スマホでアクセス
+## ステップ2: スマホでアクセス
 
 VercelのURL をスマホのブラウザで開くだけ！
 
 **ホーム画面に追加する方法:**
-- iPhone: Safari で開く → 共有ボタン → 「ホーム画面に追加」
-- Android: Chrome で開く → メニュー → 「ホーム画面に追加」
+- **iPhone**: Safari で開く → 共有ボタン → 「ホーム画面に追加」
+- **Android**: Chrome で開く → メニュー → 「ホーム画面に追加」
+
+アプリのように使えます。
 
 ---
 
-## ウォッチリストのカスタマイズ
+## ウォッチリストのカスタマイズ（オプション）
 
-デフォルト銘柄を変更したい場合:
-1. Vercel の「Settings」→「Environment Variables」
+デフォルト銘柄（トヨタ・ソニー・任天堂・ソフトバンク・AAPL・MSFT・NVDA・TSLA）を変更したい場合:
+
+1. Vercel のプロジェクトページ → 「Settings」→「Environment Variables」
 2. 以下を追加:
 
    | 変数名 | 値（カンマ区切りで銘柄コード）|
@@ -62,6 +58,6 @@ VercelのURL をスマホのブラウザで開くだけ！
 |--------|------|
 | Vercel | **完全無料**（個人利用） |
 | GitHub | **完全無料** |
-| Yahoo Finance API | **完全無料**（利用制限なし） |
+| Yahoo Finance API | **完全無料** |
 
 **合計: 0円**
