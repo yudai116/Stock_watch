@@ -24,16 +24,28 @@ async function fetchHistory(ticker: string): Promise<HistoricalRow[]> {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - 120);
 
-  const rows = await yf.historical(ticker, {
-    period1: startDate.toISOString().split("T")[0],
-    period2: endDate.toISOString().split("T")[0],
-    interval: "1d",
-  }, { validateResult: false });
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (rows as any[])
-    .filter((r) => r.close != null)
-    .map((r) => ({
+  let rawRows: any[];
+  try {
+    rawRows = await yf.historical(ticker, {
+      period1: startDate.toISOString().split("T")[0],
+      period2: endDate.toISOString().split("T")[0],
+      interval: "1d",
+    });
+  } catch (e: unknown) {
+    // yahoo-finance2 throws when some rows have null values (common with JP stocks
+    // on trading halts/holidays). The partial result is still attached to error.result.
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!msg.includes("null values")) throw e;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rawRows = (e as any).result ?? [];
+  }
+
+  return rawRows
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .filter((r: any) => r.close != null)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((r: any) => ({
       date: r.date as Date,
       open: (r.open ?? r.close) as number,
       high: (r.high ?? r.close) as number,
