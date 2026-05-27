@@ -1,7 +1,7 @@
 // yahoo-finance2 v3 requires instantiation
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const YFClass = require("yahoo-finance2").default;
-const yf = new YFClass() as InstanceType<typeof YFClass>;
+const yf = new YFClass({ suppressNotices: ["ripHistorical"] }) as InstanceType<typeof YFClass>;
 import { computeScore, computeScoreDay, getPeLabel, scoreAnalyst } from "./scorer";
 import { calcRSI, calcMACD, calcBollinger, calcEMA, calcATR } from "./indicators";
 import { getSector, getSize, DEFAULT_SECTOR_WATCHLIST } from "./sectors";
@@ -22,26 +22,21 @@ type HistoricalRow = { date: Date; open: number; high: number; low: number; clos
 async function fetchHistory(ticker: string): Promise<HistoricalRow[]> {
   const endDate = new Date();
   const startDate = new Date();
-  startDate.setDate(startDate.getDate() - 120);
+  startDate.setDate(startDate.getDate() - 250);  // wider window ensures enough valid rows for JP stocks
+
+  // Use chart() directly: historical() delegates to chart() but throws on rows where
+  // only SOME OHLCV fields are null. chart()'s own schema allows null values, so it
+  // returns all rows without throwing, and we filter out null closes ourselves.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result = await (yf as any).chart(ticker, {
+    period1: startDate.toISOString().split("T")[0],
+    period2: endDate.toISOString().split("T")[0],
+    interval: "1d",
+  });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let rawRows: any[];
-  try {
-    rawRows = await yf.historical(ticker, {
-      period1: startDate.toISOString().split("T")[0],
-      period2: endDate.toISOString().split("T")[0],
-      interval: "1d",
-    });
-  } catch (e: unknown) {
-    // yahoo-finance2 throws when some rows have null values (common with JP stocks
-    // on trading halts/holidays). The partial result is still attached to error.result.
-    const msg = e instanceof Error ? e.message : String(e);
-    if (!msg.includes("null values")) throw e;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    rawRows = (e as any).result ?? [];
-  }
-
-  return rawRows
+  const quotes: any[] = result?.quotes ?? [];
+  return quotes
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .filter((r: any) => r.close != null)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -102,7 +97,7 @@ export async function buildStockScore(ticker: string, mode: "swing" | "day" = "s
   const sizeKey    = getSize(upper);
 
   const [rows, quote] = await Promise.all([fetchHistory(upper), fetchQuote(upper)]);
-  if (rows.length < 30) throw new Error(`Not enough data for ${upper}`);
+  if (rows.length < 20) throw new Error(`Not enough data for ${upper}`);
 
   const closes  = rows.map((r) => r.close);
   const volumes = rows.map((r) => r.volume);
@@ -175,7 +170,7 @@ export async function buildStockDetail(ticker: string, mode: "swing" | "day" = "
   const sizeKey2   = getSize(upper);
 
   const [rows, quote] = await Promise.all([fetchHistory(upper), fetchQuote(upper)]);
-  if (rows.length < 30) throw new Error(`Not enough data for ${upper}`);
+  if (rows.length < 20) throw new Error(`Not enough data for ${upper}`);
 
   const closes  = rows.map((r) => r.close);
   const volumes = rows.map((r) => r.volume);
