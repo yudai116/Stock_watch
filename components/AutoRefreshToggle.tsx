@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 interface Props {
   interval: number;
@@ -15,17 +15,31 @@ const OPTIONS = [
 
 export default function AutoRefreshToggle({ interval, onIntervalChange, onRefresh }: Props) {
   const [secondsLeft, setSecondsLeft] = useState(interval / 1000);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const resetTimer = useCallback(() => setSecondsLeft(interval / 1000), [interval]);
 
   useEffect(() => {
-    setSecondsLeft(interval / 1000);
+    resetTimer();
     const timer = setInterval(() => {
       setSecondsLeft((s) => {
-        if (s <= 1) { return interval / 1000; }
+        if (s <= 1) {
+          onRefresh();
+          return interval / 1000;
+        }
         return s - 1;
       });
     }, 1000);
     return () => clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interval]);
+
+  function handleRefresh() {
+    setRefreshing(true);
+    resetTimer();
+    onRefresh();
+    setTimeout(() => setRefreshing(false), 1500);
+  }
 
   return (
     <div className="flex items-center gap-3 text-sm">
@@ -44,10 +58,11 @@ export default function AutoRefreshToggle({ interval, onIntervalChange, onRefres
         ))}
       </div>
       <div className="flex items-center gap-2 text-gray-400 text-xs">
-        <span>次回更新: {secondsLeft}秒後</span>
+        <span>{refreshing ? "更新中..." : `次回更新: ${secondsLeft}秒後`}</span>
         <button
-          onClick={onRefresh}
-          className="bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1 rounded text-xs transition-colors"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 px-3 py-1 rounded text-xs transition-colors"
         >
           今すぐ更新
         </button>

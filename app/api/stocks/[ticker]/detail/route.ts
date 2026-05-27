@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildStockDetail, fetchSMHSignal } from "@/lib/yf";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ ticker: string }> }) {
   const { ticker } = await params;
   const mode = (new URL(req.url).searchParams.get("mode") ?? "swing") as "swing" | "day";

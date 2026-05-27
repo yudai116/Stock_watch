@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildStockScore, fetchSMHSignal } from "@/lib/yf";
+
+export const dynamic = "force-dynamic";
 import type { StockScore } from "@/types";
 
 export async function GET(req: NextRequest) {
