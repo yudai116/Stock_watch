@@ -24,11 +24,11 @@ export const api = {
   removeTicker: (ticker: string) =>
     request<WatchlistResponse>(`/api/watchlist?ticker=${ticker}`, { method: "DELETE" }),
 
-  getScores: (tickers: string[]) =>
-    request<StockScoresResponse>(`/api/stocks/scores?tickers=${tickers.join(",")}`),
+  getScores: (tickers: string[], mode: "swing" | "day" = "swing") =>
+    request<StockScoresResponse>(`/api/stocks/scores?tickers=${tickers.join(",")}&mode=${mode}`),
 
-  getDetail: (ticker: string) =>
-    request<StockDetail>(`/api/stocks/${ticker}/detail`),
+  getDetail: (ticker: string, mode: "swing" | "day" = "swing") =>
+    request<StockDetail>(`/api/stocks/${ticker}/detail?mode=${mode}`),
 
   validate: (ticker: string) =>
     request<ValidateResponse>(`/api/stocks/${ticker}/validate`),

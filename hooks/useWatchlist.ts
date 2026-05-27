@@ -3,7 +3,7 @@ import useSWR from "swr";
 import { api } from "@/lib/api";
 import type { StockScore, StockScoresResponse } from "@/types";
 
-export function useWatchlist(refreshInterval = 300_000) {
+export function useWatchlist(refreshInterval = 300_000, mode: "swing" | "day" = "swing") {
   const { data: wl, mutate: mutateWl } = useSWR(
     "/api/watchlist",
     () => api.getWatchlist(),
@@ -13,8 +13,8 @@ export function useWatchlist(refreshInterval = 300_000) {
   const tickers = wl?.tickers ?? [];
 
   const { data: scoresData, isLoading, mutate: mutateScores } = useSWR<StockScoresResponse>(
-    tickers.length > 0 ? ["/api/stocks/scores", tickers.join(",")] : null,
-    () => api.getScores(tickers),
+    tickers.length > 0 ? ["/api/stocks/scores", tickers.join(","), mode] : null,
+    () => api.getScores(tickers, mode),
     { refreshInterval, revalidateOnFocus: true }
   );
 

@@ -261,6 +261,124 @@ export function computeScore(closes: number[], size: "large" | "mid" | "small" =
   return { total, rsi, macd, bollinger, moving_avg: movingAvg };
 }
 
+// ── Day trade scoring functions ───────────────────────────────────────────────
+
+// V-shaped RSI: rewards both oversold bounces AND upward momentum (RSI 55-70)
+export function scoreRSIDay(closes: number[]): ScoreResult {
+  const rsi = calcRSI(closes);
+  const valid = rsi.filter((v) => !isNaN(v));
+  if (valid.length < 2) return { score: 12, max: 25, value: null, signal: "insufficient_data" };
+
+  const current = valid[valid.length - 1];
+  const prev = valid[valid.length - 2];
+  const rising = current > prev;
+
+  let raw: number;
+  let signal: string;
+
+  if (current < 25) {
+    raw = rising ? 22 : 17;
+    signal = rising ? "oversold_bounce" : "extreme_oversold";
+  } else if (current < 40) {
+    const base = interp(current, [[25, 19], [40, 12]]);
+    raw = base + (rising ? 2 : 0);
+    signal = rising ? "recovering" : "oversold";
+  } else if (current < 50) {
+    raw = interp(current, [[40, 12], [50, 9]]);
+    signal = "neutral_low";
+  } else if (current < 55) {
+    raw = interp(current, [[50, 9], [55, 11]]);
+    signal = "neutral";
+  } else if (current < 65) {
+    raw = Math.max(interp(current, [[55, 11], [65, 17]]) + (rising ? 2 : -2), 8);
+    signal = rising ? "momentum_up" : "momentum_fading";
+  } else if (current < 75) {
+    raw = interp(current, [[65, 15], [75, 10]]) + (rising ? 1 : 0);
+    signal = (current > 70 && rising) ? "overbought_momentum" : "strong_momentum";
+  } else {
+    raw = interp(current, [[75, 8], [85, 3]]);
+    signal = "extreme_overbought";
+  }
+
+  return { score: Math.round(Math.min(raw, 25)), max: 25, value: Math.round(current * 100) / 100, signal };
+}
+
+// EMA5/EMA10 crossovers for intraday sensitivity (vs EMA20/50 for swing)
+export function scoreMADay(closes: number[]): ScoreResult {
+  const ma5  = calcEMA(closes, 5);
+  const ma10 = calcEMA(closes, 10);
+
+  const n = closes.length;
+  if (n < 11) return { score: 12, max: 25, value: null, signal: "insufficient_data" };
+
+  const priceNow  = closes[n - 1];
+  const pricePrev = closes[n - 2];
+  const ma5Now    = ma5[n - 1];
+  const ma5Prev   = ma5[n - 2];
+  const ma10Now   = ma10[n - 1];
+  const ma10Prev  = ma10[n - 2];
+
+  const crossAboveToday = pricePrev < ma5Prev && priceNow >= ma5Now;
+  let crossAboveRecent = false;
+  if (n >= 4 && closes[n - 3] < ma5[n - 3] && closes[n - 2] >= ma5[n - 2] && priceNow > ma5Now) {
+    crossAboveRecent = true;
+  }
+
+  let priceScore: number;
+  let priceSignal: string;
+
+  if (crossAboveToday) { priceScore = 15; priceSignal = "cross_above_ma5"; }
+  else if (crossAboveRecent) { priceScore = 13; priceSignal = "recent_cross_above_ma5"; }
+  else if (priceNow > ma5Now) {
+    priceScore = Math.round(interp(priceNow / ma5Now, [[1.0, 10], [1.03, 7], [1.06, 4]]));
+    priceSignal = "above_ma5";
+  } else if (Math.abs(priceNow - ma5Now) / ma5Now < 0.003) {
+    priceScore = 6; priceSignal = "at_ma5";
+  } else {
+    priceScore = Math.round(interp(priceNow / ma5Now, [[0.94, 4], [0.97, 3], [1.0, 0]]));
+    priceSignal = "below_ma5";
+  }
+
+  const gap      = ma5Now  - ma10Now;
+  const gapPrev  = ma5Prev - ma10Prev;
+  const widening = Math.abs(gap) > Math.abs(gapPrev);
+
+  let maScore: number;
+  if (gap > 0)                              { maScore = widening ? 9 : 6; }
+  else if (Math.abs(gap / ma10Now) < 0.003) { maScore = 4; }
+  else                                       { maScore = widening ? 1 : 3; }
+
+  return {
+    score: Math.min(priceScore + maScore, 25),
+    max: 25,
+    value: Math.round((priceNow / ma5Now) * 10000) / 10000,
+    signal: priceSignal,
+  };
+}
+
+export function computeScoreDay(closes: number[], size: "large" | "mid" | "small" = "mid") {
+  const rsi       = scoreRSIDay(closes);
+  const macd      = scoreMACD(closes);
+  const bollinger = scoreBollinger(closes);
+  const movingAvg = scoreMADay(closes);
+  // Day trade multipliers from hold=1d size-stratified Monte Carlo walk-forward backtest.
+  // Updated by run_backtest.py (day mode) — see backtest/backtest_results.json.
+  const MULTS_DAY: Record<"large" | "mid" | "small", [number, number, number, number]> = {
+    //          [RSI,   MACD,   BB,    MA  ]
+    large: [1.0, 1.0, 1.0, 1.0],  // placeholder — update after backtest
+    mid:   [1.0, 1.0, 1.0, 1.0],
+    small: [1.0, 1.0, 1.0, 1.0],
+  };
+  const [mRsi, mMacd, mBb, mMa] = MULTS_DAY[size];
+  const total = Math.min(100, Math.round(
+    rsi.score       * mRsi  +
+    macd.score      * mMacd +
+    bollinger.score * mBb   +
+    movingAvg.score * mMa
+  ));
+  return { total, rsi, macd, bollinger, moving_avg: movingAvg };
+}
+
 export function getPeLabel(pe: number | null | undefined, market: string): string | null {
   if (!pe || pe <= 0 || pe > 5000) return null;
   if (market === "JP") return pe < 15 ? "割安" : pe <= 25 ? "適正" : "割高";

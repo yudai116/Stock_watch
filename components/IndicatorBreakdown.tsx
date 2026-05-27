@@ -4,16 +4,25 @@ import { signalToJa, analystSignalToJa } from "@/lib/formatters";
 
 interface Props {
   stock: StockScore;
+  mode?: "swing" | "day";
 }
 
-const technicalIndicators = [
-  { key: "rsi" as const,        label: "RSI",           description: "相対力指数(14)" },
+const SWING_INDICATORS = [
+  { key: "rsi" as const,        label: "RSI",           description: "相対力指数(14) — 逆張り" },
   { key: "macd" as const,       label: "MACD",          description: "移動平均収束拡散" },
   { key: "bollinger" as const,  label: "ボリンジャーバンド", description: "価格帯位置(%B)" },
   { key: "moving_avg" as const, label: "移動平均線",    description: "EMA20/50" },
 ];
 
-export default function IndicatorBreakdown({ stock }: Props) {
+const DAY_INDICATORS = [
+  { key: "rsi" as const,        label: "RSI (デイ)",    description: "V字型 — 逆張り+モメンタム" },
+  { key: "macd" as const,       label: "MACD",          description: "移動平均収束拡散" },
+  { key: "bollinger" as const,  label: "ボリンジャーバンド", description: "%B + 方向ボーナス" },
+  { key: "moving_avg" as const, label: "移動平均線 (デイ)", description: "EMA5/10" },
+];
+
+export default function IndicatorBreakdown({ stock, mode = "swing" }: Props) {
+  const technicalIndicators = mode === "day" ? DAY_INDICATORS : SWING_INDICATORS;
   const analyst = stock.score_components.analyst;
   const hasAnalyst = stock.analyst_count > 0;
 
@@ -85,9 +94,15 @@ export default function IndicatorBreakdown({ stock }: Props) {
 
       {/* Score breakdown note */}
       <div className="text-xs text-gray-600 px-1 space-y-0.5">
-        {stock.size === "large" && <p>大型株 (MACD/MA重視): RSI×0.722 + MACD×1.274 + BB×0.795 + MA×1.209</p>}
-        {stock.size === "mid"   && <p>中型株 (MA重視): RSI×0.842 + MACD×1.021 + BB×0.956 + MA×1.182</p>}
-        {stock.size === "small" && <p>小型株 (RSI/BB重視): RSI×1.086 + MACD×0.913 + BB×1.001 + MA×1.000</p>}
+        {mode === "swing" ? (
+          <>
+            {stock.size === "large" && <p>大型株 (MACD/MA重視): RSI×0.722 + MACD×1.274 + BB×0.795 + MA×1.209</p>}
+            {stock.size === "mid"   && <p>中型株 (MA重視): RSI×0.842 + MACD×1.021 + BB×0.956 + MA×1.182</p>}
+            {stock.size === "small" && <p>小型株 (RSI/BB重視): RSI×1.086 + MACD×0.913 + BB×1.001 + MA×1.000</p>}
+          </>
+        ) : (
+          <p className="text-orange-700">デイトレモード: RSI×1.0 + MACD×1.0 + BB×1.0 + EMA5/10×1.0 (重み最適化中)</p>
+        )}
         <p>{hasAnalyst ? "合計 = テクニカル×70% + アナリスト評価×30%" : "合計 = テクニカルスコア (アナリストデータなし)"}</p>
       </div>
     </div>

@@ -107,6 +107,19 @@ export function signalToJa(signal: string): string {
     at_crossover: "クロス付近",
     death_cross_zone: "デッドクロス帯",
     insufficient_data: "データ不足",
+    // day trade signals
+    oversold_bounce: "売られすぎ反発",
+    recovering: "回復中",
+    neutral_low: "中立（やや低め）",
+    momentum_up: "上昇モメンタム",
+    momentum_fading: "モメンタム減衰",
+    strong_momentum: "強いモメンタム",
+    overbought_momentum: "過熱モメンタム",
+    cross_above_ma5: "EMA5上抜け",
+    recent_cross_above_ma5: "EMA5上抜け（直近）",
+    above_ma5: "EMA5上方",
+    at_ma5: "EMA5付近",
+    below_ma5: "EMA5下方",
   };
   return map[signal] ?? signal;
 }

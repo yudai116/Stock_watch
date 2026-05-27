@@ -334,6 +334,93 @@ def all_scores(p: np.ndarray) -> np.ndarray:
     """Return (P, 4, T) score array: [rsi, macd, bb, ma]."""
     return np.stack([sc_rsi(p), sc_macd(p), sc_bb(p), sc_ma(p)], axis=1)
 
+# ─── Day trade score functions ────────────────────────────────────────────────
+
+def sc_rsi_day(p: np.ndarray) -> np.ndarray:
+    """Day trade RSI: V-shaped — rewards oversold bounce AND momentum (RSI 55-70 rising)."""
+    rv   = rsi_v(p)
+    P, T = p.shape
+    out  = np.full((P, T), np.nan)
+    for t in range(1, T):
+        c    = rv[:, t]
+        prev = rv[:, t - 1]
+        ok   = ~(np.isnan(c) | np.isnan(prev))
+        if not ok.any():
+            continue
+        up = c > prev
+        sc = np.full(P, np.nan)
+        for i in np.where(ok)[0]:
+            cv, uv = c[i], up[i]
+            if cv < 25:
+                r = 22.0 if uv else 17.0
+            elif cv < 40:
+                base = _ip(cv, [(25, 19), (40, 12)])
+                r = base + (2.0 if uv else 0.0)
+            elif cv < 50:
+                r = _ip(cv, [(40, 12), (50, 9)])
+            elif cv < 55:
+                r = _ip(cv, [(50, 9), (55, 11)])
+            elif cv < 65:
+                r = max(_ip(cv, [(55, 11), (65, 17)]) + (2.0 if uv else -2.0), 8.0)
+            elif cv < 75:
+                r = _ip(cv, [(65, 15), (75, 10)]) + (1.0 if uv else 0.0)
+            else:
+                r = _ip(cv, [(75, 8), (85, 3)])
+            sc[i] = min(r, 25.0)
+        out[:, t] = sc
+    return out
+
+
+def sc_ma_day(p: np.ndarray) -> np.ndarray:
+    """Day trade MA: EMA5/EMA10 for intraday sensitivity."""
+    m5   = ema_v(p, 5)
+    m10  = ema_v(p, 10)
+    P, T = p.shape
+    out  = np.full((P, T), np.nan)
+    for t in range(3, T):
+        ok = ~(np.isnan(m5[:, t]) | np.isnan(m10[:, t]))
+        if not ok.any():
+            continue
+        pn, pp = p[:, t],   p[:, t - 1]
+        mn, mp = m5[:, t],  m5[:, t - 1]
+        fn, fp = m10[:, t], m10[:, t - 1]
+        ct     = (pp < mp) & (pn >= mn)
+        cr     = np.zeros(P, bool)
+        for j in range(2, min(4, t)):
+            cr |= (p[:, t-j-1] < m5[:, t-j-1]) & (p[:, t-j] >= m5[:, t-j]) & (pn > mn)
+        gap   = mn - fn
+        gprev = m5[:, t - 1] - m10[:, t - 1]
+        wide  = np.abs(gap) > np.abs(gprev)
+        sc = np.full(P, np.nan)
+        for i in np.where(ok)[0]:
+            pv, mv, fv = pn[i], mn[i], fn[i]
+            if ct[i]:
+                ps = 15
+            elif cr[i]:
+                ps = 13
+            elif pv > mv:
+                ps = int(round(_ip(pv / mv, [(1.0, 10), (1.03, 7), (1.06, 4)])))
+            elif abs(pv - mv) / mv < 0.003:
+                ps = 6
+            else:
+                ps = int(round(_ip(pv / mv, [(0.94, 4), (0.97, 3), (1.0, 0)])))
+            gv = gap[i]
+            ms = (9 if wide[i] else 6) if gv > 0 else \
+                 (4 if abs(gv / fv) < 0.003 else (1 if wide[i] else 3))
+            sc[i] = min(ps + ms, 25.0)
+        out[:, t] = sc
+    return out
+
+
+def all_scores_day(p: np.ndarray) -> np.ndarray:
+    """Return (P, 4, T) score array for day trade: [rsi_day, macd, bb, ma_day]."""
+    return np.stack([sc_rsi_day(p), sc_macd(p), sc_bb(p), sc_ma_day(p)], axis=1)
+
+# ─── Day trade config ────────────────────────────────────────────────────────
+
+DAY_HOLD_DAYS  = [1, 2]
+DAY_THRESHOLDS = [55, 60, 65, 70]
+
 # ─── Weight grid ─────────────────────────────────────────────────────────────
 
 def weight_grid(step: int = WEIGHT_STEP):
@@ -517,6 +604,139 @@ def run_size_group(name: str, tickers: list, wlist: list) -> dict:
                   for f in fold_results],
     }
 
+# ─── Day trade walk-forward fold ─────────────────────────────────────────────
+
+def optimise_fold_day(sc_all: np.ndarray, price_all: np.ndarray,
+                      train_end: int, wlist: list) -> dict:
+    """Grid search for day trade mode (hold=1/2, thresholds=55/60/65/70)."""
+    P, T     = price_all.shape
+    nan_mask = np.any(np.isnan(sc_all), axis=1)   # (P, T)
+    best     = {"sh": -999.0, "w": None}
+
+    fwd_cache: dict = {}
+    for hold in DAY_HOLD_DAYS:
+        t0  = WARMUP
+        t1  = train_end - hold
+        fwd = np.full((P, T), np.nan)
+        if t0 < t1:
+            ep = price_all[:, t0:t1]
+            xp = price_all[:, t0 + hold:t1 + hold]
+            with np.errstate(invalid='ignore', divide='ignore'):
+                fwd[:, t0:t1] = np.where(ep > 0, (xp - ep) / ep, np.nan)
+        fwd_cache[hold] = (fwd[:, t0:t1].copy(), t0, t1)
+
+    for w in wlist:
+        wv   = np.array(w, dtype=float) / 25.0
+        comp = np.einsum('k,pkt->pt', wv, sc_all)
+        comp[nan_mask] = np.nan
+
+        for hold in DAY_HOLD_DAYS:
+            f_sl, t0, t1 = fwd_cache[hold]
+            if t1 <= t0:
+                continue
+            c_sl    = comp[:, t0:t1]
+            not_nan = ~np.isnan(c_sl) & ~np.isnan(f_sl)
+
+            for thr in DAY_THRESHOLDS:
+                sig = not_nan & (c_sl >= thr)
+                n   = int(sig.sum())
+                if n < 10:
+                    continue
+                returns = f_sl[sig]
+                std     = float(returns.std(ddof=1))
+                if std < 1e-12:
+                    continue
+                sh = float(returns.mean() / std * np.sqrt(252.0 / hold))
+                if sh > best["sh"]:
+                    best = {"sh": sh, "n": n,
+                            "wr": float((returns > 0).mean()),
+                            "w": w, "thr": thr, "hold": hold}
+
+    return best if best["w"] is not None else {}
+
+
+# ─── Day trade size-group backtest ───────────────────────────────────────────
+
+def run_size_group_day(name: str, tickers: list, wlist: list) -> dict:
+    """Day trade variant: uses sc_rsi_day / sc_ma_day, hold=1/2, thr=55-70."""
+    t0 = time.time()
+    pb, sb = [], []
+    for ticker in tickers:
+        if ticker not in STOCKS:
+            continue
+        cagr, vol = STOCKS[ticker]
+        pm = sim_batch(cagr, vol)
+        sm = all_scores_day(pm)
+        pb.append(pm)
+        sb.append(sm)
+
+    price_g = np.concatenate(pb, axis=0)
+    score_g = np.concatenate(sb, axis=0)
+    P_g     = price_g.shape[0]
+
+    wv_eq   = np.ones(4)
+    comp_eq = np.einsum('k,pkt->pt', wv_eq, score_g)
+    comp_eq[np.any(np.isnan(score_g), axis=1)] = np.nan
+    vc = comp_eq[~np.isnan(comp_eq)]
+    print(f"    Series={P_g}  composite mean={vc.mean():.1f}  std={vc.std():.1f}  "
+          f"≥60: {(vc>=60).mean():.1%}")
+
+    fold_results = []
+    for fi, (train_days, test_days) in enumerate(FOLDS):
+        best = optimise_fold_day(score_g, price_g, train_days, wlist)
+        if not best:
+            continue
+        test_end = train_days + test_days
+        test_m   = eval_one(score_g, price_g,
+                            best["w"], best["thr"], best["hold"],
+                            train_days, test_end)
+        fold_results.append({"fold": fi+1, "best": best, "test": test_m,
+                              "train_days": train_days})
+
+    # Single-signal Sharpe at REF_THR=65, hold=1 (day trade reference)
+    REF_THR, REF_HOLD = 65, 1
+    sig_sh: dict[str, float] = {}
+    sig_wr: dict[str, float] = {}
+    sig_n:  dict[str, int]   = {}
+    for lbl, sw in [("RSI",  (100,   0,   0,   0)),
+                    ("MACD", (  0, 100,   0,   0)),
+                    ("BB",   (  0,   0, 100,   0)),
+                    ("MA",   (  0,   0,   0, 100))]:
+        m = eval_one(score_g, price_g, sw, REF_THR, REF_HOLD, 0, N_DAYS)
+        sig_sh[lbl] = m["sh"]
+        sig_wr[lbl] = m["wr"]
+        sig_n[lbl]  = m["n"]
+        print(f"    {lbl:4s}  Sharpe={m['sh']:+.3f}  WR={m['wr']:.1%}  n={m['n']}")
+
+    ranked = sorted(sig_sh, key=sig_sh.get, reverse=True)
+    print(f"    Ranking: {' > '.join(ranked)}")
+
+    sh_vals = np.array([sig_sh[k] for k in ["RSI", "MACD", "BB", "MA"]])
+    sh_pos  = np.maximum(sh_vals, 0.05)
+    mults   = sh_pos / sh_pos.mean()
+    mul_rsi, mul_macd, mul_bb, mul_ma = [round(float(m), 3) for m in mults]
+    print(f"    Multipliers: RSI×{mul_rsi}  MACD×{mul_macd}  BB×{mul_bb}  MA×{mul_ma}  "
+          f"({time.time()-t0:.0f}s)")
+
+    return {
+        "n_stocks":         len(tickers),
+        "n_series":         P_g,
+        "signal_sharpes":   {k: round(v, 4) for k, v in sig_sh.items()},
+        "signal_winrates":  {k: round(v, 4) for k, v in sig_wr.items()},
+        "signal_counts":    sig_n,
+        "signal_ranking":   ranked,
+        "score_multipliers": {"rsi": mul_rsi, "macd": mul_macd, "bb": mul_bb, "ma": mul_ma},
+        "folds": [{"fold": f["fold"],
+                   "weights": {"rsi": f["best"]["w"][0], "macd": f["best"]["w"][1],
+                               "bb":  f["best"]["w"][2], "ma":   f["best"]["w"][3]},
+                   "threshold":  f["best"]["thr"],
+                   "hold_days":  f["best"]["hold"],
+                   "train_sharpe": round(f["best"]["sh"], 4),
+                   "test_sharpe":  round(f["test"]["sh"],  4)}
+                  for f in fold_results],
+    }
+
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -533,20 +753,44 @@ def main():
     print(f"  Groups: large={len(SIZE_GROUPS['large'])}  "
           f"mid={len(SIZE_GROUPS['mid'])}  small={len(SIZE_GROUPS['small'])}")
 
-    # ── Run per-size-group backtest ───────────────────────────────────────
-    group_results: dict[str, dict] = {}
+    # ── Run per-size-group swing backtest ─────────────────────────────────
+    swing_results: dict[str, dict] = {}
     for gname, tickers in SIZE_GROUPS.items():
-        print(f"\n[{list(SIZE_GROUPS).index(gname)+1}/3] {gname.upper()} CAP "
+        print(f"\n[SWING {list(SIZE_GROUPS).index(gname)+1}/3] {gname.upper()} CAP "
               f"({len(tickers)} stocks) ...")
-        group_results[gname] = run_size_group(gname, tickers, wlist)
+        swing_results[gname] = run_size_group(gname, tickers, wlist)
 
-    # ── Summary table ─────────────────────────────────────────────────────
+    # ── Summary table (swing) ─────────────────────────────────────────────
     print("\n" + "=" * 68)
-    print("  SIZE-STRATIFIED MULTIPLIERS SUMMARY")
+    print("  SWING TRADE — SIZE-STRATIFIED MULTIPLIERS SUMMARY")
     print("=" * 68)
     print(f"  {'Group':6s}  {'RSI':>7s}  {'MACD':>7s}  {'BB':>7s}  {'MA':>7s}  "
           f"{'Best signal':12s}")
-    for gname, gr in group_results.items():
+    for gname, gr in swing_results.items():
+        m   = gr["score_multipliers"]
+        top = gr["signal_ranking"][0]
+        print(f"  {gname:6s}   ×{m['rsi']:.3f}   ×{m['macd']:.3f}   "
+              f"×{m['bb']:.3f}   ×{m['ma']:.3f}   {top}")
+
+    # ── Run per-size-group day trade backtest ─────────────────────────────
+    print("\n" + "=" * 68)
+    print("  DAY TRADE — Size-Stratified (large / mid / small)")
+    print("=" * 68)
+    print(f"  Hold periods: {DAY_HOLD_DAYS}  |  Thresholds: {DAY_THRESHOLDS}")
+
+    day_results: dict[str, dict] = {}
+    for gname, tickers in SIZE_GROUPS.items():
+        print(f"\n[DAY {list(SIZE_GROUPS).index(gname)+1}/3] {gname.upper()} CAP "
+              f"({len(tickers)} stocks) ...")
+        day_results[gname] = run_size_group_day(gname, tickers, wlist)
+
+    # ── Summary table (day trade) ─────────────────────────────────────────
+    print("\n" + "=" * 68)
+    print("  DAY TRADE — SIZE-STRATIFIED MULTIPLIERS SUMMARY")
+    print("=" * 68)
+    print(f"  {'Group':6s}  {'RSI':>7s}  {'MACD':>7s}  {'BB':>7s}  {'MA':>7s}  "
+          f"{'Best signal':12s}")
+    for gname, gr in day_results.items():
         m   = gr["score_multipliers"]
         top = gr["signal_ranking"][0]
         print(f"  {gname:6s}   ×{m['rsi']:.3f}   ×{m['macd']:.3f}   "
@@ -559,10 +803,18 @@ def main():
         "note":    "Calibrated simulation. Size groups: large(23) mid(18) small(9).",
         "n_paths_per_stock": N_PATHS,
         "n_days":  N_DAYS,
-        "thresholds":  THRESHOLDS,
-        "hold_days":   HOLD_DAYS,
-        "weight_step": WEIGHT_STEP,
-        "size_groups": group_results,
+        "swing": {
+            "thresholds":  THRESHOLDS,
+            "hold_days":   HOLD_DAYS,
+            "weight_step": WEIGHT_STEP,
+            "size_groups": swing_results,
+        },
+        "day_trade": {
+            "thresholds":  DAY_THRESHOLDS,
+            "hold_days":   DAY_HOLD_DAYS,
+            "weight_step": WEIGHT_STEP,
+            "size_groups": day_results,
+        },
     }
     out = Path(__file__).parent / "backtest_results.json"
     out.write_text(json.dumps(result, indent=2, ensure_ascii=False))

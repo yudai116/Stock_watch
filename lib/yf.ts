@@ -2,7 +2,7 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const YFClass = require("yahoo-finance2").default;
 const yf = new YFClass() as InstanceType<typeof YFClass>;
-import { computeScore, getPeLabel, scoreAnalyst } from "./scorer";
+import { computeScore, computeScoreDay, getPeLabel, scoreAnalyst } from "./scorer";
 import { calcRSI, calcMACD, calcBollinger, calcEMA } from "./indicators";
 import { getSector, getSize, DEFAULT_SECTOR_WATCHLIST } from "./sectors";
 import type { StockScore, StockDetail, OHLCVPoint, SeriesPoint, MACDPoint, BBPoint } from "@/types";
@@ -54,7 +54,7 @@ async function fetchQuote(ticker: string) {
   }
 }
 
-export async function buildStockScore(ticker: string): Promise<StockScore> {
+export async function buildStockScore(ticker: string, mode: "swing" | "day" = "swing"): Promise<StockScore> {
   const upper = ticker.toUpperCase();
   const market = detectMarket(upper);
   const currency = getCurrency(market);
@@ -65,7 +65,7 @@ export async function buildStockScore(ticker: string): Promise<StockScore> {
   if (rows.length < 30) throw new Error(`Not enough data for ${upper}`);
 
   const closes = rows.map((r) => r.close);
-  const technicalScores = computeScore(closes, sizeKey);
+  const technicalScores = mode === "day" ? computeScoreDay(closes, sizeKey) : computeScore(closes, sizeKey);
   const technicalTotal = technicalScores.total; // 0-100
 
   const price = closes[closes.length - 1];
@@ -120,7 +120,7 @@ export async function buildStockScore(ticker: string): Promise<StockScore> {
   };
 }
 
-export async function buildStockDetail(ticker: string): Promise<StockDetail> {
+export async function buildStockDetail(ticker: string, mode: "swing" | "day" = "swing"): Promise<StockDetail> {
   const upper = ticker.toUpperCase();
   const market = detectMarket(upper);
   const currency = getCurrency(market);
@@ -131,7 +131,7 @@ export async function buildStockDetail(ticker: string): Promise<StockDetail> {
   if (rows.length < 30) throw new Error(`Not enough data for ${upper}`);
 
   const closes = rows.map((r) => r.close);
-  const technicalScores = computeScore(closes, sizeKey2);
+  const technicalScores = mode === "day" ? computeScoreDay(closes, sizeKey2) : computeScore(closes, sizeKey2);
   const technicalTotal = technicalScores.total;
 
   const price = closes[closes.length - 1];

@@ -6,6 +6,7 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const tickersParam = url.searchParams.get("tickers") ?? "";
   const tickers = tickersParam.split(",").map((t) => t.trim().toUpperCase()).filter(Boolean).slice(0, 50);
+  const mode = (url.searchParams.get("mode") ?? "swing") as "swing" | "day";
 
   if (tickers.length === 0) {
     return NextResponse.json({ results: [], errors: {} });
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest) {
   await Promise.all(
     tickers.map(async (ticker) => {
       try {
-        results.push(await buildStockScore(ticker));
+        results.push(await buildStockScore(ticker, mode));
       } catch (e: unknown) {
         errors[ticker] = e instanceof Error ? e.message : String(e);
       }

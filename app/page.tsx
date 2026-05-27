@@ -4,6 +4,7 @@ import { useWatchlist } from "@/hooks/useWatchlist";
 import StockCard from "@/components/StockCard";
 import AddTickerForm from "@/components/AddTickerForm";
 import AutoRefreshToggle from "@/components/AutoRefreshToggle";
+import ModeToggle, { type TradeMode } from "@/components/ModeToggle";
 import { SECTOR_LABELS, getSector, type SectorKey } from "@/lib/sectors";
 
 type Filter = "ALL" | SectorKey;
@@ -22,7 +23,8 @@ export default function Dashboard() {
   const [refreshInterval, setRefreshInterval] = useState(300_000);
   const [filter, setFilter] = useState<Filter>("ALL");
   const [sortMode, setSortMode] = useState<SortMode>("score");
-  const { stocks, isLoading, addTicker, removeTicker, mutate, errors } = useWatchlist(refreshInterval);
+  const [tradeMode, setTradeMode] = useState<TradeMode>("swing");
+  const { stocks, isLoading, addTicker, removeTicker, mutate, errors } = useWatchlist(refreshInterval, tradeMode);
 
   const filtered = useMemo(() => {
     let list =
@@ -39,12 +41,20 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4">
-      {/* Title */}
-      <div>
-        <h1 className="text-xl font-bold text-white">テーマ株 監視</h1>
-        <p className="text-gray-500 text-xs mt-0.5">
-          半導体・メモリ・AI・量子・核融合 ─ スイングトレードスコア
-        </p>
+      {/* Title + mode toggle */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-white">テーマ株 監視</h1>
+          <p className="text-gray-500 text-xs mt-0.5">
+            半導体・メモリ・AI・量子・核融合 ─{" "}
+            {tradeMode === "day" ? (
+              <span className="text-orange-400">デイトレードスコア (EMA5/10・モメンタムRSI)</span>
+            ) : (
+              "スイングトレードスコア"
+            )}
+          </p>
+        </div>
+        <ModeToggle mode={tradeMode} onChange={(m) => { setTradeMode(m); mutate(); }} />
       </div>
 
       {/* Add ticker form */}
