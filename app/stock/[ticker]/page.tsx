@@ -128,7 +128,12 @@ export default function StockDetailPage({ params }: Props) {
                   <p className="text-gray-600">重みは規模別・50銘柄10年MCバックテスト（シャープレシオ最大化）で最適化</p>
                 </>
               ) : (
-                <p className="text-orange-700">デイトレ重みは最適化中（バックテスト完了後に更新予定）</p>
+                <>
+                  {detail.size === "large" && <p className="text-gray-500">大型株: MA×1.264 + MACD×1.109 + RSI×0.885 + BB×0.743</p>}
+                  {detail.size === "mid"   && <p className="text-gray-500">中型株: MA×1.185 + MACD×1.092 + RSI×0.966 + BB×0.757</p>}
+                  {detail.size === "small" && <p className="text-gray-500">小型株: MA×1.105 + MACD×1.015 + BB×0.969 + RSI×0.911</p>}
+                  <p className="text-gray-600">重みは規模別・50銘柄 hold=1日 MCバックテスト（シャープレシオ最大化）で最適化</p>
+                </>
               )}
               <p className="text-gray-500">合計スコア = テクニカル×70% + アナリスト評価×30%</p>
               <p className="text-yellow-400 mt-1">⚠️ 投資判断は自己責任でお願いします。</p>

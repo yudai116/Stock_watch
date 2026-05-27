@@ -3,328 +3,648 @@
   "note": "Calibrated simulation. Size groups: large(23) mid(18) small(9).",
   "n_paths_per_stock": 15,
   "n_days": 2520,
-  "thresholds": [
-    50,
-    55,
-    60,
-    62,
-    65,
-    67,
-    70,
-    75
-  ],
-  "hold_days": [
-    3,
-    5,
-    7,
-    10,
-    15,
-    20
-  ],
-  "weight_step": 10,
-  "size_groups": {
-    "large": {
-      "n_stocks": 23,
-      "n_series": 345,
-      "signal_sharpes": {
-        "RSI": 0.3039,
-        "MACD": 0.5366,
-        "BB": 0.3346,
-        "MA": 0.5092
-      },
-      "signal_winrates": {
-        "RSI": 0.52,
-        "MACD": 0.5344,
-        "BB": 0.5237,
-        "MA": 0.5335
-      },
-      "signal_counts": {
-        "RSI": 49345,
-        "MACD": 88392,
-        "BB": 104437,
-        "MA": 131753
-      },
-      "signal_ranking": [
-        "MACD",
-        "MA",
-        "BB",
-        "RSI"
-      ],
-      "score_multipliers": {
-        "rsi": 0.722,
-        "macd": 1.274,
-        "bb": 0.795,
-        "ma": 1.209
-      },
-      "folds": [
-        {
-          "fold": 1,
-          "weights": {
-            "rsi": 30,
-            "macd": 20,
-            "bb": 30,
-            "ma": 20
-          },
-          "threshold": 70,
-          "hold_days": 3,
-          "train_sharpe": 6.1468,
-          "test_sharpe": 4.1448
+  "swing": {
+    "thresholds": [
+      50,
+      55,
+      60,
+      62,
+      65,
+      67,
+      70,
+      75
+    ],
+    "hold_days": [
+      3,
+      5,
+      7,
+      10,
+      15,
+      20
+    ],
+    "weight_step": 10,
+    "size_groups": {
+      "large": {
+        "n_stocks": 23,
+        "n_series": 345,
+        "signal_sharpes": {
+          "RSI": 0.3039,
+          "MACD": 0.5366,
+          "BB": 0.3346,
+          "MA": 0.5092
         },
-        {
-          "fold": 2,
-          "weights": {
-            "rsi": 10,
-            "macd": 20,
-            "bb": 40,
-            "ma": 30
-          },
-          "threshold": 65,
-          "hold_days": 3,
-          "train_sharpe": 8.0297,
-          "test_sharpe": -99.0
+        "signal_winrates": {
+          "RSI": 0.52,
+          "MACD": 0.5344,
+          "BB": 0.5237,
+          "MA": 0.5335
         },
-        {
-          "fold": 3,
-          "weights": {
-            "rsi": 10,
-            "macd": 20,
-            "bb": 40,
-            "ma": 30
-          },
-          "threshold": 65,
-          "hold_days": 3,
-          "train_sharpe": 6.0569,
-          "test_sharpe": -99.0
+        "signal_counts": {
+          "RSI": 49345,
+          "MACD": 88392,
+          "BB": 104437,
+          "MA": 131753
         },
-        {
-          "fold": 4,
-          "weights": {
-            "rsi": 20,
-            "macd": 20,
-            "bb": 40,
-            "ma": 20
-          },
-          "threshold": 70,
-          "hold_days": 3,
-          "train_sharpe": 5.6035,
-          "test_sharpe": -99.0
+        "signal_ranking": [
+          "MACD",
+          "MA",
+          "BB",
+          "RSI"
+        ],
+        "score_multipliers": {
+          "rsi": 0.722,
+          "macd": 1.274,
+          "bb": 0.795,
+          "ma": 1.209
         },
-        {
-          "fold": 5,
-          "weights": {
-            "rsi": 20,
-            "macd": 20,
-            "bb": 40,
-            "ma": 20
+        "folds": [
+          {
+            "fold": 1,
+            "weights": {
+              "rsi": 30,
+              "macd": 20,
+              "bb": 30,
+              "ma": 20
+            },
+            "threshold": 70,
+            "hold_days": 3,
+            "train_sharpe": 6.1468,
+            "test_sharpe": 4.1448
           },
-          "threshold": 70,
-          "hold_days": 3,
-          "train_sharpe": 5.4632,
-          "test_sharpe": -99.0
-        }
-      ]
-    },
-    "mid": {
-      "n_stocks": 18,
-      "n_series": 270,
-      "signal_sharpes": {
-        "RSI": 0.3547,
-        "MACD": 0.4302,
-        "BB": 0.4029,
-        "MA": 0.4982
+          {
+            "fold": 2,
+            "weights": {
+              "rsi": 10,
+              "macd": 20,
+              "bb": 40,
+              "ma": 30
+            },
+            "threshold": 65,
+            "hold_days": 3,
+            "train_sharpe": 8.0297,
+            "test_sharpe": -99.0
+          },
+          {
+            "fold": 3,
+            "weights": {
+              "rsi": 10,
+              "macd": 20,
+              "bb": 40,
+              "ma": 30
+            },
+            "threshold": 65,
+            "hold_days": 3,
+            "train_sharpe": 6.0569,
+            "test_sharpe": -99.0
+          },
+          {
+            "fold": 4,
+            "weights": {
+              "rsi": 20,
+              "macd": 20,
+              "bb": 40,
+              "ma": 20
+            },
+            "threshold": 70,
+            "hold_days": 3,
+            "train_sharpe": 5.6035,
+            "test_sharpe": -99.0
+          },
+          {
+            "fold": 5,
+            "weights": {
+              "rsi": 20,
+              "macd": 20,
+              "bb": 40,
+              "ma": 20
+            },
+            "threshold": 70,
+            "hold_days": 3,
+            "train_sharpe": 5.4632,
+            "test_sharpe": -99.0
+          }
+        ]
       },
-      "signal_winrates": {
-        "RSI": 0.5159,
-        "MACD": 0.521,
-        "BB": 0.5169,
-        "MA": 0.5243
+      "mid": {
+        "n_stocks": 18,
+        "n_series": 270,
+        "signal_sharpes": {
+          "RSI": 0.3547,
+          "MACD": 0.4302,
+          "BB": 0.4029,
+          "MA": 0.4982
+        },
+        "signal_winrates": {
+          "RSI": 0.5159,
+          "MACD": 0.521,
+          "BB": 0.5169,
+          "MA": 0.5243
+        },
+        "signal_counts": {
+          "RSI": 41053,
+          "MACD": 69471,
+          "BB": 84910,
+          "MA": 85556
+        },
+        "signal_ranking": [
+          "MA",
+          "MACD",
+          "BB",
+          "RSI"
+        ],
+        "score_multipliers": {
+          "rsi": 0.842,
+          "macd": 1.021,
+          "bb": 0.956,
+          "ma": 1.182
+        },
+        "folds": [
+          {
+            "fold": 1,
+            "weights": {
+              "rsi": 30,
+              "macd": 10,
+              "bb": 30,
+              "ma": 30
+            },
+            "threshold": 70,
+            "hold_days": 3,
+            "train_sharpe": 3.7001,
+            "test_sharpe": -99.0
+          },
+          {
+            "fold": 2,
+            "weights": {
+              "rsi": 10,
+              "macd": 10,
+              "bb": 40,
+              "ma": 40
+            },
+            "threshold": 65,
+            "hold_days": 3,
+            "train_sharpe": 3.5843,
+            "test_sharpe": 1.3599
+          },
+          {
+            "fold": 3,
+            "weights": {
+              "rsi": 10,
+              "macd": 10,
+              "bb": 40,
+              "ma": 40
+            },
+            "threshold": 65,
+            "hold_days": 3,
+            "train_sharpe": 2.4226,
+            "test_sharpe": 2.1634
+          },
+          {
+            "fold": 4,
+            "weights": {
+              "rsi": 10,
+              "macd": 10,
+              "bb": 40,
+              "ma": 40
+            },
+            "threshold": 65,
+            "hold_days": 3,
+            "train_sharpe": 2.823,
+            "test_sharpe": 0.9241
+          },
+          {
+            "fold": 5,
+            "weights": {
+              "rsi": 40,
+              "macd": 20,
+              "bb": 10,
+              "ma": 30
+            },
+            "threshold": 70,
+            "hold_days": 10,
+            "train_sharpe": 3.9845,
+            "test_sharpe": -99.0
+          }
+        ]
       },
-      "signal_counts": {
-        "RSI": 41053,
-        "MACD": 69471,
-        "BB": 84910,
-        "MA": 85556
+      "small": {
+        "n_stocks": 9,
+        "n_series": 135,
+        "signal_sharpes": {
+          "RSI": 0.5649,
+          "MACD": 0.4748,
+          "BB": 0.5209,
+          "MA": 0.5202
+        },
+        "signal_winrates": {
+          "RSI": 0.5077,
+          "MACD": 0.4994,
+          "BB": 0.5068,
+          "MA": 0.5021
+        },
+        "signal_counts": {
+          "RSI": 21589,
+          "MACD": 34806,
+          "BB": 42905,
+          "MA": 34620
+        },
+        "signal_ranking": [
+          "RSI",
+          "BB",
+          "MA",
+          "MACD"
+        ],
+        "score_multipliers": {
+          "rsi": 1.086,
+          "macd": 0.913,
+          "bb": 1.001,
+          "ma": 1.0
+        },
+        "folds": [
+          {
+            "fold": 1,
+            "weights": {
+              "rsi": 0,
+              "macd": 40,
+              "bb": 40,
+              "ma": 20
+            },
+            "threshold": 70,
+            "hold_days": 3,
+            "train_sharpe": 6.5553,
+            "test_sharpe": -99.0
+          },
+          {
+            "fold": 2,
+            "weights": {
+              "rsi": 0,
+              "macd": 30,
+              "bb": 50,
+              "ma": 20
+            },
+            "threshold": 70,
+            "hold_days": 3,
+            "train_sharpe": 6.1201,
+            "test_sharpe": -99.0
+          },
+          {
+            "fold": 3,
+            "weights": {
+              "rsi": 0,
+              "macd": 30,
+              "bb": 50,
+              "ma": 20
+            },
+            "threshold": 70,
+            "hold_days": 3,
+            "train_sharpe": 6.2746,
+            "test_sharpe": -99.0
+          },
+          {
+            "fold": 4,
+            "weights": {
+              "rsi": 0,
+              "macd": 30,
+              "bb": 50,
+              "ma": 20
+            },
+            "threshold": 70,
+            "hold_days": 3,
+            "train_sharpe": 6.8089,
+            "test_sharpe": -99.0
+          },
+          {
+            "fold": 5,
+            "weights": {
+              "rsi": 30,
+              "macd": 20,
+              "bb": 30,
+              "ma": 20
+            },
+            "threshold": 70,
+            "hold_days": 3,
+            "train_sharpe": 6.9802,
+            "test_sharpe": -99.0
+          }
+        ]
+      }
+    }
+  },
+  "day_trade": {
+    "thresholds": [
+      55,
+      60,
+      65,
+      70
+    ],
+    "hold_days": [
+      1,
+      2
+    ],
+    "weight_step": 10,
+    "size_groups": {
+      "large": {
+        "n_stocks": 23,
+        "n_series": 345,
+        "signal_sharpes": {
+          "RSI": 0.4224,
+          "MACD": 0.5294,
+          "BB": 0.3545,
+          "MA": 0.6032
+        },
+        "signal_winrates": {
+          "RSI": 0.5146,
+          "MACD": 0.5196,
+          "BB": 0.5124,
+          "MA": 0.5216
+        },
+        "signal_counts": {
+          "RSI": 110390,
+          "MACD": 88329,
+          "BB": 105359,
+          "MA": 299494
+        },
+        "signal_ranking": [
+          "MA",
+          "MACD",
+          "RSI",
+          "BB"
+        ],
+        "score_multipliers": {
+          "rsi": 0.885,
+          "macd": 1.109,
+          "bb": 0.743,
+          "ma": 1.264
+        },
+        "folds": [
+          {
+            "fold": 1,
+            "weights": {
+              "rsi": 30,
+              "macd": 0,
+              "bb": 30,
+              "ma": 40
+            },
+            "threshold": 70,
+            "hold_days": 2,
+            "train_sharpe": 4.9359,
+            "test_sharpe": 3.1407
+          },
+          {
+            "fold": 2,
+            "weights": {
+              "rsi": 0,
+              "macd": 30,
+              "bb": 50,
+              "ma": 20
+            },
+            "threshold": 70,
+            "hold_days": 1,
+            "train_sharpe": 4.3986,
+            "test_sharpe": 3.5519
+          },
+          {
+            "fold": 3,
+            "weights": {
+              "rsi": 10,
+              "macd": 20,
+              "bb": 50,
+              "ma": 20
+            },
+            "threshold": 70,
+            "hold_days": 1,
+            "train_sharpe": 7.4138,
+            "test_sharpe": 5.3205
+          },
+          {
+            "fold": 4,
+            "weights": {
+              "rsi": 10,
+              "macd": 20,
+              "bb": 50,
+              "ma": 20
+            },
+            "threshold": 70,
+            "hold_days": 1,
+            "train_sharpe": 5.1829,
+            "test_sharpe": 5.3438
+          },
+          {
+            "fold": 5,
+            "weights": {
+              "rsi": 10,
+              "macd": 20,
+              "bb": 50,
+              "ma": 20
+            },
+            "threshold": 70,
+            "hold_days": 1,
+            "train_sharpe": 6.5542,
+            "test_sharpe": 0.5103
+          }
+        ]
       },
-      "signal_ranking": [
-        "MA",
-        "MACD",
-        "BB",
-        "RSI"
-      ],
-      "score_multipliers": {
-        "rsi": 0.842,
-        "macd": 1.021,
-        "bb": 0.956,
-        "ma": 1.182
+      "mid": {
+        "n_stocks": 18,
+        "n_series": 270,
+        "signal_sharpes": {
+          "RSI": 0.391,
+          "MACD": 0.4421,
+          "BB": 0.3065,
+          "MA": 0.4797
+        },
+        "signal_winrates": {
+          "RSI": 0.5111,
+          "MACD": 0.5091,
+          "BB": 0.508,
+          "MA": 0.5106
+        },
+        "signal_counts": {
+          "RSI": 87590,
+          "MACD": 69405,
+          "BB": 85552,
+          "MA": 206633
+        },
+        "signal_ranking": [
+          "MA",
+          "MACD",
+          "RSI",
+          "BB"
+        ],
+        "score_multipliers": {
+          "rsi": 0.966,
+          "macd": 1.092,
+          "bb": 0.757,
+          "ma": 1.185
+        },
+        "folds": [
+          {
+            "fold": 1,
+            "weights": {
+              "rsi": 20,
+              "macd": 0,
+              "bb": 30,
+              "ma": 50
+            },
+            "threshold": 70,
+            "hold_days": 1,
+            "train_sharpe": 6.6899,
+            "test_sharpe": 6.4039
+          },
+          {
+            "fold": 2,
+            "weights": {
+              "rsi": 30,
+              "macd": 10,
+              "bb": 40,
+              "ma": 20
+            },
+            "threshold": 70,
+            "hold_days": 1,
+            "train_sharpe": 9.2939,
+            "test_sharpe": -3.3306
+          },
+          {
+            "fold": 3,
+            "weights": {
+              "rsi": 20,
+              "macd": 0,
+              "bb": 30,
+              "ma": 50
+            },
+            "threshold": 70,
+            "hold_days": 1,
+            "train_sharpe": 6.6624,
+            "test_sharpe": 1.0509
+          },
+          {
+            "fold": 4,
+            "weights": {
+              "rsi": 20,
+              "macd": 0,
+              "bb": 30,
+              "ma": 50
+            },
+            "threshold": 70,
+            "hold_days": 1,
+            "train_sharpe": 5.9835,
+            "test_sharpe": -0.1847
+          },
+          {
+            "fold": 5,
+            "weights": {
+              "rsi": 20,
+              "macd": 10,
+              "bb": 30,
+              "ma": 40
+            },
+            "threshold": 70,
+            "hold_days": 1,
+            "train_sharpe": 5.0997,
+            "test_sharpe": -99.0
+          }
+        ]
       },
-      "folds": [
-        {
-          "fold": 1,
-          "weights": {
-            "rsi": 30,
-            "macd": 10,
-            "bb": 30,
-            "ma": 30
-          },
-          "threshold": 70,
-          "hold_days": 3,
-          "train_sharpe": 3.7001,
-          "test_sharpe": -99.0
+      "small": {
+        "n_stocks": 9,
+        "n_series": 135,
+        "signal_sharpes": {
+          "RSI": 0.4919,
+          "MACD": 0.5485,
+          "BB": 0.5237,
+          "MA": 0.5969
         },
-        {
-          "fold": 2,
-          "weights": {
-            "rsi": 10,
-            "macd": 10,
-            "bb": 40,
-            "ma": 40
-          },
-          "threshold": 65,
-          "hold_days": 3,
-          "train_sharpe": 3.5843,
-          "test_sharpe": 1.3599
+        "signal_winrates": {
+          "RSI": 0.4999,
+          "MACD": 0.5022,
+          "BB": 0.5053,
+          "MA": 0.5044
         },
-        {
-          "fold": 3,
-          "weights": {
-            "rsi": 10,
-            "macd": 10,
-            "bb": 40,
-            "ma": 40
-          },
-          "threshold": 65,
-          "hold_days": 3,
-          "train_sharpe": 2.4226,
-          "test_sharpe": 2.1634
+        "signal_counts": {
+          "RSI": 42914,
+          "MACD": 34509,
+          "BB": 42950,
+          "MA": 83667
         },
-        {
-          "fold": 4,
-          "weights": {
-            "rsi": 10,
-            "macd": 10,
-            "bb": 40,
-            "ma": 40
-          },
-          "threshold": 65,
-          "hold_days": 3,
-          "train_sharpe": 2.823,
-          "test_sharpe": 0.9241
+        "signal_ranking": [
+          "MA",
+          "MACD",
+          "BB",
+          "RSI"
+        ],
+        "score_multipliers": {
+          "rsi": 0.911,
+          "macd": 1.015,
+          "bb": 0.969,
+          "ma": 1.105
         },
-        {
-          "fold": 5,
-          "weights": {
-            "rsi": 40,
-            "macd": 20,
-            "bb": 10,
-            "ma": 30
+        "folds": [
+          {
+            "fold": 1,
+            "weights": {
+              "rsi": 50,
+              "macd": 0,
+              "bb": 20,
+              "ma": 30
+            },
+            "threshold": 70,
+            "hold_days": 1,
+            "train_sharpe": 2.7767,
+            "test_sharpe": -0.54
           },
-          "threshold": 70,
-          "hold_days": 10,
-          "train_sharpe": 3.9845,
-          "test_sharpe": -99.0
-        }
-      ]
-    },
-    "small": {
-      "n_stocks": 9,
-      "n_series": 135,
-      "signal_sharpes": {
-        "RSI": 0.5649,
-        "MACD": 0.4748,
-        "BB": 0.5209,
-        "MA": 0.5202
-      },
-      "signal_winrates": {
-        "RSI": 0.5077,
-        "MACD": 0.4994,
-        "BB": 0.5068,
-        "MA": 0.5021
-      },
-      "signal_counts": {
-        "RSI": 21589,
-        "MACD": 34806,
-        "BB": 42905,
-        "MA": 34620
-      },
-      "signal_ranking": [
-        "RSI",
-        "BB",
-        "MA",
-        "MACD"
-      ],
-      "score_multipliers": {
-        "rsi": 1.086,
-        "macd": 0.913,
-        "bb": 1.001,
-        "ma": 1.0
-      },
-      "folds": [
-        {
-          "fold": 1,
-          "weights": {
-            "rsi": 0,
-            "macd": 40,
-            "bb": 40,
-            "ma": 20
+          {
+            "fold": 2,
+            "weights": {
+              "rsi": 40,
+              "macd": 0,
+              "bb": 30,
+              "ma": 30
+            },
+            "threshold": 70,
+            "hold_days": 1,
+            "train_sharpe": 3.1517,
+            "test_sharpe": -1.1529
           },
-          "threshold": 70,
-          "hold_days": 3,
-          "train_sharpe": 6.5553,
-          "test_sharpe": -99.0
-        },
-        {
-          "fold": 2,
-          "weights": {
-            "rsi": 0,
-            "macd": 30,
-            "bb": 50,
-            "ma": 20
+          {
+            "fold": 3,
+            "weights": {
+              "rsi": 0,
+              "macd": 30,
+              "bb": 50,
+              "ma": 20
+            },
+            "threshold": 70,
+            "hold_days": 2,
+            "train_sharpe": 3.3508,
+            "test_sharpe": -3.3877
           },
-          "threshold": 70,
-          "hold_days": 3,
-          "train_sharpe": 6.1201,
-          "test_sharpe": -99.0
-        },
-        {
-          "fold": 3,
-          "weights": {
-            "rsi": 0,
-            "macd": 30,
-            "bb": 50,
-            "ma": 20
+          {
+            "fold": 4,
+            "weights": {
+              "rsi": 0,
+              "macd": 10,
+              "bb": 40,
+              "ma": 50
+            },
+            "threshold": 70,
+            "hold_days": 2,
+            "train_sharpe": 7.4524,
+            "test_sharpe": -99.0
           },
-          "threshold": 70,
-          "hold_days": 3,
-          "train_sharpe": 6.2746,
-          "test_sharpe": -99.0
-        },
-        {
-          "fold": 4,
-          "weights": {
-            "rsi": 0,
-            "macd": 30,
-            "bb": 50,
-            "ma": 20
-          },
-          "threshold": 70,
-          "hold_days": 3,
-          "train_sharpe": 6.8089,
-          "test_sharpe": -99.0
-        },
-        {
-          "fold": 5,
-          "weights": {
-            "rsi": 30,
-            "macd": 20,
-            "bb": 30,
-            "ma": 20
-          },
-          "threshold": 70,
-          "hold_days": 3,
-          "train_sharpe": 6.9802,
-          "test_sharpe": -99.0
-        }
-      ]
+          {
+            "fold": 5,
+            "weights": {
+              "rsi": 30,
+              "macd": 0,
+              "bb": 30,
+              "ma": 40
+            },
+            "threshold": 70,
+            "hold_days": 1,
+            "train_sharpe": 8.1192,
+            "test_sharpe": -99.0
+          }
+        ]
+      }
     }
   }
 }

@@ -363,11 +363,15 @@ export function computeScoreDay(closes: number[], size: "large" | "mid" | "small
   const movingAvg = scoreMADay(closes);
   // Day trade multipliers from hold=1d size-stratified Monte Carlo walk-forward backtest.
   // Updated by run_backtest.py (day mode) — see backtest/backtest_results.json.
+  // Derived from 50-stock hold=1d MC walk-forward (thr=65):
+  //   large: MA(0.603)>MACD(0.529)>RSI(0.422)>BB(0.355) → MA/MACD dominant
+  //   mid:   MA(0.480)>MACD(0.442)>RSI(0.391)>BB(0.307) → MA/MACD dominant
+  //   small: MA(0.597)>MACD(0.548)>BB(0.524)>RSI(0.492) → more balanced
   const MULTS_DAY: Record<"large" | "mid" | "small", [number, number, number, number]> = {
     //          [RSI,   MACD,   BB,    MA  ]
-    large: [1.0, 1.0, 1.0, 1.0],  // placeholder — update after backtest
-    mid:   [1.0, 1.0, 1.0, 1.0],
-    small: [1.0, 1.0, 1.0, 1.0],
+    large: [0.885, 1.109, 0.743, 1.264],  // MA strongest, BB weakest
+    mid:   [0.966, 1.092, 0.757, 1.185],  // MA/MACD lead, BB weak
+    small: [0.911, 1.015, 0.969, 1.105],  // more balanced, MA still leads
   };
   const [mRsi, mMacd, mBb, mMa] = MULTS_DAY[size];
   const total = Math.min(100, Math.round(

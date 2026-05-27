@@ -101,7 +101,11 @@ export default function IndicatorBreakdown({ stock, mode = "swing" }: Props) {
             {stock.size === "small" && <p>小型株 (RSI/BB重視): RSI×1.086 + MACD×0.913 + BB×1.001 + MA×1.000</p>}
           </>
         ) : (
-          <p className="text-orange-700">デイトレモード: RSI×1.0 + MACD×1.0 + BB×1.0 + EMA5/10×1.0 (重み最適化中)</p>
+          <>
+            {stock.size === "large" && <p>大型株デイトレ (MA/MACD重視): RSI×0.885 + MACD×1.109 + BB×0.743 + MA×1.264</p>}
+            {stock.size === "mid"   && <p>中型株デイトレ (MA/MACD重視): RSI×0.966 + MACD×1.092 + BB×0.757 + MA×1.185</p>}
+            {stock.size === "small" && <p>小型株デイトレ (バランス型): RSI×0.911 + MACD×1.015 + BB×0.969 + MA×1.105</p>}
+          </>
         )}
         <p>{hasAnalyst ? "合計 = テクニカル×70% + アナリスト評価×30%" : "合計 = テクニカルスコア (アナリストデータなし)"}</p>
       </div>
