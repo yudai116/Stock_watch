@@ -103,6 +103,8 @@ export function scoreBollinger(closes: number[]): ScoreResult {
   if (validPctB.length < 2) return { score: 12, max: 25, value: null, signal: "insufficient_data" };
 
   const curr = validPctB[validPctB.length - 1];
+  const prev = validPctB[validPctB.length - 2];
+  const rising = curr > prev;
 
   // Squeeze bonus
   const bw = upper.map((u, i) => isNaN(u) ? NaN : (u - lower[i]) / middle[i]);
@@ -114,18 +116,37 @@ export function scoreBollinger(closes: number[]): ScoreResult {
     if (bwNow < bwAvg * 0.85 && curr < 0.3) squeezeBonus = 3;
   }
 
+  // Direction bonus: %B rising = contrarian bounce (lower half) or momentum continuation (upper half)
+  let dirBonus = 0;
+  if (rising) dirBonus = curr < 0.5 ? 4 : curr <= 0.85 ? 3 : 1;
+
   let raw: number;
   let signal: string;
 
-  if (curr < 0) { raw = interp(curr, [[-0.2, 25], [0, 21]]); signal = "below_lower_band"; }
-  else if (curr < 0.1) { raw = interp(curr, [[0, 21], [0.1, 17]]); signal = "near_lower_band"; }
-  else if (curr < 0.25) { raw = interp(curr, [[0.1, 17], [0.25, 12]]); signal = "lower_zone"; }
-  else if (curr < 0.5) { raw = interp(curr, [[0.25, 12], [0.5, 8]]); signal = "lower_half"; }
-  else if (curr < 0.75) { raw = interp(curr, [[0.5, 8], [0.75, 4]]); signal = "upper_half"; }
-  else if (curr < 0.9) { raw = interp(curr, [[0.75, 4], [0.9, 1]]); signal = "near_upper_band"; }
-  else { raw = interp(curr, [[0.9, 1], [1.2, 0]]); signal = "above_upper_band"; }
+  if (curr < 0) {
+    raw = interp(curr, [[-0.2, 18], [0, 15]]);
+    signal = "below_lower_band";
+  } else if (curr < 0.1) {
+    raw = interp(curr, [[0, 15], [0.1, 12]]);
+    signal = "near_lower_band";
+  } else if (curr < 0.3) {
+    raw = interp(curr, [[0.1, 12], [0.3, 9]]);
+    signal = "lower_zone";
+  } else if (curr < 0.5) {
+    raw = interp(curr, [[0.3, 9], [0.5, 7]]);
+    signal = "lower_half";
+  } else if (curr < 0.7) {
+    raw = interp(curr, [[0.5, 7], [0.7, 5]]);
+    signal = rising ? "bullish_momentum" : "upper_half";
+  } else if (curr < 0.9) {
+    raw = interp(curr, [[0.7, 5], [0.9, 2]]);
+    signal = rising ? "bullish_momentum" : "near_upper_band";
+  } else {
+    raw = interp(curr, [[0.9, 2], [1.2, 0]]);
+    signal = "above_upper_band";
+  }
 
-  return { score: Math.min(Math.round(raw + squeezeBonus), 25), max: 25, value: Math.round(curr * 1000) / 1000, signal };
+  return { score: Math.min(Math.round(raw + dirBonus + squeezeBonus), 25), max: 25, value: Math.round(curr * 1000) / 1000, signal };
 }
 
 export function scoreMovingAverage(closes: number[]): ScoreResult {
