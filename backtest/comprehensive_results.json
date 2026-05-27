@@ -1,0 +1,481 @@
+{
+  "method": "comprehensive_backtest_v1_corrected_bb",
+  "runtime_seconds": 356.5,
+  "audit": {
+    "discrepancies": [
+      "BB at %B=-0.10: old=23.00, new(TS)=16.50, delta=-6.50",
+      "BB at %B=0.00: old=21.00, new(TS)=15.00, delta=-6.00",
+      "BB at %B=0.10: old=17.00, new(TS)=12.00, delta=-5.00",
+      "BB at %B=0.20: old=13.67, new(TS)=10.50, delta=-3.17",
+      "BB at %B=0.30: old=11.20, new(TS)=9.00, delta=-2.20",
+      "BB at %B=0.40: old=9.60, new(TS)=8.00, delta=-1.60",
+      "BB at %B=0.50: old=8.00, new(TS)=7.00, delta=-1.00",
+      "BB at %B=0.60: old=6.40, new(TS)=6.00, delta=-0.40",
+      "BB at %B=0.70: old=4.80, new(TS)=5.00, delta=0.20",
+      "BB at %B=0.80: old=3.00, new(TS)=3.50, delta=0.50",
+      "BB at %B=0.90: old=1.00, new(TS)=2.00, delta=1.00",
+      "BB at %B=1.00: old=0.67, new(TS)=1.33, delta=0.67",
+      "BB at %B=1.10: old=0.33, new(TS)=0.67, delta=0.33",
+      "BB: Old Python had NO direction bonus; TypeScript adds +4/+3/+1"
+    ],
+    "bb_score_comparison": {
+      "-0.1": {
+        "old_python": 23.0,
+        "new_python_ts": 16.5,
+        "delta": -6.5
+      },
+      "0.0": {
+        "old_python": 21,
+        "new_python_ts": 15,
+        "delta": -6
+      },
+      "0.1": {
+        "old_python": 17,
+        "new_python_ts": 12,
+        "delta": -5
+      },
+      "0.2": {
+        "old_python": 13.67,
+        "new_python_ts": 10.5,
+        "delta": -3.17
+      },
+      "0.3": {
+        "old_python": 11.2,
+        "new_python_ts": 9,
+        "delta": -2.2
+      },
+      "0.4": {
+        "old_python": 9.6,
+        "new_python_ts": 8.0,
+        "delta": -1.6
+      },
+      "0.5": {
+        "old_python": 8,
+        "new_python_ts": 7,
+        "delta": -1
+      },
+      "0.6": {
+        "old_python": 6.4,
+        "new_python_ts": 6.0,
+        "delta": -0.4
+      },
+      "0.7": {
+        "old_python": 4.8,
+        "new_python_ts": 5,
+        "delta": 0.2
+      },
+      "0.8": {
+        "old_python": 3.0,
+        "new_python_ts": 3.5,
+        "delta": 0.5
+      },
+      "0.9": {
+        "old_python": 1,
+        "new_python_ts": 2,
+        "delta": 1
+      },
+      "1.0": {
+        "old_python": 0.67,
+        "new_python_ts": 1.33,
+        "delta": 0.67
+      },
+      "1.1": {
+        "old_python": 0.33,
+        "new_python_ts": 0.67,
+        "delta": 0.33
+      }
+    },
+    "rsi_match": true,
+    "macd_match": true,
+    "ma_match": true,
+    "look_ahead_verified": true,
+    "look_ahead_detail": {
+      "buy_day": 100,
+      "entry_price": 108.1905,
+      "exit_day": 105,
+      "exit_price": 111.8262,
+      "return_pct": 3.3605,
+      "composite_score": 35.67,
+      "data_used": "price[0..100]",
+      "truncated_matches_full": true,
+      "look_ahead_bias": "none_confirmed",
+      "note": "Entry at same-day close is minor simplification (vs next-day open) standard in academic backtests"
+    }
+  },
+  "new_indicators": {
+    "swing_hold5_thr65": {
+      "stochastic_k": 0.1599,
+      "williams_r": 0.1599,
+      "adx": 0.0923,
+      "cci": 0.082,
+      "roc": -0.6427,
+      "aroon": 0.6045,
+      "atr_momentum": 0.2081
+    },
+    "day_hold1_thr65": {
+      "stochastic_k": 0.3907,
+      "williams_r": 0.3907,
+      "adx": 0.2602,
+      "cci": 0.1508,
+      "roc": 0.9243,
+      "aroon": 5.7968,
+      "atr_momentum": 0.4893
+    }
+  },
+  "corrected_multipliers": {
+    "swing": {
+      "large": {
+        "rsi": 0.776,
+        "macd": 1.283,
+        "bb": 0.719,
+        "ma": 1.222
+      },
+      "mid": {
+        "rsi": 0.881,
+        "macd": 1.057,
+        "bb": 0.858,
+        "ma": 1.204
+      },
+      "small": {
+        "rsi": 1.122,
+        "macd": 0.856,
+        "bb": 1.001,
+        "ma": 1.021
+      }
+    },
+    "day": {
+      "large": {
+        "rsi": 0.897,
+        "macd": 1.1,
+        "bb": 0.7,
+        "ma": 1.303
+      },
+      "mid": {
+        "rsi": 1.104,
+        "macd": 1.041,
+        "bb": 0.437,
+        "ma": 1.418
+      },
+      "small": {
+        "rsi": 0.917,
+        "macd": 1.026,
+        "bb": 0.986,
+        "ma": 1.072
+      }
+    }
+  },
+  "vs_current": {
+    "swing": {
+      "large": {
+        "change_rsi": 0.054,
+        "change_macd": 0.009,
+        "change_bb": -0.076,
+        "change_ma": 0.013
+      },
+      "mid": {
+        "change_rsi": 0.039,
+        "change_macd": 0.036,
+        "change_bb": -0.098,
+        "change_ma": 0.022
+      },
+      "small": {
+        "change_rsi": 0.036,
+        "change_macd": -0.057,
+        "change_bb": 0.0,
+        "change_ma": 0.021
+      }
+    },
+    "day": {
+      "large": {
+        "change_rsi": 0.012,
+        "change_macd": -0.009,
+        "change_bb": -0.043,
+        "change_ma": 0.039
+      },
+      "mid": {
+        "change_rsi": 0.138,
+        "change_macd": -0.051,
+        "change_bb": -0.32,
+        "change_ma": 0.233
+      },
+      "small": {
+        "change_rsi": 0.006,
+        "change_macd": 0.011,
+        "change_bb": 0.017,
+        "change_ma": -0.033
+      }
+    }
+  },
+  "sample_trades": [
+    {
+      "trade_num": 1,
+      "path_idx": 0,
+      "buy_day": 938,
+      "buy_price": 51.1944,
+      "exit_day": 943,
+      "exit_price": 48.2309,
+      "return_pct": -5.7887,
+      "signal_score": 65.61,
+      "no_lookahead": "score[t=938] uses price[0..938] only"
+    },
+    {
+      "trade_num": 2,
+      "path_idx": 0,
+      "buy_day": 945,
+      "buy_price": 50.6558,
+      "exit_day": 950,
+      "exit_price": 48.7292,
+      "return_pct": -3.8035,
+      "signal_score": 65.69,
+      "no_lookahead": "score[t=945] uses price[0..945] only"
+    },
+    {
+      "trade_num": 3,
+      "path_idx": 0,
+      "buy_day": 1729,
+      "buy_price": 108.8361,
+      "exit_day": 1734,
+      "exit_price": 109.3246,
+      "return_pct": 0.4489,
+      "signal_score": 65.52,
+      "no_lookahead": "score[t=1729] uses price[0..1729] only"
+    },
+    {
+      "trade_num": 4,
+      "path_idx": 0,
+      "buy_day": 2175,
+      "buy_price": 272.3813,
+      "exit_day": 2180,
+      "exit_price": 276.0575,
+      "return_pct": 1.3497,
+      "signal_score": 66.41,
+      "no_lookahead": "score[t=2175] uses price[0..2175] only"
+    },
+    {
+      "trade_num": 5,
+      "path_idx": 1,
+      "buy_day": 359,
+      "buy_price": 102.2367,
+      "exit_day": 364,
+      "exit_price": 122.8468,
+      "return_pct": 20.1592,
+      "signal_score": 65.56,
+      "no_lookahead": "score[t=359] uses price[0..359] only"
+    },
+    {
+      "trade_num": 6,
+      "path_idx": 4,
+      "buy_day": 1314,
+      "buy_price": 135.4958,
+      "exit_day": 1319,
+      "exit_price": 121.2875,
+      "return_pct": -10.4861,
+      "signal_score": 66.62,
+      "no_lookahead": "score[t=1314] uses price[0..1314] only"
+    },
+    {
+      "trade_num": 7,
+      "path_idx": 5,
+      "buy_day": 285,
+      "buy_price": 58.5756,
+      "exit_day": 290,
+      "exit_price": 55.5253,
+      "return_pct": -5.2074,
+      "signal_score": 68.61,
+      "no_lookahead": "score[t=285] uses price[0..285] only"
+    },
+    {
+      "trade_num": 8,
+      "path_idx": 5,
+      "buy_day": 326,
+      "buy_price": 62.72,
+      "exit_day": 331,
+      "exit_price": 67.2889,
+      "return_pct": 7.2845,
+      "signal_score": 66.18,
+      "no_lookahead": "score[t=326] uses price[0..326] only"
+    },
+    {
+      "trade_num": 9,
+      "path_idx": 5,
+      "buy_day": 641,
+      "buy_price": 50.1794,
+      "exit_day": 646,
+      "exit_price": 56.9511,
+      "return_pct": 13.4949,
+      "signal_score": 67.37,
+      "no_lookahead": "score[t=641] uses price[0..641] only"
+    },
+    {
+      "trade_num": 10,
+      "path_idx": 5,
+      "buy_day": 1296,
+      "buy_price": 190.7634,
+      "exit_day": 1301,
+      "exit_price": 197.7127,
+      "return_pct": 3.6429,
+      "signal_score": 66.31,
+      "no_lookahead": "score[t=1296] uses price[0..1296] only"
+    }
+  ],
+  "swing_full_results": {
+    "large": {
+      "signal_sharpes": {
+        "RSI": 0.3267,
+        "MACD": 0.5406,
+        "BB": 0.303,
+        "MA": 0.5145
+      },
+      "signal_winrates": {
+        "RSI": 0.5218,
+        "MACD": 0.5355,
+        "BB": 0.5215,
+        "MA": 0.534
+      },
+      "signal_ranking": [
+        "MACD",
+        "MA",
+        "RSI",
+        "BB"
+      ],
+      "score_multipliers": {
+        "rsi": 0.776,
+        "macd": 1.283,
+        "bb": 0.719,
+        "ma": 1.222
+      }
+    },
+    "mid": {
+      "signal_sharpes": {
+        "RSI": 0.3566,
+        "MACD": 0.4276,
+        "BB": 0.3475,
+        "MA": 0.4873
+      },
+      "signal_winrates": {
+        "RSI": 0.5177,
+        "MACD": 0.5199,
+        "BB": 0.5153,
+        "MA": 0.5225
+      },
+      "signal_ranking": [
+        "MA",
+        "MACD",
+        "RSI",
+        "BB"
+      ],
+      "score_multipliers": {
+        "rsi": 0.881,
+        "macd": 1.057,
+        "bb": 0.858,
+        "ma": 1.204
+      }
+    },
+    "small": {
+      "signal_sharpes": {
+        "RSI": 0.5831,
+        "MACD": 0.4445,
+        "BB": 0.5201,
+        "MA": 0.5302
+      },
+      "signal_winrates": {
+        "RSI": 0.5079,
+        "MACD": 0.4982,
+        "BB": 0.509,
+        "MA": 0.5041
+      },
+      "signal_ranking": [
+        "RSI",
+        "MA",
+        "BB",
+        "MACD"
+      ],
+      "score_multipliers": {
+        "rsi": 1.122,
+        "macd": 0.856,
+        "bb": 1.001,
+        "ma": 1.021
+      }
+    }
+  },
+  "day_full_results": {
+    "large": {
+      "signal_sharpes": {
+        "RSI": 0.4071,
+        "MACD": 0.499,
+        "BB": 0.3179,
+        "MA": 0.5913
+      },
+      "signal_winrates": {
+        "RSI": 0.514,
+        "MACD": 0.5184,
+        "BB": 0.5106,
+        "MA": 0.5212
+      },
+      "signal_ranking": [
+        "MA",
+        "MACD",
+        "RSI",
+        "BB"
+      ],
+      "score_multipliers": {
+        "rsi": 0.897,
+        "macd": 1.1,
+        "bb": 0.7,
+        "ma": 1.303
+      }
+    },
+    "mid": {
+      "signal_sharpes": {
+        "RSI": 0.3886,
+        "MACD": 0.3662,
+        "BB": 0.1539,
+        "MA": 0.499
+      },
+      "signal_winrates": {
+        "RSI": 0.5099,
+        "MACD": 0.5075,
+        "BB": 0.5048,
+        "MA": 0.5112
+      },
+      "signal_ranking": [
+        "MA",
+        "RSI",
+        "MACD",
+        "BB"
+      ],
+      "score_multipliers": {
+        "rsi": 1.104,
+        "macd": 1.041,
+        "bb": 0.437,
+        "ma": 1.418
+      }
+    },
+    "small": {
+      "signal_sharpes": {
+        "RSI": 0.5253,
+        "MACD": 0.588,
+        "BB": 0.5652,
+        "MA": 0.6142
+      },
+      "signal_winrates": {
+        "RSI": 0.4999,
+        "MACD": 0.5039,
+        "BB": 0.5033,
+        "MA": 0.5051
+      },
+      "signal_ranking": [
+        "MA",
+        "MACD",
+        "BB",
+        "RSI"
+      ],
+      "score_multipliers": {
+        "rsi": 0.917,
+        "macd": 1.026,
+        "bb": 0.986,
+        "ma": 1.072
+      }
+    }
+  }
+}

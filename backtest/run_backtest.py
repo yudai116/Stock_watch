@@ -266,6 +266,10 @@ def sc_macd(p: np.ndarray) -> np.ndarray:
     return out
 
 def sc_bb(p: np.ndarray) -> np.ndarray:
+    """BB scoring — exact mirror of scorer.ts scoreBollinger().
+    Breakpoints corrected from old (max25) to match TS (max18 below-band).
+    Direction bonus added (+4/<0.5, +3/<=0.85, +1/>0.85 when %B rising).
+    Squeeze bonus (+3) retained unchanged."""
     pb, bw  = bb_v(p)
     P, T    = p.shape
     out     = np.full((P, T), np.nan)
@@ -274,22 +278,30 @@ def sc_bb(p: np.ndarray) -> np.ndarray:
         if not ok.any():
             continue
         c     = pb[:, t]
+        cp    = pb[:, t - 1]
         ws    = bw[:, max(0, t - 4):t + 1]
         cnt   = np.sum(~np.isnan(ws), axis=1)
         bwa   = np.where(np.isnan(ws), 0.0, ws)
         mean_bw = np.where(cnt > 0, bwa.sum(1) / np.maximum(cnt, 1), np.nan)
         sq    = ok & ~np.isnan(bw[:, t]) & (bw[:, t] < mean_bw * 0.85) & (c < 0.3)
+        rising = ok & ~np.isnan(cp) & (c > cp)
         raw   = np.full(P, np.nan)
         for i in np.where(ok)[0]:
             cv = c[i]
-            if   cv < 0.00: rv = _ip(cv, [(-0.2, 25), (0,    21)])
-            elif cv < 0.10: rv = _ip(cv, [(0,    21), (0.1,  17)])
-            elif cv < 0.25: rv = _ip(cv, [(0.1,  17), (0.25, 12)])
-            elif cv < 0.50: rv = _ip(cv, [(0.25, 12), (0.5,   8)])
-            elif cv < 0.75: rv = _ip(cv, [(0.5,   8), (0.75,  4)])
-            elif cv < 0.90: rv = _ip(cv, [(0.75,  4), (0.9,   1)])
-            else:            rv = _ip(cv, [(0.9,   1), (1.2,   0)])
-            raw[i] = min(rv + (3 if sq[i] else 0), 25.0)
+            # ── Corrected breakpoints matching scorer.ts ──
+            if   cv < 0.00: rv = _ip(cv, [(-0.2, 18), (0,    15)])
+            elif cv < 0.10: rv = _ip(cv, [(0,    15), (0.1,  12)])
+            elif cv < 0.30: rv = _ip(cv, [(0.1,  12), (0.3,   9)])
+            elif cv < 0.50: rv = _ip(cv, [(0.3,   9), (0.5,   7)])
+            elif cv < 0.70: rv = _ip(cv, [(0.5,   7), (0.7,   5)])
+            elif cv < 0.90: rv = _ip(cv, [(0.7,   5), (0.9,   2)])
+            else:            rv = _ip(cv, [(0.9,   2), (1.2,   0)])
+            # ── Direction bonus (new — was missing from Python backtest) ──
+            if rising[i]:
+                dir_bonus = 4 if cv < 0.5 else (3 if cv <= 0.85 else 1)
+            else:
+                dir_bonus = 0
+            raw[i] = min(rv + dir_bonus + (3 if sq[i] else 0), 25.0)
         out[:, t] = raw
     return out
 

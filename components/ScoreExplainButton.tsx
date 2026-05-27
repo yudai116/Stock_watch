@@ -7,15 +7,15 @@ interface Props {
 }
 
 const SWING_WEIGHTS = {
-  large: ["MACD×1.274", "MA×1.209", "BB×0.795", "RSI×0.722"],
-  mid:   ["MA×1.182", "MACD×1.021", "BB×0.956", "RSI×0.842"],
-  small: ["RSI×1.086", "BB×1.001", "MA×1.000", "MACD×0.913"],
+  large: ["MACD×1.283", "MA×1.222", "RSI×0.776", "BB×0.719"],
+  mid:   ["MA×1.204", "MACD×1.057", "BB×0.858", "RSI×0.881"],
+  small: ["RSI×1.122", "BB×1.001", "MA×1.021", "MACD×0.856"],
 };
 
 const DAY_WEIGHTS = {
-  large: ["MA×1.264", "MACD×1.109", "RSI×0.885", "BB×0.743"],
-  mid:   ["MA×1.185", "MACD×1.092", "RSI×0.966", "BB×0.757"],
-  small: ["MA×1.105", "MACD×1.015", "BB×0.969", "RSI×0.911"],
+  large: ["MA×1.303", "MACD×1.100", "RSI×0.897", "BB×0.700"],
+  mid:   ["MA×1.418", "RSI×1.104", "MACD×1.041", "BB×0.437"],
+  small: ["MA×1.072", "MACD×1.026", "BB×0.986", "RSI×0.917"],
 };
 
 export default function ScoreExplainButton({ mode = "swing" }: Props) {

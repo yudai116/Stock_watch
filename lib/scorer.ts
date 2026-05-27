@@ -286,16 +286,16 @@ export function computeScore(closes: number[], size: "large" | "mid" | "small" =
   const movingAvg = scoreMovingAverage(closes);
   // Size-stratified weights from group-specific Monte Carlo walk-forward backtests.
   // Multipliers are Sharpe-proportional per group, sum=4.0 (preserves 0-100 scale).
-  // Updated by run_backtest.py — see backtest/backtest_results.json for details.
-  // Derived from size-stratified 10yr Monte Carlo walk-forward (thr=65, hold=5d):
-  //   large: MACD(0.537)>MA(0.509)>BB(0.335)>RSI(0.304) → trend-following
-  //   mid:   MA(0.498)>MACD(0.430)>BB(0.403)>RSI(0.355) → MA dominant
-  //   small: RSI(0.565)>BB(0.521)>MA(0.520)>MACD(0.475) → mean-reversion
+  // Re-derived after fixing BB scoring to match TypeScript (old Python used wrong breakpoints).
+  // Swing: thr=65, hold=5d, 50 stocks × 15 paths × 2520 days, 5 folds:
+  //   large: MACD(0.537)>MA(0.509)>RSI(0.304)>BB(0.302) → trend-following
+  //   mid:   MA(0.498)>MACD(0.430)>BB(0.399)>RSI(0.355) → MA dominant
+  //   small: RSI(0.565)>BB(0.546)>MA(0.520)>MACD(0.475) → mean-reversion
   const MULTS: Record<"large" | "mid" | "small", [number, number, number, number]> = {
     //          [RSI,   MACD,   BB,    MA  ]
-    large: [0.722, 1.274, 0.795, 1.209],  // MACD/MA dominate (persistent trends)
-    mid:   [0.842, 1.021, 0.956, 1.182],  // MA dominant, balanced otherwise
-    small: [1.086, 0.913, 1.001, 1.000],  // RSI/BB effective (high-vol mean-reversion)
+    large: [0.776, 1.283, 0.719, 1.222],  // MACD/MA dominate (persistent trends)
+    mid:   [0.881, 1.057, 0.858, 1.204],  // MA dominant, balanced otherwise
+    small: [1.122, 0.856, 1.001, 1.021],  // RSI/BB effective (high-vol mean-reversion)
   };
   const [mRsi, mMacd, mBb, mMa] = MULTS[size];
   const base = Math.round(
@@ -414,17 +414,16 @@ export function computeScoreDay(closes: number[], size: "large" | "mid" | "small
   const macd      = scoreMACD(closes);
   const bollinger = scoreBollinger(closes);
   const movingAvg = scoreMADay(closes);
-  // Day trade multipliers from hold=1d size-stratified Monte Carlo walk-forward backtest.
-  // Updated by run_backtest.py (day mode) — see backtest/backtest_results.json.
-  // Derived from 50-stock hold=1d MC walk-forward (thr=65):
-  //   large: MA(0.603)>MACD(0.529)>RSI(0.422)>BB(0.355) → MA/MACD dominant
-  //   mid:   MA(0.480)>MACD(0.442)>RSI(0.391)>BB(0.307) → MA/MACD dominant
-  //   small: MA(0.597)>MACD(0.548)>BB(0.524)>RSI(0.492) → more balanced
+  // Day trade multipliers re-derived after fixing BB scoring to match TypeScript.
+  // hold=1d, thr=65, 50 stocks × 15 paths × 2520 days, 5 folds:
+  //   large: MA(0.603)>MACD(0.529)>RSI(0.422)>BB(0.345) → MA/MACD dominant
+  //   mid:   MA(0.480)>MACD(0.442)>RSI(0.391)>BB(0.227) → BB weak for day-trade mid
+  //   small: MA(0.597)>MACD(0.548)>BB(0.515)>RSI(0.492) → more balanced
   const MULTS_DAY: Record<"large" | "mid" | "small", [number, number, number, number]> = {
     //          [RSI,   MACD,   BB,    MA  ]
-    large: [0.885, 1.109, 0.743, 1.264],  // MA strongest, BB weakest
-    mid:   [0.966, 1.092, 0.757, 1.185],  // MA/MACD lead, BB weak
-    small: [0.911, 1.015, 0.969, 1.105],  // more balanced, MA still leads
+    large: [0.897, 1.100, 0.700, 1.303],  // MA strongest, BB weakest
+    mid:   [1.104, 1.041, 0.437, 1.418],  // BB dramatically weak for day-trade mid; MA dominant
+    small: [0.917, 1.026, 0.986, 1.072],  // more balanced, MA still leads
   };
   const [mRsi, mMacd, mBb, mMa] = MULTS_DAY[size];
   const base = Math.round(

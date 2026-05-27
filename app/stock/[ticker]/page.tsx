@@ -129,16 +129,16 @@ export default function StockDetailPage({ params }: Props) {
             <div className="border-t border-gray-800 pt-3 text-xs space-y-1">
               {tradeMode === "swing" ? (
                 <>
-                  {detail.size === "large" && <p className="text-gray-500">大型株: MACD×1.274 + MA×1.209 + BB×0.795 + RSI×0.722</p>}
-                  {detail.size === "mid"   && <p className="text-gray-500">中型株: MA×1.182 + MACD×1.021 + BB×0.956 + RSI×0.842</p>}
-                  {detail.size === "small" && <p className="text-gray-500">小型株: RSI×1.086 + BB×1.001 + MA×1.000 + MACD×0.913</p>}
+                  {detail.size === "large" && <p className="text-gray-500">大型株: MACD×1.283 + MA×1.222 + RSI×0.776 + BB×0.719</p>}
+                  {detail.size === "mid"   && <p className="text-gray-500">中型株: MA×1.204 + MACD×1.057 + BB×0.858 + RSI×0.881</p>}
+                  {detail.size === "small" && <p className="text-gray-500">小型株: RSI×1.122 + BB×1.001 + MA×1.021 + MACD×0.856</p>}
                   <p className="text-gray-600">重みは規模別・50銘柄10年MCバックテスト（シャープレシオ最大化）で最適化</p>
                 </>
               ) : (
                 <>
-                  {detail.size === "large" && <p className="text-gray-500">大型株: MA×1.264 + MACD×1.109 + RSI×0.885 + BB×0.743</p>}
-                  {detail.size === "mid"   && <p className="text-gray-500">中型株: MA×1.185 + MACD×1.092 + RSI×0.966 + BB×0.757</p>}
-                  {detail.size === "small" && <p className="text-gray-500">小型株: MA×1.105 + MACD×1.015 + BB×0.969 + RSI×0.911</p>}
+                  {detail.size === "large" && <p className="text-gray-500">大型株: MA×1.303 + MACD×1.100 + RSI×0.897 + BB×0.700</p>}
+                  {detail.size === "mid"   && <p className="text-gray-500">中型株: MA×1.418 + RSI×1.104 + MACD×1.041 + BB×0.437</p>}
+                  {detail.size === "small" && <p className="text-gray-500">小型株: MA×1.072 + MACD×1.026 + BB×0.986 + RSI×0.917</p>}
                   <p className="text-gray-600">重みは規模別・50銘柄 hold=1日 MCバックテスト（シャープレシオ最大化）で最適化</p>
                 </>
               )}

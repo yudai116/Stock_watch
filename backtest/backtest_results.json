@@ -30,36 +30,62 @@
         "signal_sharpes": {
           "RSI": 0.3039,
           "MACD": 0.5366,
-          "BB": 0.3346,
+          "BB": 0.3016,
           "MA": 0.5092
         },
         "signal_winrates": {
           "RSI": 0.52,
           "MACD": 0.5344,
-          "BB": 0.5237,
+          "BB": 0.5215,
           "MA": 0.5335
         },
         "signal_counts": {
           "RSI": 49345,
           "MACD": 88392,
-          "BB": 104437,
+          "BB": 47695,
           "MA": 131753
         },
         "signal_ranking": [
           "MACD",
           "MA",
-          "BB",
-          "RSI"
+          "RSI",
+          "BB"
         ],
         "score_multipliers": {
-          "rsi": 0.722,
-          "macd": 1.274,
-          "bb": 0.795,
-          "ma": 1.209
+          "rsi": 0.736,
+          "macd": 1.3,
+          "bb": 0.731,
+          "ma": 1.233
         },
         "folds": [
           {
             "fold": 1,
+            "weights": {
+              "rsi": 0,
+              "macd": 0,
+              "bb": 60,
+              "ma": 40
+            },
+            "threshold": 70,
+            "hold_days": 3,
+            "train_sharpe": 6.6477,
+            "test_sharpe": -0.1385
+          },
+          {
+            "fold": 2,
+            "weights": {
+              "rsi": 20,
+              "macd": 20,
+              "bb": 40,
+              "ma": 20
+            },
+            "threshold": 67,
+            "hold_days": 3,
+            "train_sharpe": 5.0924,
+            "test_sharpe": -99.0
+          },
+          {
+            "fold": 3,
             "weights": {
               "rsi": 30,
               "macd": 20,
@@ -68,46 +94,20 @@
             },
             "threshold": 70,
             "hold_days": 3,
-            "train_sharpe": 6.1468,
-            "test_sharpe": 4.1448
-          },
-          {
-            "fold": 2,
-            "weights": {
-              "rsi": 10,
-              "macd": 20,
-              "bb": 40,
-              "ma": 30
-            },
-            "threshold": 65,
-            "hold_days": 3,
-            "train_sharpe": 8.0297,
-            "test_sharpe": -99.0
-          },
-          {
-            "fold": 3,
-            "weights": {
-              "rsi": 10,
-              "macd": 20,
-              "bb": 40,
-              "ma": 30
-            },
-            "threshold": 65,
-            "hold_days": 3,
-            "train_sharpe": 6.0569,
+            "train_sharpe": 5.0246,
             "test_sharpe": -99.0
           },
           {
             "fold": 4,
             "weights": {
-              "rsi": 20,
+              "rsi": 30,
               "macd": 20,
-              "bb": 40,
+              "bb": 30,
               "ma": 20
             },
             "threshold": 70,
             "hold_days": 3,
-            "train_sharpe": 5.6035,
+            "train_sharpe": 4.7295,
             "test_sharpe": -99.0
           },
           {
@@ -118,9 +118,9 @@
               "bb": 40,
               "ma": 20
             },
-            "threshold": 70,
+            "threshold": 67,
             "hold_days": 3,
-            "train_sharpe": 5.4632,
+            "train_sharpe": 4.275,
             "test_sharpe": -99.0
           }
         ]
@@ -131,19 +131,19 @@
         "signal_sharpes": {
           "RSI": 0.3547,
           "MACD": 0.4302,
-          "BB": 0.4029,
+          "BB": 0.3988,
           "MA": 0.4982
         },
         "signal_winrates": {
           "RSI": 0.5159,
           "MACD": 0.521,
-          "BB": 0.5169,
+          "BB": 0.5178,
           "MA": 0.5243
         },
         "signal_counts": {
           "RSI": 41053,
           "MACD": 69471,
-          "BB": 84910,
+          "BB": 38313,
           "MA": 85556
         },
         "signal_ranking": [
@@ -153,75 +153,75 @@
           "RSI"
         ],
         "score_multipliers": {
-          "rsi": 0.842,
-          "macd": 1.021,
-          "bb": 0.956,
-          "ma": 1.182
+          "rsi": 0.844,
+          "macd": 1.023,
+          "bb": 0.949,
+          "ma": 1.185
         },
         "folds": [
           {
             "fold": 1,
             "weights": {
-              "rsi": 30,
-              "macd": 10,
-              "bb": 30,
-              "ma": 30
+              "rsi": 20,
+              "macd": 0,
+              "bb": 40,
+              "ma": 40
             },
-            "threshold": 70,
+            "threshold": 67,
             "hold_days": 3,
-            "train_sharpe": 3.7001,
-            "test_sharpe": -99.0
+            "train_sharpe": 7.9533,
+            "test_sharpe": 3.4968
           },
           {
             "fold": 2,
             "weights": {
-              "rsi": 10,
-              "macd": 10,
+              "rsi": 20,
+              "macd": 0,
               "bb": 40,
               "ma": 40
             },
-            "threshold": 65,
+            "threshold": 67,
             "hold_days": 3,
-            "train_sharpe": 3.5843,
-            "test_sharpe": 1.3599
+            "train_sharpe": 6.7609,
+            "test_sharpe": -2.751
           },
           {
             "fold": 3,
             "weights": {
               "rsi": 10,
               "macd": 10,
-              "bb": 40,
-              "ma": 40
+              "bb": 60,
+              "ma": 20
             },
-            "threshold": 65,
+            "threshold": 70,
             "hold_days": 3,
-            "train_sharpe": 2.4226,
-            "test_sharpe": 2.1634
+            "train_sharpe": 6.2349,
+            "test_sharpe": -3.0252
           },
           {
             "fold": 4,
             "weights": {
               "rsi": 10,
               "macd": 10,
-              "bb": 40,
-              "ma": 40
+              "bb": 70,
+              "ma": 10
             },
-            "threshold": 65,
+            "threshold": 75,
             "hold_days": 3,
-            "train_sharpe": 2.823,
-            "test_sharpe": 0.9241
+            "train_sharpe": 4.5289,
+            "test_sharpe": -0.0904
           },
           {
             "fold": 5,
             "weights": {
-              "rsi": 40,
+              "rsi": 0,
               "macd": 20,
-              "bb": 10,
-              "ma": 30
+              "bb": 60,
+              "ma": 20
             },
-            "threshold": 70,
-            "hold_days": 10,
-            "train_sharpe": 3.9845,
+            "threshold": 67,
+            "hold_days": 3,
+            "train_sharpe": 5.1825,
             "test_sharpe": -99.0
           }
         ]
@@ -232,19 +232,19 @@
         "signal_sharpes": {
           "RSI": 0.5649,
           "MACD": 0.4748,
-          "BB": 0.5209,
+          "BB": 0.5458,
           "MA": 0.5202
         },
         "signal_winrates": {
           "RSI": 0.5077,
           "MACD": 0.4994,
-          "BB": 0.5068,
+          "BB": 0.5113,
           "MA": 0.5021
         },
         "signal_counts": {
           "RSI": 21589,
           "MACD": 34806,
-          "BB": 42905,
+          "BB": 18560,
           "MA": 34620
         },
         "signal_ranking": [
@@ -254,75 +254,75 @@
           "MACD"
         ],
         "score_multipliers": {
-          "rsi": 1.086,
-          "macd": 0.913,
-          "bb": 1.001,
-          "ma": 1.0
+          "rsi": 1.073,
+          "macd": 0.902,
+          "bb": 1.037,
+          "ma": 0.988
         },
         "folds": [
           {
             "fold": 1,
             "weights": {
-              "rsi": 0,
-              "macd": 40,
-              "bb": 40,
-              "ma": 20
+              "rsi": 20,
+              "macd": 30,
+              "bb": 50,
+              "ma": 0
             },
-            "threshold": 70,
+            "threshold": 75,
             "hold_days": 3,
-            "train_sharpe": 6.5553,
-            "test_sharpe": -99.0
+            "train_sharpe": 4.2388,
+            "test_sharpe": 2.802
           },
           {
             "fold": 2,
             "weights": {
-              "rsi": 0,
-              "macd": 30,
-              "bb": 50,
+              "rsi": 60,
+              "macd": 10,
+              "bb": 10,
               "ma": 20
             },
-            "threshold": 70,
+            "threshold": 75,
             "hold_days": 3,
-            "train_sharpe": 6.1201,
-            "test_sharpe": -99.0
+            "train_sharpe": 3.369,
+            "test_sharpe": 0.7596
           },
           {
             "fold": 3,
             "weights": {
-              "rsi": 0,
-              "macd": 30,
+              "rsi": 10,
+              "macd": 20,
               "bb": 50,
               "ma": 20
             },
-            "threshold": 70,
+            "threshold": 65,
             "hold_days": 3,
-            "train_sharpe": 6.2746,
+            "train_sharpe": 4.0233,
             "test_sharpe": -99.0
           },
           {
             "fold": 4,
             "weights": {
               "rsi": 0,
-              "macd": 30,
-              "bb": 50,
-              "ma": 20
+              "macd": 0,
+              "bb": 60,
+              "ma": 40
             },
             "threshold": 70,
             "hold_days": 3,
-            "train_sharpe": 6.8089,
+            "train_sharpe": 4.5683,
             "test_sharpe": -99.0
           },
           {
             "fold": 5,
             "weights": {
-              "rsi": 30,
+              "rsi": 20,
               "macd": 20,
-              "bb": 30,
+              "bb": 40,
               "ma": 20
             },
-            "threshold": 70,
+            "threshold": 67,
             "hold_days": 3,
-            "train_sharpe": 6.9802,
+            "train_sharpe": 7.9731,
             "test_sharpe": -99.0
           }
         ]
@@ -348,19 +348,19 @@
         "signal_sharpes": {
           "RSI": 0.4224,
           "MACD": 0.5294,
-          "BB": 0.3545,
+          "BB": 0.3453,
           "MA": 0.6032
         },
         "signal_winrates": {
           "RSI": 0.5146,
           "MACD": 0.5196,
-          "BB": 0.5124,
+          "BB": 0.5118,
           "MA": 0.5216
         },
         "signal_counts": {
           "RSI": 110390,
           "MACD": 88329,
-          "BB": 105359,
+          "BB": 47886,
           "MA": 299494
         },
         "signal_ranking": [
@@ -370,76 +370,76 @@
           "BB"
         ],
         "score_multipliers": {
-          "rsi": 0.885,
-          "macd": 1.109,
-          "bb": 0.743,
-          "ma": 1.264
+          "rsi": 0.889,
+          "macd": 1.114,
+          "bb": 0.727,
+          "ma": 1.27
         },
         "folds": [
           {
             "fold": 1,
             "weights": {
-              "rsi": 30,
-              "macd": 0,
-              "bb": 30,
-              "ma": 40
+              "rsi": 0,
+              "macd": 20,
+              "bb": 70,
+              "ma": 10
             },
             "threshold": 70,
-            "hold_days": 2,
-            "train_sharpe": 4.9359,
-            "test_sharpe": 3.1407
+            "hold_days": 1,
+            "train_sharpe": 1.7062,
+            "test_sharpe": 3.7119
           },
           {
             "fold": 2,
             "weights": {
               "rsi": 0,
-              "macd": 30,
-              "bb": 50,
-              "ma": 20
+              "macd": 20,
+              "bb": 70,
+              "ma": 10
             },
             "threshold": 70,
             "hold_days": 1,
-            "train_sharpe": 4.3986,
-            "test_sharpe": 3.5519
+            "train_sharpe": 2.9728,
+            "test_sharpe": 1.4843
           },
           {
             "fold": 3,
             "weights": {
-              "rsi": 10,
-              "macd": 20,
-              "bb": 50,
-              "ma": 20
+              "rsi": 20,
+              "macd": 10,
+              "bb": 40,
+              "ma": 30
             },
             "threshold": 70,
             "hold_days": 1,
-            "train_sharpe": 7.4138,
-            "test_sharpe": 5.3205
+            "train_sharpe": 6.1597,
+            "test_sharpe": 0.4153
           },
           {
             "fold": 4,
             "weights": {
-              "rsi": 10,
+              "rsi": 0,
               "macd": 20,
-              "bb": 50,
+              "bb": 60,
               "ma": 20
             },
             "threshold": 70,
             "hold_days": 1,
-            "train_sharpe": 5.1829,
-            "test_sharpe": 5.3438
+            "train_sharpe": 3.9432,
+            "test_sharpe": 1.1248
           },
           {
             "fold": 5,
             "weights": {
               "rsi": 10,
-              "macd": 20,
-              "bb": 50,
-              "ma": 20
+              "macd": 10,
+              "bb": 40,
+              "ma": 40
             },
             "threshold": 70,
             "hold_days": 1,
-            "train_sharpe": 6.5542,
-            "test_sharpe": 0.5103
+            "train_sharpe": 4.4799,
+            "test_sharpe": 2.927
           }
         ]
       },
@@ -449,19 +449,19 @@
         "signal_sharpes": {
           "RSI": 0.391,
           "MACD": 0.4421,
-          "BB": 0.3065,
+          "BB": 0.2267,
           "MA": 0.4797
         },
         "signal_winrates": {
           "RSI": 0.5111,
           "MACD": 0.5091,
-          "BB": 0.508,
+          "BB": 0.5072,
           "MA": 0.5106
         },
         "signal_counts": {
           "RSI": 87590,
           "MACD": 69405,
-          "BB": 85552,
+          "BB": 38517,
           "MA": 206633
         },
         "signal_ranking": [
@@ -471,75 +471,75 @@
           "BB"
         ],
         "score_multipliers": {
-          "rsi": 0.966,
-          "macd": 1.092,
-          "bb": 0.757,
-          "ma": 1.185
+          "rsi": 1.016,
+          "macd": 1.149,
+          "bb": 0.589,
+          "ma": 1.246
         },
         "folds": [
           {
             "fold": 1,
             "weights": {
-              "rsi": 20,
+              "rsi": 30,
               "macd": 0,
-              "bb": 30,
-              "ma": 50
+              "bb": 40,
+              "ma": 30
             },
             "threshold": 70,
             "hold_days": 1,
-            "train_sharpe": 6.6899,
-            "test_sharpe": 6.4039
+            "train_sharpe": 8.4423,
+            "test_sharpe": 1.7056
           },
           {
             "fold": 2,
             "weights": {
-              "rsi": 30,
-              "macd": 10,
+              "rsi": 20,
+              "macd": 0,
               "bb": 40,
-              "ma": 20
-            },
-            "threshold": 70,
-            "hold_days": 1,
-            "train_sharpe": 9.2939,
-            "test_sharpe": -3.3306
-          },
-          {
-            "fold": 3,
-            "weights": {
-              "rsi": 20,
-              "macd": 0,
-              "bb": 30,
-              "ma": 50
-            },
-            "threshold": 70,
-            "hold_days": 1,
-            "train_sharpe": 6.6624,
-            "test_sharpe": 1.0509
-          },
-          {
-            "fold": 4,
-            "weights": {
-              "rsi": 20,
-              "macd": 0,
-              "bb": 30,
-              "ma": 50
-            },
-            "threshold": 70,
-            "hold_days": 1,
-            "train_sharpe": 5.9835,
-            "test_sharpe": -0.1847
-          },
-          {
-            "fold": 5,
-            "weights": {
-              "rsi": 20,
-              "macd": 10,
-              "bb": 30,
               "ma": 40
             },
             "threshold": 70,
             "hold_days": 1,
-            "train_sharpe": 5.0997,
+            "train_sharpe": 4.1545,
+            "test_sharpe": 3.2713
+          },
+          {
+            "fold": 3,
+            "weights": {
+              "rsi": 10,
+              "macd": 0,
+              "bb": 50,
+              "ma": 40
+            },
+            "threshold": 70,
+            "hold_days": 1,
+            "train_sharpe": 7.3,
+            "test_sharpe": -99.0
+          },
+          {
+            "fold": 4,
+            "weights": {
+              "rsi": 10,
+              "macd": 0,
+              "bb": 50,
+              "ma": 40
+            },
+            "threshold": 70,
+            "hold_days": 1,
+            "train_sharpe": 8.1718,
+            "test_sharpe": -99.0
+          },
+          {
+            "fold": 5,
+            "weights": {
+              "rsi": 10,
+              "macd": 0,
+              "bb": 60,
+              "ma": 30
+            },
+            "threshold": 70,
+            "hold_days": 1,
+            "train_sharpe": 5.3494,
             "test_sharpe": -99.0
           }
         ]
@@ -550,19 +550,19 @@
         "signal_sharpes": {
           "RSI": 0.4919,
           "MACD": 0.5485,
-          "BB": 0.5237,
+          "BB": 0.5151,
           "MA": 0.5969
         },
         "signal_winrates": {
           "RSI": 0.4999,
           "MACD": 0.5022,
-          "BB": 0.5053,
+          "BB": 0.5026,
           "MA": 0.5044
         },
         "signal_counts": {
           "RSI": 42914,
           "MACD": 34509,
-          "BB": 42950,
+          "BB": 18434,
           "MA": 83667
         },
         "signal_ranking": [
@@ -572,53 +572,14 @@
           "RSI"
         ],
         "score_multipliers": {
-          "rsi": 0.911,
-          "macd": 1.015,
-          "bb": 0.969,
-          "ma": 1.105
+          "rsi": 0.914,
+          "macd": 1.019,
+          "bb": 0.957,
+          "ma": 1.109
         },
         "folds": [
           {
             "fold": 1,
-            "weights": {
-              "rsi": 50,
-              "macd": 0,
-              "bb": 20,
-              "ma": 30
-            },
-            "threshold": 70,
-            "hold_days": 1,
-            "train_sharpe": 2.7767,
-            "test_sharpe": -0.54
-          },
-          {
-            "fold": 2,
-            "weights": {
-              "rsi": 40,
-              "macd": 0,
-              "bb": 30,
-              "ma": 30
-            },
-            "threshold": 70,
-            "hold_days": 1,
-            "train_sharpe": 3.1517,
-            "test_sharpe": -1.1529
-          },
-          {
-            "fold": 3,
-            "weights": {
-              "rsi": 0,
-              "macd": 30,
-              "bb": 50,
-              "ma": 20
-            },
-            "threshold": 70,
-            "hold_days": 2,
-            "train_sharpe": 3.3508,
-            "test_sharpe": -3.3877
-          },
-          {
-            "fold": 4,
             "weights": {
               "rsi": 0,
               "macd": 10,
@@ -627,21 +588,60 @@
             },
             "threshold": 70,
             "hold_days": 2,
-            "train_sharpe": 7.4524,
+            "train_sharpe": 2.3286,
+            "test_sharpe": 1.1584
+          },
+          {
+            "fold": 2,
+            "weights": {
+              "rsi": 30,
+              "macd": 0,
+              "bb": 40,
+              "ma": 30
+            },
+            "threshold": 70,
+            "hold_days": 1,
+            "train_sharpe": 3.2678,
+            "test_sharpe": -99.0
+          },
+          {
+            "fold": 3,
+            "weights": {
+              "rsi": 0,
+              "macd": 10,
+              "bb": 60,
+              "ma": 30
+            },
+            "threshold": 70,
+            "hold_days": 1,
+            "train_sharpe": 4.8375,
+            "test_sharpe": -99.0
+          },
+          {
+            "fold": 4,
+            "weights": {
+              "rsi": 0,
+              "macd": 10,
+              "bb": 60,
+              "ma": 30
+            },
+            "threshold": 70,
+            "hold_days": 2,
+            "train_sharpe": 2.7338,
             "test_sharpe": -99.0
           },
           {
             "fold": 5,
             "weights": {
-              "rsi": 30,
-              "macd": 0,
-              "bb": 30,
-              "ma": 40
+              "rsi": 0,
+              "macd": 10,
+              "bb": 40,
+              "ma": 50
             },
             "threshold": 70,
-            "hold_days": 1,
-            "train_sharpe": 8.1192,
-            "test_sharpe": -99.0
+            "hold_days": 2,
+            "train_sharpe": 2.1943,
+            "test_sharpe": 2.0217
           }
         ]
       }
