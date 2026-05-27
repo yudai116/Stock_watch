@@ -85,7 +85,7 @@ export default function IndicatorBreakdown({ stock }: Props) {
 
       {/* Score breakdown note */}
       <div className="text-xs text-gray-600 px-1 space-y-0.5">
-        <p>テクニカル: RSI×0.70 + MACD×1.22 + BB×0.85 + MA×1.23</p>
+        <p>テクニカル: RSI×0.965 + MACD×1.055 + BB×0.889 + MA×1.090</p>
         <p>{hasAnalyst ? "合計 = テクニカル×70% + アナリスト評価×30%" : "合計 = テクニカルスコア (アナリストデータなし)"}</p>
       </div>
     </div>

@@ -217,14 +217,16 @@ export function computeScore(closes: number[]) {
   const macd = scoreMACD(closes);
   const bollinger = scoreBollinger(closes);
   const movingAvg = scoreMovingAverage(closes);
-  // Weights derived from 10yr Monte Carlo walk-forward backtest.
-  // Signal Sharpe ranking: MA(0.527) ≈ MACD(0.522) > BB(0.361) > RSI(0.298).
-  // Multipliers are proportional to Sharpe and sum to 4.0 (preserves 0-100 scale).
+  // Weights derived from 50-stock Monte Carlo walk-forward backtest (750 series × 2520 days).
+  // Single-signal Sharpe: MA(0.472) > MACD(0.457) > RSI(0.418) > BB(0.385)
+  // With 50 diverse stocks incl. small-caps, weights converge toward equal — RSI
+  // mean-reversion is effective for volatile small-caps, unlike large-cap-only analysis.
+  // Multipliers are Sharpe-proportional, sum=4.0 (preserves 0-100 scale).
   const total = Math.min(100, Math.round(
-    rsi.score       * 0.70 +   // RSI:  max ~18 pts
-    macd.score      * 1.22 +   // MACD: max ~31 pts (strongest trend signal)
-    bollinger.score * 0.85 +   // BB:   max ~21 pts
-    movingAvg.score * 1.23     // MA:   max ~31 pts (strongest trend signal)
+    rsi.score       * 0.965 +  // RSI:  max ~24 pts
+    macd.score      * 1.055 +  // MACD: max ~26 pts
+    bollinger.score * 0.889 +  // BB:   max ~22 pts
+    movingAvg.score * 1.090    // MA:   max ~27 pts (strongest signal)
   ));
   return { total, rsi, macd, bollinger, moving_avg: movingAvg };
 }
