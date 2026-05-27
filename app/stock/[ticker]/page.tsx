@@ -7,6 +7,7 @@ import IndicatorBreakdown from "@/components/IndicatorBreakdown";
 import PriceChart from "@/components/PriceChart";
 import ModeToggle, { type TradeMode } from "@/components/ModeToggle";
 import MacroRegimeBanner from "@/components/MacroRegimeBanner";
+import ScoreExplainButton from "@/components/ScoreExplainButton";
 import { formatPrice, formatChangePct, peLabelColor } from "@/lib/formatters";
 
 interface Props {
@@ -92,8 +93,9 @@ export default function StockDetailPage({ params }: Props) {
               </div>
             </div>
           </div>
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-center gap-2">
             <ScoreGauge score={detail.score} />
+            <ScoreExplainButton mode={tradeMode} />
           </div>
         </div>
       </div>

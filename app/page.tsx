@@ -6,6 +6,7 @@ import AddTickerForm from "@/components/AddTickerForm";
 import AutoRefreshToggle from "@/components/AutoRefreshToggle";
 import ModeToggle, { type TradeMode } from "@/components/ModeToggle";
 import MacroRegimeBanner from "@/components/MacroRegimeBanner";
+import ScoreExplainButton from "@/components/ScoreExplainButton";
 import { SECTOR_LABELS, getSector, type SectorKey } from "@/lib/sectors";
 
 type Filter = "ALL" | SectorKey;
@@ -118,7 +119,7 @@ export default function Dashboard() {
       </div>
 
       {/* Score legend */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
         {[
           { dot: "bg-emerald-500", text: "70+ 強い買い" },
           { dot: "bg-yellow-500",  text: "50+ 要観察" },
@@ -130,6 +131,7 @@ export default function Dashboard() {
             {item.text}
           </div>
         ))}
+        <ScoreExplainButton mode={tradeMode} />
       </div>
 
       {/* Errors */}
