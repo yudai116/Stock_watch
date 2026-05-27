@@ -6,6 +6,7 @@ import ScoreGauge from "@/components/ScoreGauge";
 import IndicatorBreakdown from "@/components/IndicatorBreakdown";
 import PriceChart from "@/components/PriceChart";
 import ModeToggle, { type TradeMode } from "@/components/ModeToggle";
+import MacroRegimeBanner from "@/components/MacroRegimeBanner";
 import { formatPrice, formatChangePct, peLabelColor } from "@/lib/formatters";
 
 interface Props {
@@ -47,6 +48,9 @@ export default function StockDetailPage({ params }: Props) {
         </div>
         <ModeToggle mode={tradeMode} onChange={setTradeMode} />
       </div>
+
+      {/* Macro regime banner */}
+      <MacroRegimeBanner macro={detail.macro} />
 
       {/* ヘッダー */}
       <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800">
@@ -136,6 +140,11 @@ export default function StockDetailPage({ params }: Props) {
                 </>
               )}
               <p className="text-gray-500">合計スコア = テクニカル×70% + アナリスト評価×30%</p>
+              {detail.macro && detail.macro.multiplier !== 1.0 && (
+                <p className={detail.macro.regime === "bullish" ? "text-emerald-600" : detail.macro.regime === "cautious" ? "text-yellow-600" : "text-red-600"}>
+                  ※ マクロ補正適用中: {detail.macro.label} (×{detail.macro.multiplier})
+                </p>
+              )}
               <p className="text-yellow-400 mt-1">⚠️ 投資判断は自己責任でお願いします。</p>
             </div>
           </div>

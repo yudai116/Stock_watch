@@ -5,6 +5,15 @@ export interface ScoreComponent {
   signal: string;
 }
 
+export type MacroRegime = "bullish" | "neutral" | "cautious" | "bearish";
+
+export interface MacroSignal {
+  regime: MacroRegime;
+  smh_5d_return: number;  // fraction, e.g. 0.023
+  multiplier: number;
+  label: string;          // human-readable, e.g. "SMH 5日: +2.3%"
+}
+
 export interface StockScore {
   ticker: string;
   market: "JP" | "US";
@@ -13,6 +22,7 @@ export interface StockScore {
   currency: string;
   change_pct: number | null;
   score: number;
+  score_raw: number;  // before macro adjustment
   score_components: {
     rsi: ScoreComponent;
     macd: ScoreComponent;
@@ -35,6 +45,7 @@ export interface StockScore {
 export interface StockScoresResponse {
   results: StockScore[];
   errors: Record<string, string>;
+  macro: MacroSignal;
 }
 
 export interface OHLCVPoint {
@@ -67,6 +78,7 @@ export interface BBPoint {
 }
 
 export interface StockDetail extends StockScore {
+  macro: MacroSignal;
   history: OHLCVPoint[];
   rsi_series: SeriesPoint[];
   macd_series: MACDPoint[];
@@ -85,3 +97,4 @@ export interface ValidateResponse {
   market?: string;
   error?: string;
 }
+

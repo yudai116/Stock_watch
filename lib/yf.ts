@@ -54,6 +54,34 @@ async function fetchQuote(ticker: string) {
   }
 }
 
+// ── Macro regime signal (SMH 5-day momentum) ─────────────────────────────────
+// Research result: SMH 5d momentum is the best macro filter for semis/AI stocks.
+// Favorable vs unfavorable Sharpe delta: +0.414 (5d hold), +0.355 (1d hold).
+// VIX was tested and found to *hurt* returns (-0.264 Δ Sharpe) — not used.
+import type { MacroSignal, MacroRegime } from "@/types";
+
+function macroMultiplier(ret: number): { regime: MacroRegime; multiplier: number } {
+  if (ret >  0.02) return { regime: "bullish",  multiplier: 1.05 };
+  if (ret >= 0)    return { regime: "neutral",  multiplier: 1.00 };
+  if (ret >= -0.03) return { regime: "cautious", multiplier: 0.87 };
+  return                   { regime: "bearish",  multiplier: 0.75 };
+}
+
+export async function fetchSMHSignal(): Promise<MacroSignal> {
+  try {
+    const rows = await fetchHistory("SMH");
+    if (rows.length < 7) return { regime: "neutral", smh_5d_return: 0, multiplier: 1.0, label: "SMH データ不足" };
+    const now = rows[rows.length - 1].close;
+    const ago = rows[rows.length - 6].close;  // 5 trading days ago
+    const ret = (now - ago) / ago;
+    const { regime, multiplier } = macroMultiplier(ret);
+    const sign = ret >= 0 ? "+" : "";
+    return { regime, smh_5d_return: ret, multiplier, label: `SMH 5日: ${sign}${(ret * 100).toFixed(1)}%` };
+  } catch {
+    return { regime: "neutral", smh_5d_return: 0, multiplier: 1.0, label: "SMH 取得失敗" };
+  }
+}
+
 export async function buildStockScore(ticker: string, mode: "swing" | "day" = "swing"): Promise<StockScore> {
   const upper = ticker.toUpperCase();
   const market = detectMarket(upper);
@@ -95,6 +123,7 @@ export async function buildStockScore(ticker: string, mode: "swing" | "day" = "s
     currency,
     change_pct: changePct,
     score: blendedScore,
+    score_raw: blendedScore,  // populated; macro adjustment applied in API route
     score_components: {
       rsi: technicalScores.rsi,
       macd: technicalScores.macd,
@@ -187,6 +216,8 @@ export async function buildStockDetail(ticker: string, mode: "swing" | "day" = "
     currency,
     change_pct: changePct,
     score: blendedScore,
+    score_raw: blendedScore,  // macro adjustment applied in API route
+    macro: { regime: "neutral", smh_5d_return: 0, multiplier: 1.0, label: "" },  // filled in API route
     score_components: {
       rsi: technicalScores.rsi,
       macd: technicalScores.macd,

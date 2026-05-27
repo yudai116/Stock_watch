@@ -1,7 +1,7 @@
 "use client";
 import useSWR from "swr";
 import { api } from "@/lib/api";
-import type { StockScore, StockScoresResponse } from "@/types";
+import type { StockScore, StockScoresResponse, MacroSignal } from "@/types";
 
 export function useWatchlist(refreshInterval = 300_000, mode: "swing" | "day" = "swing") {
   const { data: wl, mutate: mutateWl } = useSWR(
@@ -20,6 +20,7 @@ export function useWatchlist(refreshInterval = 300_000, mode: "swing" | "day" = 
 
   const stocks: StockScore[] = scoresData?.results ?? [];
   const errors = scoresData?.errors ?? {};
+  const macro: MacroSignal | undefined = scoresData?.macro;
 
   async function addTicker(ticker: string) {
     const result = await api.addTicker(ticker);
@@ -35,5 +36,5 @@ export function useWatchlist(refreshInterval = 300_000, mode: "swing" | "day" = 
     return result;
   }
 
-  return { stocks, tickers, errors, isLoading, addTicker, removeTicker, mutate: mutateScores };
+  return { stocks, tickers, errors, macro, isLoading, addTicker, removeTicker, mutate: mutateScores };
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildStockScore } from "@/lib/yf";
+import { buildStockScore, fetchSMHSignal } from "@/lib/yf";
 import type { StockScore } from "@/types";
 
 export async function GET(req: NextRequest) {
@@ -9,22 +9,35 @@ export async function GET(req: NextRequest) {
   const mode = (url.searchParams.get("mode") ?? "swing") as "swing" | "day";
 
   if (tickers.length === 0) {
-    return NextResponse.json({ results: [], errors: {} });
+    const emptyMacro = { regime: "neutral" as const, smh_5d_return: 0, multiplier: 1.0, label: "" };
+    return NextResponse.json({ results: [], errors: {}, macro: emptyMacro });
   }
+
+  // Fetch macro signal (SMH 5d momentum) in parallel with stock scores
+  const [macro, ...stockResults] = await Promise.all([
+    fetchSMHSignal(),
+    ...tickers.map((ticker) =>
+      buildStockScore(ticker, mode).catch((e: unknown) => ({
+        _error: true as const,
+        ticker,
+        msg: e instanceof Error ? e.message : String(e),
+      }))
+    ),
+  ]);
 
   const results: StockScore[] = [];
   const errors: Record<string, string> = {};
 
-  await Promise.all(
-    tickers.map(async (ticker) => {
-      try {
-        results.push(await buildStockScore(ticker, mode));
-      } catch (e: unknown) {
-        errors[ticker] = e instanceof Error ? e.message : String(e);
-      }
-    })
-  );
+  for (const r of stockResults) {
+    if ("_error" in r) {
+      errors[r.ticker] = r.msg;
+    } else {
+      // Apply macro multiplier to final score
+      r.score = Math.min(100, Math.round(r.score_raw * macro.multiplier));
+      results.push(r);
+    }
+  }
 
   results.sort((a, b) => b.score - a.score);
-  return NextResponse.json({ results, errors });
+  return NextResponse.json({ results, errors, macro });
 }

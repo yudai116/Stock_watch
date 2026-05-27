@@ -5,6 +5,7 @@ import StockCard from "@/components/StockCard";
 import AddTickerForm from "@/components/AddTickerForm";
 import AutoRefreshToggle from "@/components/AutoRefreshToggle";
 import ModeToggle, { type TradeMode } from "@/components/ModeToggle";
+import MacroRegimeBanner from "@/components/MacroRegimeBanner";
 import { SECTOR_LABELS, getSector, type SectorKey } from "@/lib/sectors";
 
 type Filter = "ALL" | SectorKey;
@@ -24,7 +25,7 @@ export default function Dashboard() {
   const [filter, setFilter] = useState<Filter>("ALL");
   const [sortMode, setSortMode] = useState<SortMode>("score");
   const [tradeMode, setTradeMode] = useState<TradeMode>("swing");
-  const { stocks, isLoading, addTicker, removeTicker, mutate, errors } = useWatchlist(refreshInterval, tradeMode);
+  const { stocks, isLoading, addTicker, removeTicker, mutate, errors, macro } = useWatchlist(refreshInterval, tradeMode);
 
   const filtered = useMemo(() => {
     let list =
@@ -59,6 +60,9 @@ export default function Dashboard() {
 
       {/* Add ticker form */}
       <AddTickerForm onAdd={addTicker} />
+
+      {/* Macro regime banner (SMH 5d momentum) */}
+      <MacroRegimeBanner macro={macro} />
 
       {/* Sector filter tabs */}
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
