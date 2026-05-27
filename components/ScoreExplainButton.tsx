@@ -181,6 +181,19 @@ export default function ScoreExplainButton({ mode = "swing" }: Props) {
                 </div>
               </section>
 
+              {/* Large cap bonus */}
+              <section>
+                <h3 className="text-gray-300 font-semibold mb-2">大型株ボーナス指標</h3>
+                <p className="text-gray-400 text-xs leading-relaxed mb-2">
+                  大型株のみ、追加の確認指標でボーナス点を加算します（バックテストでシャープレシオ +27%）。
+                  中型・小型株では4指標モデルの方が優れているためボーナスなし。
+                </p>
+                <div className="space-y-1 text-xs text-gray-500">
+                  <p><span className="text-cyan-400">52週高値距離 (最大+12点)</span>: 高値から5〜15%下が最高点。直近高値付近は上値余地が限られ低得点。</p>
+                  <p><span className="text-cyan-400">OBV出来高圧力 (最大+8点)</span>: 10日間のOBV変化を平均出来高で正規化。機関投資家の買い集めを検出。</p>
+                </div>
+              </section>
+
               {/* Weights by size */}
               <section>
                 <h3 className="text-gray-300 font-semibold mb-2">時価総額別の重み付け</h3>

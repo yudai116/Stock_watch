@@ -92,6 +92,48 @@ export default function IndicatorBreakdown({ stock, mode = "swing" }: Props) {
         </div>
       )}
 
+      {/* Large cap bonus indicators */}
+      {stock.size === "large" && stock.score_components.high52w && (
+        <>
+          <div className="bg-gray-800 rounded-lg p-3">
+            <div className="flex justify-between items-center mb-2">
+              <div>
+                <span className="text-white font-medium text-sm">52週高値距離</span>
+                <span className="text-gray-500 text-xs ml-2">大型株ボーナス</span>
+              </div>
+              <div className="text-right">
+                <span className="text-white font-semibold">{stock.score_components.high52w.score}</span>
+                <span className="text-gray-500 text-xs">/12</span>
+              </div>
+            </div>
+            <div className="w-full bg-gray-700 rounded-full h-2 mb-2">
+              <div className="bg-cyan-500 h-2 rounded-full transition-all" style={{ width: `${(stock.score_components.high52w.score / 12) * 100}%` }} />
+            </div>
+            <div className="text-xs text-gray-400">
+              {stock.score_components.high52w.dist_pct !== null ? `高値から −${stock.score_components.high52w.dist_pct}%` : "高値データなし"}
+            </div>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-3">
+            <div className="flex justify-between items-center mb-2">
+              <div>
+                <span className="text-white font-medium text-sm">OBV (出来高圧力)</span>
+                <span className="text-gray-500 text-xs ml-2">大型株ボーナス</span>
+              </div>
+              <div className="text-right">
+                <span className="text-white font-semibold">{stock.score_components.obv.score}</span>
+                <span className="text-gray-500 text-xs">/8</span>
+              </div>
+            </div>
+            <div className="w-full bg-gray-700 rounded-full h-2 mb-2">
+              <div className="bg-cyan-500 h-2 rounded-full transition-all" style={{ width: `${(stock.score_components.obv.score / 8) * 100}%` }} />
+            </div>
+            <div className="text-xs text-gray-400">
+              {signalToJa(stock.score_components.obv.signal) || stock.score_components.obv.signal}
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Score breakdown note */}
       <div className="text-xs text-gray-600 px-1 space-y-0.5">
         {mode === "swing" ? (

@@ -81,3 +81,43 @@ export function calcBollinger(closes: number[], period = 20, stdDev = 2) {
   }
   return { upper, middle, lower, pctB };
 }
+
+// 14-day ATR (Average True Range) for position sizing / stop-loss estimation
+export function calcATR(highs: number[], lows: number[], closes: number[], period = 14): number[] {
+  const n = closes.length;
+  const atr: number[] = new Array(n).fill(NaN);
+  if (n < period + 1) return atr;
+
+  const trueRanges: number[] = [NaN];
+  for (let i = 1; i < n; i++) {
+    const tr = Math.max(
+      highs[i] - lows[i],
+      Math.abs(highs[i] - closes[i - 1]),
+      Math.abs(lows[i] - closes[i - 1])
+    );
+    trueRanges.push(tr);
+  }
+
+  // Wilder's smoothing
+  let sum = 0;
+  for (let i = 1; i <= period; i++) sum += trueRanges[i];
+  atr[period] = sum / period;
+  for (let i = period + 1; i < n; i++) {
+    atr[i] = (atr[i - 1] * (period - 1) + trueRanges[i]) / period;
+  }
+  return atr;
+}
+
+// OBV (On-Balance Volume) — cumulative signed volume
+export function calcOBV(closes: number[], volumes: number[]): number[] {
+  const n = closes.length;
+  const obv: number[] = new Array(n).fill(NaN);
+  if (n < 2) return obv;
+
+  obv[0] = 0;
+  for (let i = 1; i < n; i++) {
+    const sign = closes[i] > closes[i - 1] ? 1 : closes[i] < closes[i - 1] ? -1 : 0;
+    obv[i] = obv[i - 1] + sign * volumes[i];
+  }
+  return obv;
+}

@@ -3,9 +3,9 @@
 const YFClass = require("yahoo-finance2").default;
 const yf = new YFClass() as InstanceType<typeof YFClass>;
 import { computeScore, computeScoreDay, getPeLabel, scoreAnalyst } from "./scorer";
-import { calcRSI, calcMACD, calcBollinger, calcEMA } from "./indicators";
+import { calcRSI, calcMACD, calcBollinger, calcEMA, calcATR } from "./indicators";
 import { getSector, getSize, DEFAULT_SECTOR_WATCHLIST } from "./sectors";
-import type { StockScore, StockDetail, OHLCVPoint, SeriesPoint, MACDPoint, BBPoint } from "@/types";
+import type { StockScore, StockDetail, OHLCVPoint, SeriesPoint, MACDPoint, BBPoint, SellSignals } from "@/types";
 
 export const DEFAULT_WATCHLIST = DEFAULT_SECTOR_WATCHLIST;
 
@@ -104,8 +104,12 @@ export async function buildStockScore(ticker: string, mode: "swing" | "day" = "s
   const [rows, quote] = await Promise.all([fetchHistory(upper), fetchQuote(upper)]);
   if (rows.length < 30) throw new Error(`Not enough data for ${upper}`);
 
-  const closes = rows.map((r) => r.close);
-  const technicalScores = mode === "day" ? computeScoreDay(closes, sizeKey) : computeScore(closes, sizeKey);
+  const closes  = rows.map((r) => r.close);
+  const volumes = rows.map((r) => r.volume);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const high52w  = (quote?.price as any)?.fiftyTwoWeekHigh as number | null ?? null;
+  const extras   = { volumes, high52w };
+  const technicalScores = mode === "day" ? computeScoreDay(closes, sizeKey, extras) : computeScore(closes, sizeKey, extras);
   const technicalTotal = technicalScores.total; // 0-100
 
   const price = closes[closes.length - 1];
@@ -147,6 +151,8 @@ export async function buildStockScore(ticker: string, mode: "swing" | "day" = "s
         value: null,
         signal: analystResult.signal,
       },
+      high52w: technicalScores.high52w,
+      obv: technicalScores.obv,
     },
     trailing_pe: cleanPe(trailingPe),
     forward_pe: cleanPe(forwardPe),
@@ -171,8 +177,14 @@ export async function buildStockDetail(ticker: string, mode: "swing" | "day" = "
   const [rows, quote] = await Promise.all([fetchHistory(upper), fetchQuote(upper)]);
   if (rows.length < 30) throw new Error(`Not enough data for ${upper}`);
 
-  const closes = rows.map((r) => r.close);
-  const technicalScores = mode === "day" ? computeScoreDay(closes, sizeKey2) : computeScore(closes, sizeKey2);
+  const closes  = rows.map((r) => r.close);
+  const volumes = rows.map((r) => r.volume);
+  const highs   = rows.map((r) => r.high);
+  const lows    = rows.map((r) => r.low);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const high52w  = (quote?.price as any)?.fiftyTwoWeekHigh as number | null ?? null;
+  const extras2  = { volumes, high52w };
+  const technicalScores = mode === "day" ? computeScoreDay(closes, sizeKey2, extras2) : computeScore(closes, sizeKey2, extras2);
   const technicalTotal = technicalScores.total;
 
   const price = closes[closes.length - 1];
@@ -197,6 +209,27 @@ export async function buildStockDetail(ticker: string, mode: "swing" | "day" = "
   const { upper: bbUpper, middle: bbMiddle, lower: bbLower, pctB } = calcBollinger(closes);
   const ma20Arr = calcEMA(closes, 20);
   const ma50Arr = calcEMA(closes, 50);
+  const atrArr  = calcATR(highs, lows, closes);
+
+  // Sell signals: BB 2σ target + 2.5σ higher target + stop reference
+  // Based on backtest: BB_2σ + PCT_5_stop = best strategy (Sharpe 1.153)
+  const n = closes.length;
+  const lastBbUpper   = bbUpper[n - 1] ?? null;
+  const lastBbMiddle  = bbMiddle[n - 1] ?? null;
+  const lastAtr       = atrArr[n - 1] ?? null;
+  const distFrom52w   = high52w && price > 0 ? Math.round((high52w - price) / high52w * 1000) / 10 : null;
+  // 2.5σ = middle + (upper2σ - middle) × 1.25
+  const bb25 = lastBbUpper && lastBbMiddle
+    ? Math.round((lastBbMiddle + (lastBbUpper - lastBbMiddle) * 1.25) * 100) / 100
+    : null;
+  const sellSignals: SellSignals = {
+    bb_target_2sigma:    lastBbUpper ? Math.round(lastBbUpper * 100) / 100 : null,
+    bb_target_2_5sigma:  bb25,
+    atr_14d:             lastAtr ? Math.round(lastAtr * 100) / 100 : null,
+    stop_loss_5pct:      price ? Math.round(price * 0.95 * 100) / 100 : null,
+    dist_from_52w_high_pct: distFrom52w,
+    high_52w:            high52w,
+  };
 
   const fmt = (d: Date) => d.toISOString().split("T")[0];
 
@@ -241,6 +274,8 @@ export async function buildStockDetail(ticker: string, mode: "swing" | "day" = "
         value: null,
         signal: analystResult.signal,
       },
+      high52w: technicalScores.high52w,
+      obv: technicalScores.obv,
     },
     trailing_pe: cleanPe(trailingPe),
     forward_pe: cleanPe(forwardPe),
@@ -252,6 +287,7 @@ export async function buildStockDetail(ticker: string, mode: "swing" | "day" = "
     sector_label: sectorInfo.label,
     size: sizeKey2,
     last_updated: new Date().toISOString(),
+    sell_signals: sellSignals,
     history,
     rsi_series: rsiSeries,
     macd_series: macdSeries,

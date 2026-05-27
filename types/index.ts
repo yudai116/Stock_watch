@@ -29,6 +29,8 @@ export interface StockScore {
     bollinger: ScoreComponent;
     moving_avg: ScoreComponent;
     analyst: ScoreComponent;
+    high52w: { score: number; dist_pct: number | null };
+    obv:    { score: number; signal: string };
   };
   trailing_pe: number | null;
   forward_pe: number | null;
@@ -40,6 +42,15 @@ export interface StockScore {
   sector_label: string;
   size: "large" | "mid" | "small";
   last_updated: string;
+}
+
+export interface SellSignals {
+  bb_target_2sigma: number | null;    // upper BB 2σ — primary sell target (backtest #1)
+  bb_target_2_5sigma: number | null;  // upper BB 2.5σ — secondary target
+  atr_14d: number | null;             // current 14-day ATR (stop sizing reference)
+  stop_loss_5pct: number | null;      // current_price × 0.95 (backtest-derived stop)
+  dist_from_52w_high_pct: number | null; // % below 52-week high
+  high_52w: number | null;
 }
 
 export interface StockScoresResponse {
@@ -79,6 +90,7 @@ export interface BBPoint {
 
 export interface StockDetail extends StockScore {
   macro: MacroSignal;
+  sell_signals: SellSignals;
   history: OHLCVPoint[];
   rsi_series: SeriesPoint[];
   macd_series: MACDPoint[];

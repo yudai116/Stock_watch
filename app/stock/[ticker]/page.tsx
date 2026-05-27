@@ -9,6 +9,7 @@ import ModeToggle, { type TradeMode } from "@/components/ModeToggle";
 import MacroRegimeBanner from "@/components/MacroRegimeBanner";
 import ScoreExplainButton from "@/components/ScoreExplainButton";
 import { formatPrice, formatChangePct, peLabelColor } from "@/lib/formatters";
+import SellTargetCard from "@/components/SellTargetCard";
 
 interface Props {
   params: Promise<{ ticker: string }>;
@@ -152,6 +153,14 @@ export default function StockDetailPage({ params }: Props) {
           </div>
         </div>
       </div>
+
+      {/* 売りターゲット */}
+      {detail.sell_signals && (
+        <div>
+          <h2 className="text-white font-semibold mb-3">売りターゲット・リスク管理</h2>
+          <SellTargetCard sellSignals={detail.sell_signals} currency={detail.currency} currentPrice={detail.price ?? 0} />
+        </div>
+      )}
 
       {/* チャート */}
       <div>

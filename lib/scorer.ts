@@ -1,4 +1,4 @@
-import { calcRSI, calcMACD, calcBollinger, calcEMA } from "./indicators";
+import { calcRSI, calcMACD, calcBollinger, calcEMA, calcOBV } from "./indicators";
 
 function interp(value: number, bp: [number, number][]): number {
   if (value <= bp[0][0]) return bp[0][1];
@@ -233,7 +233,53 @@ export function scoreAnalyst(trend: AnalystTrend | null): { score: number; signa
   return { score, signal, count: total };
 }
 
-export function computeScore(closes: number[], size: "large" | "mid" | "small" = "mid") {
+// ── Additional confirmation indicators (additive bonus, not in MULTS system) ──
+// Backtest result: far_from_52w_high ΔSharpe +5.98, OBV_rising ΔSharpe +2.77
+// These are scored separately and added as bonus points (max 12 + max 8 = 20).
+
+// Distance below 52-week high: sweet spot is 5-15% below (room to recover, not broken)
+export function score52wHigh(currentPrice: number, high52w: number | null): { score: number; dist_pct: number | null } {
+  if (!high52w || high52w <= 0) return { score: 6, dist_pct: null };  // neutral if unknown
+  const dist = (high52w - currentPrice) / high52w * 100;  // % below 52w high
+  const score = Math.round(interp(dist, [
+    [0,  9],   // near ATH — limited upside
+    [5,  12],  // sweet spot start
+    [15, 12],  // sweet spot end
+    [25, 10],  // reasonable recovery potential
+    [40, 7],   // large drawdown
+    [60, 4],   // caution territory
+    [80, 1],   // likely structural break
+  ]));
+  return { score, dist_pct: Math.round(dist * 10) / 10 };
+}
+
+// OBV trend: rising OBV = institutional accumulation = bullish confirmation
+export function scoreOBV(closes: number[], volumes: number[]): { score: number; signal: string } {
+  if (closes.length < 32 || volumes.length < 32) return { score: 4, signal: "insufficient_data" };
+  const obv = calcOBV(closes, volumes);
+  const n = obv.length;
+  const valid = obv.filter((v) => !isNaN(v));
+  if (valid.length < 11) return { score: 4, signal: "insufficient_data" };
+
+  const obvNow    = obv[n - 1];
+  const obvMinus10 = obv[n - 11];  // 10 bars ago
+  const avgVol    = volumes.slice(n - 30, n).reduce((a, b) => a + b, 0) / 30;
+  if (avgVol === 0) return { score: 4, signal: "no_volume" };
+
+  const normalizedChange = (obvNow - obvMinus10) / avgVol;  // in units of avg daily volume
+
+  let score: number;
+  let signal: string;
+  if (normalizedChange > 1.5)       { score = 8; signal = "strong_accumulation"; }
+  else if (normalizedChange > 0.5)  { score = 6; signal = "accumulation"; }
+  else if (normalizedChange > 0.0)  { score = 4; signal = "slight_accumulation"; }
+  else if (normalizedChange > -0.5) { score = 3; signal = "neutral_obv"; }
+  else                              { score = 1; signal = "distribution"; }
+
+  return { score, signal };
+}
+
+export function computeScore(closes: number[], size: "large" | "mid" | "small" = "mid", extras?: { volumes?: number[]; high52w?: number | null }) {
   const rsi = scoreRSI(closes);
   const macd = scoreMACD(closes);
   const bollinger = scoreBollinger(closes);
@@ -252,13 +298,20 @@ export function computeScore(closes: number[], size: "large" | "mid" | "small" =
     small: [1.086, 0.913, 1.001, 1.000],  // RSI/BB effective (high-vol mean-reversion)
   };
   const [mRsi, mMacd, mBb, mMa] = MULTS[size];
-  const total = Math.min(100, Math.round(
+  const base = Math.round(
     rsi.score       * mRsi  +
     macd.score      * mMacd +
     bollinger.score * mBb   +
     movingAvg.score * mMa
-  ));
-  return { total, rsi, macd, bollinger, moving_avg: movingAvg };
+  );
+
+  // Additive confirmation bonuses: only large cap benefits (backtest: large +27% Sharpe;
+  // mid/small are hurt — the 4-indicator base system already captures their dynamics).
+  const highResult = size === "large" ? score52wHigh(closes[closes.length - 1], extras?.high52w ?? null) : { score: 0, dist_pct: null as null };
+  const obvResult  = size === "large" ? scoreOBV(closes, extras?.volumes ?? []) : { score: 0, signal: "n/a" };
+
+  const total = Math.min(100, base + highResult.score + obvResult.score);
+  return { total, rsi, macd, bollinger, moving_avg: movingAvg, high52w: highResult, obv: obvResult };
 }
 
 // ── Day trade scoring functions ───────────────────────────────────────────────
@@ -356,7 +409,7 @@ export function scoreMADay(closes: number[]): ScoreResult {
   };
 }
 
-export function computeScoreDay(closes: number[], size: "large" | "mid" | "small" = "mid") {
+export function computeScoreDay(closes: number[], size: "large" | "mid" | "small" = "mid", extras?: { volumes?: number[]; high52w?: number | null }) {
   const rsi       = scoreRSIDay(closes);
   const macd      = scoreMACD(closes);
   const bollinger = scoreBollinger(closes);
@@ -374,13 +427,16 @@ export function computeScoreDay(closes: number[], size: "large" | "mid" | "small
     small: [0.911, 1.015, 0.969, 1.105],  // more balanced, MA still leads
   };
   const [mRsi, mMacd, mBb, mMa] = MULTS_DAY[size];
-  const total = Math.min(100, Math.round(
+  const base = Math.round(
     rsi.score       * mRsi  +
     macd.score      * mMacd +
     bollinger.score * mBb   +
     movingAvg.score * mMa
-  ));
-  return { total, rsi, macd, bollinger, moving_avg: movingAvg };
+  );
+  const highResult = size === "large" ? score52wHigh(closes[closes.length - 1], extras?.high52w ?? null) : { score: 0, dist_pct: null as null };
+  const obvResult  = size === "large" ? scoreOBV(closes, extras?.volumes ?? []) : { score: 0, signal: "n/a" };
+  const total = Math.min(100, base + highResult.score + obvResult.score);
+  return { total, rsi, macd, bollinger, moving_avg: movingAvg, high52w: highResult, obv: obvResult };
 }
 
 export function getPeLabel(pe: number | null | undefined, market: string): string | null {

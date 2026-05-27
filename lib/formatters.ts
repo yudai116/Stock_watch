@@ -107,6 +107,14 @@ export function signalToJa(signal: string): string {
     at_crossover: "クロス付近",
     death_cross_zone: "デッドクロス帯",
     insufficient_data: "データ不足",
+    // OBV signals
+    strong_accumulation: "強い買い集め",
+    accumulation: "買い集め",
+    slight_accumulation: "やや買い集め",
+    neutral_obv: "OBV中立",
+    distribution: "売り圧力",
+    no_volume: "出来高なし",
+    "n/a": "—",
     // day trade signals
     oversold_bounce: "売られすぎ反発",
     recovering: "回復中",
