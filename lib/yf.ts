@@ -99,16 +99,26 @@ export async function buildStockScore(ticker: string, mode: "swing" | "day" = "s
   const [rows, quote] = await Promise.all([fetchHistory(upper), fetchQuote(upper)]);
   if (rows.length < 20) throw new Error(`Not enough data for ${upper}`);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const qp = quote?.price as any;
+  // Append today's live price so indicators reflect intraday movement, not just yesterday's close.
+  const livePrice  = (qp?.regularMarketPrice  as number | null) ?? null;
+  const liveVolume = (qp?.regularMarketVolume as number | null) ?? 0;
+
   const closes  = rows.map((r) => r.close);
   const volumes = rows.map((r) => r.volume);
+  const closesForScore  = livePrice ? [...closes, livePrice]  : closes;
+  const volumesForScore = livePrice ? [...volumes, liveVolume] : volumes;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const high52w  = (quote?.price as any)?.fiftyTwoWeekHigh as number | null ?? null;
-  const extras   = { volumes, high52w };
-  const technicalScores = mode === "day" ? computeScoreDay(closes, sizeKey, extras) : computeScore(closes, sizeKey, extras);
+  const high52w  = (qp?.fiftyTwoWeekHigh as number | null) ?? null;
+  const extras   = { volumes: volumesForScore, high52w };
+  const technicalScores = mode === "day" ? computeScoreDay(closesForScore, sizeKey, extras) : computeScore(closesForScore, sizeKey, extras);
   const technicalTotal = technicalScores.total; // 0-100
 
-  const price = closes[closes.length - 1];
-  const prevClose = closes[closes.length - 2];
+  // Displayed price = live market price; change % vs yesterday's close
+  const price     = livePrice ?? closes[closes.length - 1];
+  const prevClose = closes[closes.length - 1];  // last historical close = yesterday
   const changePct = prevClose ? Math.round(((price - prevClose) / prevClose) * 10000) / 100 : null;
 
   const name = quote?.price?.longName ?? quote?.price?.shortName ?? upper;
@@ -172,18 +182,32 @@ export async function buildStockDetail(ticker: string, mode: "swing" | "day" = "
   const [rows, quote] = await Promise.all([fetchHistory(upper), fetchQuote(upper)]);
   if (rows.length < 20) throw new Error(`Not enough data for ${upper}`);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const qp2 = quote?.price as any;
+  const livePrice2  = (qp2?.regularMarketPrice  as number | null) ?? null;
+  const liveVolume2 = (qp2?.regularMarketVolume as number | null) ?? 0;
+  const liveDayHigh = (qp2?.regularMarketDayHigh as number | null) ?? null;
+  const liveDayLow  = (qp2?.regularMarketDayLow  as number | null) ?? null;
+
   const closes  = rows.map((r) => r.close);
   const volumes = rows.map((r) => r.volume);
   const highs   = rows.map((r) => r.high);
   const lows    = rows.map((r) => r.low);
+
+  // Append today's live data for up-to-date indicator calculation
+  const closesForScore = livePrice2 ? [...closes, livePrice2]  : closes;
+  const volumesForScore = livePrice2 ? [...volumes, liveVolume2] : volumes;
+  const highsForScore  = livePrice2 ? [...highs, liveDayHigh ?? livePrice2] : highs;
+  const lowsForScore   = livePrice2 ? [...lows,  liveDayLow  ?? livePrice2] : lows;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const high52w  = (quote?.price as any)?.fiftyTwoWeekHigh as number | null ?? null;
-  const extras2  = { volumes, high52w };
-  const technicalScores = mode === "day" ? computeScoreDay(closes, sizeKey2, extras2) : computeScore(closes, sizeKey2, extras2);
+  const high52w  = (qp2?.fiftyTwoWeekHigh as number | null) ?? null;
+  const extras2  = { volumes: volumesForScore, high52w };
+  const technicalScores = mode === "day" ? computeScoreDay(closesForScore, sizeKey2, extras2) : computeScore(closesForScore, sizeKey2, extras2);
   const technicalTotal = technicalScores.total;
 
-  const price = closes[closes.length - 1];
-  const prevClose = closes[closes.length - 2];
+  const price     = livePrice2 ?? closes[closes.length - 1];
+  const prevClose = closes[closes.length - 1];  // yesterday's close
   const changePct = prevClose ? Math.round(((price - prevClose) / prevClose) * 10000) / 100 : null;
   const name = quote?.price?.longName ?? quote?.price?.shortName ?? upper;
   const trailingPe = (quote?.summaryDetail?.trailingPE as number | undefined) ?? null;
@@ -199,21 +223,20 @@ export async function buildStockDetail(ticker: string, mode: "swing" | "day" = "
     ? Math.min(100, Math.round(technicalTotal * 0.7 + analystResult.score))
     : technicalTotal;
 
-  const rsiArr = calcRSI(closes);
-  const { macdLine, signalLine, histogram } = calcMACD(closes);
-  const { upper: bbUpper, middle: bbMiddle, lower: bbLower, pctB } = calcBollinger(closes);
-  const ma20Arr = calcEMA(closes, 20);
-  const ma50Arr = calcEMA(closes, 50);
-  const atrArr  = calcATR(highs, lows, closes);
+  // Use live-appended arrays for indicator series so charts also show today's movement
+  const rsiArr = calcRSI(closesForScore);
+  const { macdLine, signalLine, histogram } = calcMACD(closesForScore);
+  const { upper: bbUpper, middle: bbMiddle, lower: bbLower, pctB } = calcBollinger(closesForScore);
+  const ma20Arr = calcEMA(closesForScore, 20);
+  const ma50Arr = calcEMA(closesForScore, 50);
+  const atrArr  = calcATR(highsForScore, lowsForScore, closesForScore);
 
-  // Sell signals: BB 2σ target + 2.5σ higher target + stop reference
-  // Based on backtest: BB_2σ + PCT_5_stop = best strategy (Sharpe 1.153)
-  const n = closes.length;
+  // Sell signals based on latest BB/ATR values (including today's live price)
+  const n = closesForScore.length;
   const lastBbUpper   = bbUpper[n - 1] ?? null;
   const lastBbMiddle  = bbMiddle[n - 1] ?? null;
   const lastAtr       = atrArr[n - 1] ?? null;
   const distFrom52w   = high52w && price > 0 ? Math.round((high52w - price) / high52w * 1000) / 10 : null;
-  // 2.5σ = middle + (upper2σ - middle) × 1.25
   const bb25 = lastBbUpper && lastBbMiddle
     ? Math.round((lastBbMiddle + (lastBbUpper - lastBbMiddle) * 1.25) * 100) / 100
     : null;
@@ -227,26 +250,32 @@ export async function buildStockDetail(ticker: string, mode: "swing" | "day" = "
   };
 
   const fmt = (d: Date) => d.toISOString().split("T")[0];
+  const today = new Date().toISOString().split("T")[0];
 
-  const history: OHLCVPoint[] = rows.map((r) => ({
-    date: fmt(r.date),
+  // Historical rows for chart; append synthetic "today" bar if live price is available
+  const histRows = livePrice2
+    ? [...rows, { date: new Date(), open: livePrice2, high: liveDayHigh ?? livePrice2, low: liveDayLow ?? livePrice2, close: livePrice2, volume: liveVolume2 }]
+    : rows;
+
+  const history: OHLCVPoint[] = histRows.map((r) => ({
+    date: r.date instanceof Date ? (r.date.toISOString().split("T")[0] === "1970-01-01" ? today : r.date.toISOString().split("T")[0]) : today,
     open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume,
   }));
 
-  const rsiSeries: SeriesPoint[] = rows
-    .map((r, i) => ({ date: fmt(r.date), value: rsiArr[i] }))
+  const rsiSeries: SeriesPoint[] = histRows
+    .map((r, i) => ({ date: history[i].date, value: rsiArr[i] }))
     .filter((p) => !isNaN(p.value));
 
-  const macdSeries: MACDPoint[] = rows
-    .map((r, i) => ({ date: fmt(r.date), macd: macdLine[i], signal: signalLine[i], histogram: histogram[i] }))
+  const macdSeries: MACDPoint[] = histRows
+    .map((r, i) => ({ date: history[i].date, macd: macdLine[i], signal: signalLine[i], histogram: histogram[i] }))
     .filter((p) => !isNaN(p.macd) && !isNaN(p.signal));
 
-  const bbSeries: BBPoint[] = rows
-    .map((r, i) => ({ date: fmt(r.date), upper: bbUpper[i], middle: bbMiddle[i], lower: bbLower[i], pct_b: pctB[i] }))
+  const bbSeries: BBPoint[] = histRows
+    .map((r, i) => ({ date: history[i].date, upper: bbUpper[i], middle: bbMiddle[i], lower: bbLower[i], pct_b: pctB[i] }))
     .filter((p) => !isNaN(p.upper));
 
-  const ma20Series: SeriesPoint[] = rows.map((r, i) => ({ date: fmt(r.date), value: ma20Arr[i] })).filter((p) => !isNaN(p.value));
-  const ma50Series: SeriesPoint[] = rows.map((r, i) => ({ date: fmt(r.date), value: ma50Arr[i] })).filter((p) => !isNaN(p.value));
+  const ma20Series: SeriesPoint[] = histRows.map((r, i) => ({ date: history[i].date, value: ma20Arr[i] })).filter((p) => !isNaN(p.value));
+  const ma50Series: SeriesPoint[] = histRows.map((r, i) => ({ date: history[i].date, value: ma50Arr[i] })).filter((p) => !isNaN(p.value));
 
   return {
     ticker: upper,
