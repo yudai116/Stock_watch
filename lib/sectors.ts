@@ -1,4 +1,5 @@
 export type SectorKey = "semiconductor" | "memory" | "ai" | "quantum" | "nuclear";
+export type SizeKey   = "large" | "mid" | "small";
 
 export interface SectorInfo {
   key: SectorKey;
@@ -102,4 +103,30 @@ export const SECTOR_LABELS: Record<SectorKey | "ALL", string> = {
 
 export function getSector(ticker: string): SectorInfo {
   return SECTOR_MAP[ticker.toUpperCase()] ?? { key: "semiconductor", label: "テクノロジー", color: "gray" };
+}
+
+// ── Company-size classification (approximate 2024 market caps) ────────────────
+// large: >$50B  |  mid: $3B-$50B  |  small: <$3B (speculative)
+const SIZE_MAP: Record<string, SizeKey> = {
+  // Large cap (>$50B, established trends, MACD/MA dominate)
+  "NVDA":   "large", "AMD":    "large", "ASML":   "large", "TSM":    "large",
+  "AVGO":   "large", "QCOM":   "large", "INTC":   "large", "MSFT":   "large",
+  "GOOGL":  "large", "META":   "large", "AMZN":   "large", "ORCL":   "large",
+  "CRM":    "large", "IBM":    "large", "MU":     "large", "LRCX":   "large",
+  "KLAC":   "large", "AMAT":   "large", "CDNS":   "large", "SNPS":   "large",
+  "8035.T": "large", "4063.T": "large", "6501.T": "large",
+  // Mid cap ($3B-$50B, balanced characteristics)
+  "MRVL":   "mid",   "ARM":    "mid",   "SMCI":   "mid",   "TER":    "mid",
+  "CRWD":   "mid",   "SNOW":   "mid",   "PLTR":   "mid",   "WDC":    "mid",
+  "PATH":   "mid",   "6857.T": "mid",   "6762.T": "mid",   "6702.T": "mid",
+  "6920.T": "mid",   "6503.T": "mid",   "BWXT":   "mid",   "ONTO":   "mid",
+  "WOLF":   "mid",   "AMBA":   "mid",
+  // Small cap (<$3B, speculative, RSI/BB mean-reversion effective)
+  "SOUN":   "small", "BBAI":   "small", "IREN":   "small", "AI":     "small",
+  "IONQ":   "small", "RGTI":   "small", "QBTS":   "small",
+  "OKLO":   "small", "SMR":    "small",
+};
+
+export function getSize(ticker: string): SizeKey {
+  return SIZE_MAP[ticker.toUpperCase()] ?? "mid";
 }

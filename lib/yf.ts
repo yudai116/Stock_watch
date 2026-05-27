@@ -4,7 +4,7 @@ const YFClass = require("yahoo-finance2").default;
 const yf = new YFClass() as InstanceType<typeof YFClass>;
 import { computeScore, getPeLabel, scoreAnalyst } from "./scorer";
 import { calcRSI, calcMACD, calcBollinger, calcEMA } from "./indicators";
-import { getSector, DEFAULT_SECTOR_WATCHLIST } from "./sectors";
+import { getSector, getSize, DEFAULT_SECTOR_WATCHLIST } from "./sectors";
 import type { StockScore, StockDetail, OHLCVPoint, SeriesPoint, MACDPoint, BBPoint } from "@/types";
 
 export const DEFAULT_WATCHLIST = DEFAULT_SECTOR_WATCHLIST;
@@ -59,12 +59,13 @@ export async function buildStockScore(ticker: string): Promise<StockScore> {
   const market = detectMarket(upper);
   const currency = getCurrency(market);
   const sectorInfo = getSector(upper);
+  const sizeKey    = getSize(upper);
 
   const [rows, quote] = await Promise.all([fetchHistory(upper), fetchQuote(upper)]);
   if (rows.length < 30) throw new Error(`Not enough data for ${upper}`);
 
   const closes = rows.map((r) => r.close);
-  const technicalScores = computeScore(closes);
+  const technicalScores = computeScore(closes, sizeKey);
   const technicalTotal = technicalScores.total; // 0-100
 
   const price = closes[closes.length - 1];
@@ -114,6 +115,7 @@ export async function buildStockScore(ticker: string): Promise<StockScore> {
     analyst_count: analystResult.count,
     sector: sectorInfo.key,
     sector_label: sectorInfo.label,
+    size: sizeKey,
     last_updated: new Date().toISOString(),
   };
 }
@@ -123,12 +125,13 @@ export async function buildStockDetail(ticker: string): Promise<StockDetail> {
   const market = detectMarket(upper);
   const currency = getCurrency(market);
   const sectorInfo = getSector(upper);
+  const sizeKey2   = getSize(upper);
 
   const [rows, quote] = await Promise.all([fetchHistory(upper), fetchQuote(upper)]);
   if (rows.length < 30) throw new Error(`Not enough data for ${upper}`);
 
   const closes = rows.map((r) => r.close);
-  const technicalScores = computeScore(closes);
+  const technicalScores = computeScore(closes, sizeKey2);
   const technicalTotal = technicalScores.total;
 
   const price = closes[closes.length - 1];
@@ -204,6 +207,7 @@ export async function buildStockDetail(ticker: string): Promise<StockDetail> {
     analyst_count: analystResult.count,
     sector: sectorInfo.key,
     sector_label: sectorInfo.label,
+    size: sizeKey2,
     last_updated: new Date().toISOString(),
     history,
     rsi_series: rsiSeries,

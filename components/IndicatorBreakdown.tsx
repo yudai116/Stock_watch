@@ -85,7 +85,9 @@ export default function IndicatorBreakdown({ stock }: Props) {
 
       {/* Score breakdown note */}
       <div className="text-xs text-gray-600 px-1 space-y-0.5">
-        <p>テクニカル: RSI×0.965 + MACD×1.055 + BB×0.889 + MA×1.090</p>
+        {stock.size === "large" && <p>大型株 (MACD/MA重視): RSI×0.722 + MACD×1.274 + BB×0.795 + MA×1.209</p>}
+        {stock.size === "mid"   && <p>中型株 (MA重視): RSI×0.842 + MACD×1.021 + BB×0.956 + MA×1.182</p>}
+        {stock.size === "small" && <p>小型株 (RSI/BB重視): RSI×1.086 + MACD×0.913 + BB×1.001 + MA×1.000</p>}
         <p>{hasAnalyst ? "合計 = テクニカル×70% + アナリスト評価×30%" : "合計 = テクニカルスコア (アナリストデータなし)"}</p>
       </div>
     </div>

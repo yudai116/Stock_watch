@@ -104,6 +104,16 @@ HOLD_DAYS   = [3, 5, 7, 10, 15, 20]
 WEIGHT_STEP = 10          # 286 combos (kept fine-grained, optimised loop handles it)
 FOLDS       = [(504, 504), (756, 504), (1008, 504), (1260, 504), (1512, 504)]
 
+# Company-size groups — must match lib/sectors.ts SIZE_MAP
+SIZE_GROUPS: dict[str, list[str]] = {
+    "large": ["NVDA","AMD","ASML","TSM","AVGO","QCOM","INTC","MSFT","GOOGL","META",
+              "AMZN","ORCL","CRM","IBM","MU","LRCX","KLAC","AMAT","CDNS","SNPS",
+              "8035.T","4063.T","6501.T"],
+    "mid":   ["MRVL","ARM","SMCI","TER","CRWD","SNOW","PLTR","WDC","PATH","6857.T",
+              "6762.T","6702.T","6920.T","6503.T","BWXT","ONTO","WOLF","AMBA"],
+    "small": ["SOUN","BBAI","IREN","AI","IONQ","RGTI","QBTS","OKLO","SMR"],
+}
+
 # ─── Simulation ──────────────────────────────────────────────────────────────
 
 def sim_batch(cagr: float, vol: float) -> np.ndarray:
@@ -420,185 +430,139 @@ def eval_one(sc, price, w, thr, hold, s0, s1) -> dict:
     sh, n, wr = backtest_one(sc, price, w, hold, thr, s0, s1)
     return {"sh": sh, "n": n, "wr": wr}
 
+# ─── Size-group backtest ──────────────────────────────────────────────────────
+
+def run_size_group(name: str, tickers: list, wlist: list) -> dict:
+    """Simulate, score, and walk-forward-optimise a single size group.
+    Returns signal Sharpe rankings and Sharpe-proportional multipliers."""
+    t0 = time.time()
+    pb, sb = [], []
+    for ticker in tickers:
+        if ticker not in STOCKS:
+            continue
+        cagr, vol = STOCKS[ticker]
+        pm = sim_batch(cagr, vol)
+        sm = all_scores(pm)
+        pb.append(pm)
+        sb.append(sm)
+
+    price_g = np.concatenate(pb, axis=0)
+    score_g = np.concatenate(sb, axis=0)
+    P_g     = price_g.shape[0]
+
+    # Composite sanity
+    wv_eq   = np.ones(4)
+    comp_eq = np.einsum('k,pkt->pt', wv_eq, score_g)
+    comp_eq[np.any(np.isnan(score_g), axis=1)] = np.nan
+    vc = comp_eq[~np.isnan(comp_eq)]
+    print(f"    Series={P_g}  composite mean={vc.mean():.1f}  std={vc.std():.1f}  "
+          f"≥60: {(vc>=60).mean():.1%}")
+
+    # Walk-forward (informational — fold-optimal weights & thresholds)
+    fold_results = []
+    for fi, (train_days, test_days) in enumerate(FOLDS):
+        best = optimise_fold(score_g, price_g, train_days, wlist)
+        if not best:
+            continue
+        test_end = train_days + test_days
+        test_m   = eval_one(score_g, price_g,
+                            best["w"], best["thr"], best["hold"],
+                            train_days, test_end)
+        fold_results.append({"fold": fi+1, "best": best, "test": test_m,
+                              "train_days": train_days})
+
+    # ── Single-signal Sharpe analysis (thr=65, hold=5d — fixed across all groups)
+    # This is the primary basis for computing multipliers: removes overfitting risk
+    # that affects fold optimization (small test windows → 0 signals at thr=75).
+    REF_THR, REF_HOLD = 65, 5
+    sig_sh: dict[str, float] = {}
+    sig_wr: dict[str, float] = {}
+    sig_n:  dict[str, int]   = {}
+    for lbl, sw in [("RSI",  (100,   0,   0,   0)),
+                    ("MACD", (  0, 100,   0,   0)),
+                    ("BB",   (  0,   0, 100,   0)),
+                    ("MA",   (  0,   0,   0, 100))]:
+        m = eval_one(score_g, price_g, sw, REF_THR, REF_HOLD, 0, N_DAYS)
+        sig_sh[lbl] = m["sh"]
+        sig_wr[lbl] = m["wr"]
+        sig_n[lbl]  = m["n"]
+        print(f"    {lbl:4s}  Sharpe={m['sh']:+.3f}  WR={m['wr']:.1%}  n={m['n']}")
+
+    ranked = sorted(sig_sh, key=sig_sh.get, reverse=True)
+    print(f"    Ranking: {' > '.join(ranked)}")
+
+    # Compute Sharpe-proportional multipliers (sum=4, floor=0.05)
+    sh_vals = np.array([sig_sh[k] for k in ["RSI", "MACD", "BB", "MA"]])
+    sh_pos  = np.maximum(sh_vals, 0.05)
+    mults   = sh_pos / sh_pos.mean()
+    mul_rsi, mul_macd, mul_bb, mul_ma = [round(float(m), 3) for m in mults]
+    print(f"    Multipliers: RSI×{mul_rsi}  MACD×{mul_macd}  BB×{mul_bb}  MA×{mul_ma}  "
+          f"({time.time()-t0:.0f}s)")
+
+    return {
+        "n_stocks":         len(tickers),
+        "n_series":         P_g,
+        "signal_sharpes":   {k: round(v, 4) for k, v in sig_sh.items()},
+        "signal_winrates":  {k: round(v, 4) for k, v in sig_wr.items()},
+        "signal_counts":    sig_n,
+        "signal_ranking":   ranked,
+        "score_multipliers": {"rsi": mul_rsi, "macd": mul_macd, "bb": mul_bb, "ma": mul_ma},
+        "folds": [{"fold": f["fold"],
+                   "weights": {"rsi": f["best"]["w"][0], "macd": f["best"]["w"][1],
+                               "bb":  f["best"]["w"][2], "ma":   f["best"]["w"][3]},
+                   "threshold":  f["best"]["thr"],
+                   "hold_days":  f["best"]["hold"],
+                   "train_sharpe": round(f["best"]["sh"], 4),
+                   "test_sharpe":  round(f["test"]["sh"],  4)}
+                  for f in fold_results],
+    }
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
     t0    = time.time()
     wlist = weight_grid()
-    n_stocks = len(STOCKS)
-    total_series = n_stocks * N_PATHS
 
     print("=" * 68)
-    print("  Walk-Forward Backtest — Monte Carlo (50 stocks, optimised fold)")
+    print("  Walk-Forward Backtest — Size-Stratified (large / mid / small)")
     print("=" * 68)
-    print(f"\n  Stocks={n_stocks}  Paths/stock={N_PATHS}  "
-          f"Total series={total_series}  Days={N_DAYS}")
-    print(f"  Grid={len(wlist)} combos × {len(THRESHOLDS)} thr × {len(HOLD_DAYS)} hold")
-    total_evals = len(wlist) * len(THRESHOLDS) * len(HOLD_DAYS) * len(FOLDS)
-    print(f"  {len(FOLDS)} folds × {len(THRESHOLDS)}×{len(HOLD_DAYS)} param combos "
-          f"= {total_evals:,} evaluations (optimised: einsum once per weight)")
+    print(f"\n  50 stocks × {N_PATHS} paths/stock = {50*N_PATHS} series  |  "
+          f"{N_DAYS} days  |  {len(wlist)} weight combos")
+    print(f"  Grid: {len(THRESHOLDS)} thresholds × {len(HOLD_DAYS)} hold periods  |  "
+          f"{len(FOLDS)} folds")
+    print(f"  Groups: large={len(SIZE_GROUPS['large'])}  "
+          f"mid={len(SIZE_GROUPS['mid'])}  small={len(SIZE_GROUPS['small'])}")
 
-    # ── 1. Simulate & score ───────────────────────────────────────────────
-    print("\n[1/3] Simulating calibrated paths & computing scores ...")
-    pb, sb = [], []
-    for ticker, (cagr, vol) in STOCKS.items():
-        pm = sim_batch(cagr, vol)
-        sm = all_scores(pm)
-        pb.append(pm)
-        sb.append(sm)
-        valid = ~np.isnan(sm[:, 0, :])
-        print(f"  {ticker:8s}  cagr={cagr:.0%}  vol={vol:.0%}  "
-              f"valid={valid.mean():.1%}")
+    # ── Run per-size-group backtest ───────────────────────────────────────
+    group_results: dict[str, dict] = {}
+    for gname, tickers in SIZE_GROUPS.items():
+        print(f"\n[{list(SIZE_GROUPS).index(gname)+1}/3] {gname.upper()} CAP "
+              f"({len(tickers)} stocks) ...")
+        group_results[gname] = run_size_group(gname, tickers, wlist)
 
-    price_all = np.concatenate(pb, axis=0)   # (750, 2520)
-    score_all = np.concatenate(sb, axis=0)   # (750, 4, 2520)
-
-    # Sanity check on composite distribution
-    wv_eq    = np.ones(4)
-    comp_eq  = np.einsum('k,pkt->pt', wv_eq, score_all)
-    comp_eq[np.any(np.isnan(score_all), axis=1)] = np.nan
-    vc       = comp_eq[~np.isnan(comp_eq)]
-    print(f"\n  Total: {total_series} series × {N_DAYS} days | "
-          f"NaN={np.isnan(score_all).mean():.1%}")
-    print(f"  Composite (equal wt): mean={vc.mean():.1f}  std={vc.std():.1f}  "
-          f"≥60: {(vc >= 60).mean():.1%}  ≥70: {(vc >= 70).mean():.1%}")
-    print(f"  Score phase done in {time.time()-t0:.1f}s")
-
-    # ── 2. Walk-forward optimisation ─────────────────────────────────────
-    print("\n[2/3] Walk-forward optimisation ...")
-    fold_results = []
-    for fi, (train_days, test_days) in enumerate(FOLDS):
-        tf         = time.time()
-        test_end   = train_days + test_days
-        best       = optimise_fold(score_all, price_all, train_days, wlist)
-        if not best:
-            print(f"  Fold {fi+1}: no valid params")
-            continue
-        test_m = eval_one(score_all, price_all,
-                          best["w"], best["thr"], best["hold"],
-                          train_days, test_end)
-        w = best["w"]
-        print(f"  Fold {fi+1}  train={train_days}d  "
-              f"RSI={w[0]:3d}/MACD={w[1]:3d}/BB={w[2]:3d}/MA={w[3]:3d}  "
-              f"thr={best['thr']}  hold={best['hold']}d  "
-              f"TrainSh={best['sh']:+.3f}  TestSh={test_m['sh']:+.3f}  "
-              f"WR={test_m['wr']:.1%}  ({time.time()-tf:.0f}s)")
-        fold_results.append({"fold": fi + 1, "train_days": train_days,
-                              "best": best, "test": test_m})
-
-    # ── 3. Aggregate ─────────────────────────────────────────────────────
-    print("\n[3/3] Aggregating ...")
-    if not fold_results:
-        print("  ERROR: all folds returned no valid params.")
-        return {}
-
-    valid_folds = [f for f in fold_results if f["test"]["sh"] > -10] or fold_results
-    w_v   = Counter()
-    thr_v = Counter()
-    hold_v = Counter()
-    for f in valid_folds:
-        wt = max(0.01, f["test"]["sh"])
-        w_v[f["best"]["w"]]    += wt
-        thr_v[f["best"]["thr"]] += wt
-        hold_v[f["best"]["hold"]] += wt
-
-    opt_w   = w_v.most_common(1)[0][0]
-    opt_thr = thr_v.most_common(1)[0][0]
-    opt_h   = hold_v.most_common(1)[0][0]
-
-    base = eval_one(score_all, price_all, (25, 25, 25, 25), 70, 10, 0, N_DAYS)
-    opt  = eval_one(score_all, price_all, opt_w, opt_thr, opt_h, 0, N_DAYS)
-
-    oos_evals = [eval_one(score_all, price_all, opt_w, opt_thr, opt_h,
-                          f["train_days"], f["train_days"] + 504)
-                 for f in valid_folds[-2:]]
-    oos_sh = float(np.mean([e["sh"] for e in oos_evals if e["n"] > 0])) \
-             if oos_evals else -99.0
-    oos_n  = sum(e["n"] for e in oos_evals)
-
-    # Per-signal single-indicator analysis
-    print("\n  Single-signal contributions (indicator used in isolation at 100%):")
-    sig_sh  = {}
-    sig_wr  = {}
-    sig_n   = {}
-    for lbl, sw in [("RSI",  (100, 0,   0,   0)),
-                    ("MACD", (0,   100, 0,   0)),
-                    ("BB",   (0,   0,   100, 0)),
-                    ("MA",   (0,   0,   0,   100))]:
-        m = eval_one(score_all, price_all, sw, opt_thr, opt_h, 0, N_DAYS)
-        sig_sh[lbl] = m["sh"]
-        sig_wr[lbl] = m["wr"]
-        sig_n[lbl]  = m["n"]
-        print(f"    {lbl:4s}: Sharpe={m['sh']:+.3f}  WinRate={m['wr']:.1%}  n={m['n']}")
-
-    ranked = sorted(sig_sh, key=sig_sh.get, reverse=True)
-    print(f"  Signal ranking: {' > '.join(ranked)}")
-
-    # Compute backtest-optimal multipliers from single-signal Sharpes
-    sh_vals  = np.array([sig_sh[k] for k in ["RSI", "MACD", "BB", "MA"]])
-    # Clip negatives to 0, then normalise to sum=4 (preserves 0-100 scale)
-    sh_pos   = np.maximum(sh_vals, 0.05)   # floor at 0.05 to keep all indicators
-    mults    = sh_pos / sh_pos.mean()      # sum = 4 (4 indicators × 1.0 mean)
-    mul_rsi, mul_macd, mul_bb, mul_ma = [round(float(m), 3) for m in mults]
-
-    # ── Print results ──────────────────────────────────────────────────────
-    ow = opt_w
+    # ── Summary table ─────────────────────────────────────────────────────
     print("\n" + "=" * 68)
-    print("  FINAL RESULTS")
+    print("  SIZE-STRATIFIED MULTIPLIERS SUMMARY")
     print("=" * 68)
-    print(f"\nBaseline (25/25/25/25  thr=70  hold=10d):")
-    print(f"  Sharpe={base['sh']:+.3f}  WinRate={base['wr']:.1%}  Trades={base['n']}")
-    print(f"\nOptimized (walk-forward best):")
-    print(f"  Weights  RSI={ow[0]:3d}  MACD={ow[1]:3d}  BB={ow[2]:3d}  MA={ow[3]:3d}")
-    print(f"  Threshold={opt_thr}  Hold={opt_h}d")
-    print(f"  In-sample  Sharpe={opt['sh']:+.3f}  WinRate={opt['wr']:.1%}  Trades={opt['n']}")
-    print(f"  OOS Sharpe={oos_sh:+.3f}  Trades={oos_n}")
-    print(f"\nBacktest-derived score multipliers (Sharpe-proportional, sum=4):")
-    print(f"  RSI ×{mul_rsi}  MACD ×{mul_macd}  BB ×{mul_bb}  MA ×{mul_ma}")
-    print(f"\nSharpe improvement: {base['sh']:+.3f} → {opt['sh']:+.3f}  "
-          f"(Δ={opt['sh']-base['sh']:+.3f})")
-    print("\nFold details:")
-    for f in fold_results:
-        w2 = f["best"]["w"]
-        print(f"  Fold {f['fold']}  ({','.join(str(x) for x in w2)})  "
-              f"thr={f['best']['thr']} hold={f['best']['hold']}d  "
-              f"TrainSh={f['best']['sh']:+.3f}  TestSh={f['test']['sh']:+.3f}  "
-              f"WR={f['test']['wr']:.1%}")
+    print(f"  {'Group':6s}  {'RSI':>7s}  {'MACD':>7s}  {'BB':>7s}  {'MA':>7s}  "
+          f"{'Best signal':12s}")
+    for gname, gr in group_results.items():
+        m   = gr["score_multipliers"]
+        top = gr["signal_ranking"][0]
+        print(f"  {gname:6s}   ×{m['rsi']:.3f}   ×{m['macd']:.3f}   "
+              f"×{m['bb']:.3f}   ×{m['ma']:.3f}   {top}")
+
     print(f"\nTotal runtime: {time.time()-t0:.1f}s")
 
     result = {
-        "method":            "walk_forward_monte_carlo_v2",
-        "note":              "Calibrated simulation (50 stocks, network blocked).",
-        "n_stocks":          n_stocks,
+        "method":  "walk_forward_monte_carlo_v3_size_stratified",
+        "note":    "Calibrated simulation. Size groups: large(23) mid(18) small(9).",
         "n_paths_per_stock": N_PATHS,
-        "n_days":            N_DAYS,
-        "thresholds":        THRESHOLDS,
-        "hold_days":         HOLD_DAYS,
-        "weight_step":       WEIGHT_STEP,
-        "optimal_weights":   {"rsi": ow[0], "macd": ow[1], "bb": ow[2], "ma": ow[3]},
-        "buy_threshold":     opt_thr,
-        "hold_days_opt":     opt_h,
-        "oos_sharpe":        round(oos_sh, 4),
-        "baseline_sharpe":   round(base["sh"], 4),
-        "optimal_sharpe":    round(opt["sh"],  4),
-        "signal_ranking":    ranked,
-        "signal_sharpes":    {k: round(v, 4) for k, v in sig_sh.items()},
-        "signal_winrates":   {k: round(v, 4) for k, v in sig_wr.items()},
-        "signal_counts":     sig_n,
-        "score_multipliers": {
-            "rsi": mul_rsi, "macd": mul_macd, "bb": mul_bb, "ma": mul_ma,
-        },
-        "folds": [
-            {"fold":           f["fold"],
-             "weights":        {"rsi": f["best"]["w"][0], "macd": f["best"]["w"][1],
-                                "bb":  f["best"]["w"][2], "ma":   f["best"]["w"][3]},
-             "threshold":      f["best"]["thr"],
-             "hold_days":      f["best"]["hold"],
-             "train_sharpe":   round(f["best"]["sh"], 4),
-             "test_sharpe":    round(f["test"]["sh"],  4),
-             "test_winrate":   round(f["test"]["wr"],  4)}
-            for f in fold_results
-        ],
+        "n_days":  N_DAYS,
+        "thresholds":  THRESHOLDS,
+        "hold_days":   HOLD_DAYS,
+        "weight_step": WEIGHT_STEP,
+        "size_groups": group_results,
     }
     out = Path(__file__).parent / "backtest_results.json"
     out.write_text(json.dumps(result, indent=2, ensure_ascii=False))

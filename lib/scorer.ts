@@ -212,21 +212,30 @@ export function scoreAnalyst(trend: AnalystTrend | null): { score: number; signa
   return { score, signal, count: total };
 }
 
-export function computeScore(closes: number[]) {
+export function computeScore(closes: number[], size: "large" | "mid" | "small" = "mid") {
   const rsi = scoreRSI(closes);
   const macd = scoreMACD(closes);
   const bollinger = scoreBollinger(closes);
   const movingAvg = scoreMovingAverage(closes);
-  // Weights derived from 50-stock Monte Carlo walk-forward backtest (750 series × 2520 days).
-  // Single-signal Sharpe: MA(0.472) > MACD(0.457) > RSI(0.418) > BB(0.385)
-  // With 50 diverse stocks incl. small-caps, weights converge toward equal — RSI
-  // mean-reversion is effective for volatile small-caps, unlike large-cap-only analysis.
-  // Multipliers are Sharpe-proportional, sum=4.0 (preserves 0-100 scale).
+  // Size-stratified weights from group-specific Monte Carlo walk-forward backtests.
+  // Multipliers are Sharpe-proportional per group, sum=4.0 (preserves 0-100 scale).
+  // Updated by run_backtest.py — see backtest/backtest_results.json for details.
+  // Derived from size-stratified 10yr Monte Carlo walk-forward (thr=65, hold=5d):
+  //   large: MACD(0.537)>MA(0.509)>BB(0.335)>RSI(0.304) → trend-following
+  //   mid:   MA(0.498)>MACD(0.430)>BB(0.403)>RSI(0.355) → MA dominant
+  //   small: RSI(0.565)>BB(0.521)>MA(0.520)>MACD(0.475) → mean-reversion
+  const MULTS: Record<"large" | "mid" | "small", [number, number, number, number]> = {
+    //          [RSI,   MACD,   BB,    MA  ]
+    large: [0.722, 1.274, 0.795, 1.209],  // MACD/MA dominate (persistent trends)
+    mid:   [0.842, 1.021, 0.956, 1.182],  // MA dominant, balanced otherwise
+    small: [1.086, 0.913, 1.001, 1.000],  // RSI/BB effective (high-vol mean-reversion)
+  };
+  const [mRsi, mMacd, mBb, mMa] = MULTS[size];
   const total = Math.min(100, Math.round(
-    rsi.score       * 0.965 +  // RSI:  max ~24 pts
-    macd.score      * 1.055 +  // MACD: max ~26 pts
-    bollinger.score * 0.889 +  // BB:   max ~22 pts
-    movingAvg.score * 1.090    // MA:   max ~27 pts (strongest signal)
+    rsi.score       * mRsi  +
+    macd.score      * mMacd +
+    bollinger.score * mBb   +
+    movingAvg.score * mMa
   ));
   return { total, rsi, macd, bollinger, moving_avg: movingAvg };
 }

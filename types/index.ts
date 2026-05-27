@@ -28,6 +28,7 @@ export interface StockScore {
   analyst_count: number;
   sector: string;
   sector_label: string;
+  size: "large" | "mid" | "small";
   last_updated: string;
 }
 
