@@ -1,0 +1,102 @@
+{
+  "method": "walk_forward_monte_carlo",
+  "note": "Calibrated simulation (network blocked). Run with real yfinance data locally.",
+  "n_paths_per_stock": 25,
+  "n_stocks": 10,
+  "n_days": 2520,
+  "optimal_weights": {
+    "rsi": 30,
+    "macd": 20,
+    "bb": 20,
+    "ma": 30
+  },
+  "buy_threshold": 65,
+  "hold_days": 5,
+  "oos_sharpe": 0.0112,
+  "baseline_sharpe": 2.5198,
+  "optimal_sharpe": 0.732,
+  "signal_ranking": [
+    "MA",
+    "MACD",
+    "BB",
+    "RSI"
+  ],
+  "signal_sharpes": {
+    "RSI": 0.2979,
+    "MACD": 0.5218,
+    "BB": 0.3611,
+    "MA": 0.5272
+  },
+  "folds": [
+    {
+      "fold": 1,
+      "weights": {
+        "rsi": 30,
+        "macd": 20,
+        "bb": 20,
+        "ma": 30
+      },
+      "threshold": 65,
+      "hold_days": 5,
+      "train_sharpe": 4.487,
+      "test_sharpe": 0.0112,
+      "test_winrate": 0.4583
+    },
+    {
+      "fold": 2,
+      "weights": {
+        "rsi": 30,
+        "macd": 20,
+        "bb": 30,
+        "ma": 20
+      },
+      "threshold": 70,
+      "hold_days": 15,
+      "train_sharpe": 3.7484,
+      "test_sharpe": -99.0,
+      "test_winrate": 0.0
+    },
+    {
+      "fold": 3,
+      "weights": {
+        "rsi": 30,
+        "macd": 20,
+        "bb": 30,
+        "ma": 20
+      },
+      "threshold": 70,
+      "hold_days": 5,
+      "train_sharpe": 4.0651,
+      "test_sharpe": -99.0,
+      "test_winrate": 0.0
+    },
+    {
+      "fold": 4,
+      "weights": {
+        "rsi": 50,
+        "macd": 10,
+        "bb": 10,
+        "ma": 30
+      },
+      "threshold": 70,
+      "hold_days": 5,
+      "train_sharpe": 4.7784,
+      "test_sharpe": -99.0,
+      "test_winrate": 0.0
+    },
+    {
+      "fold": 5,
+      "weights": {
+        "rsi": 50,
+        "macd": 10,
+        "bb": 10,
+        "ma": 30
+      },
+      "threshold": 70,
+      "hold_days": 5,
+      "train_sharpe": 4.7784,
+      "test_sharpe": -99.0,
+      "test_winrate": 0.0
+    }
+  ]
+}
