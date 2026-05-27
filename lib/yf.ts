@@ -28,7 +28,7 @@ async function fetchHistory(ticker: string): Promise<HistoricalRow[]> {
     period1: startDate.toISOString().split("T")[0],
     period2: endDate.toISOString().split("T")[0],
     interval: "1d",
-  });
+  }, { validateResult: false });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (rows as any[])
