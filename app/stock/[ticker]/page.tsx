@@ -8,7 +8,7 @@ import PriceChart from "@/components/PriceChart";
 import ModeToggle, { type TradeMode } from "@/components/ModeToggle";
 import MacroRegimeBanner from "@/components/MacroRegimeBanner";
 import ScoreExplainButton from "@/components/ScoreExplainButton";
-import { formatPrice, formatChangePct, peLabelColor } from "@/lib/formatters";
+import { formatPrice, formatChangePct, peLabelColor, yahooFinanceUrls } from "@/lib/formatters";
 import SellTargetCard from "@/components/SellTargetCard";
 
 interface Props {
@@ -92,6 +92,24 @@ export default function StockDetailPage({ params }: Props) {
                   {new Date(detail.last_updated).toLocaleString("ja-JP")}
                 </p>
               </div>
+            </div>
+            {/* Yahoo Finance links */}
+            <div className="flex flex-wrap gap-2 mt-4">
+              {yahooFinanceUrls(detail.ticker).map(({ label, href }) => (
+                <a
+                  key={href}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-500 text-xs text-gray-300 hover:text-white transition-colors"
+                >
+                  <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  {label}
+                </a>
+              ))}
+              <span className="text-xs text-gray-600 self-center">← データソース</span>
             </div>
           </div>
           <div className="flex flex-col items-center gap-2">

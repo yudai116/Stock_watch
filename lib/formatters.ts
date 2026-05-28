@@ -1,3 +1,13 @@
+export function yahooFinanceUrls(ticker: string): { label: string; href: string }[] {
+  if (ticker.endsWith(".T")) {
+    return [
+      { label: "Yahoo Finance JP", href: `https://finance.yahoo.co.jp/quote/${ticker}` },
+      { label: "Yahoo Finance US", href: `https://finance.yahoo.com/quote/${ticker}` },
+    ];
+  }
+  return [{ label: "Yahoo Finance", href: `https://finance.yahoo.com/quote/${ticker}` }];
+}
+
 export function formatPrice(price: number | null, currency: string): string {
   if (price === null) return "—";
   return new Intl.NumberFormat("ja-JP", {

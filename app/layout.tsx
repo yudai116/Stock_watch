@@ -21,9 +21,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <a href="/" className="flex items-center gap-2">
               <span className="text-blue-400 text-xl">📈</span>
               <span className="font-bold text-white">Stock Watch</span>
-              <span className="text-xs text-gray-500 ml-1">スイングトレード</span>
+              <span className="text-xs text-gray-500 ml-1 hidden sm:inline">スイングトレード</span>
             </a>
-            <span className="text-xs text-gray-500">Powered by Yahoo Finance</span>
+            <div className="flex items-center gap-4">
+              <a href="/backtest" className="text-xs text-gray-400 hover:text-white transition-colors">
+                バックテスト結果
+              </a>
+              <span className="text-xs text-gray-600">Powered by Yahoo Finance</span>
+            </div>
           </div>
         </nav>
         <main className="max-w-2xl mx-auto px-4 py-5">{children}</main>
