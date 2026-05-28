@@ -134,6 +134,28 @@ export default function IndicatorBreakdown({ stock, mode = "swing" }: Props) {
         </>
       )}
 
+      {/* Aroon bonus: large cap (swing) or all sizes (day trade) */}
+      {(stock.size === "large" || mode === "day") && stock.score_components.aroon && stock.score_components.aroon.score > 0 && (
+        <div className="bg-gray-800 rounded-lg p-3">
+          <div className="flex justify-between items-center mb-2">
+            <div>
+              <span className="text-white font-medium text-sm">Aroon (トレンド方向)</span>
+              <span className="text-gray-500 text-xs ml-2">{mode === "day" ? "デイトレボーナス" : "大型株ボーナス"}</span>
+            </div>
+            <div className="text-right">
+              <span className="text-white font-semibold">{stock.score_components.aroon.score}</span>
+              <span className="text-gray-500 text-xs">/10</span>
+            </div>
+          </div>
+          <div className="w-full bg-gray-700 rounded-full h-2 mb-2">
+            <div className="bg-indigo-500 h-2 rounded-full transition-all" style={{ width: `${(stock.score_components.aroon.score / 10) * 100}%` }} />
+          </div>
+          <div className="text-xs text-gray-400">
+            {signalToJa(stock.score_components.aroon.signal)}
+          </div>
+        </div>
+      )}
+
       {/* Score breakdown note */}
       <div className="text-xs text-gray-600 px-1 space-y-0.5">
         {mode === "swing" ? (

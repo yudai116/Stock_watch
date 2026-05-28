@@ -107,12 +107,18 @@ export async function buildStockScore(ticker: string, mode: "swing" | "day" = "s
 
   const closes  = rows.map((r) => r.close);
   const volumes = rows.map((r) => r.volume);
+  const highs   = rows.map((r) => r.high);
+  const lows    = rows.map((r) => r.low);
+  const liveDayHigh = (qp?.regularMarketDayHigh as number | null) ?? null;
+  const liveDayLow  = (qp?.regularMarketDayLow  as number | null) ?? null;
   const closesForScore  = livePrice ? [...closes, livePrice]  : closes;
   const volumesForScore = livePrice ? [...volumes, liveVolume] : volumes;
+  const highsForScore   = livePrice ? [...highs, liveDayHigh ?? livePrice] : highs;
+  const lowsForScore    = livePrice ? [...lows,  liveDayLow  ?? livePrice] : lows;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const high52w  = (qp?.fiftyTwoWeekHigh as number | null) ?? null;
-  const extras   = { volumes: volumesForScore, high52w };
+  const extras   = { volumes: volumesForScore, high52w, highs: highsForScore, lows: lowsForScore };
   const technicalScores = mode === "day" ? computeScoreDay(closesForScore, sizeKey, extras) : computeScore(closesForScore, sizeKey, extras);
   const technicalTotal = technicalScores.total; // 0-100
 
@@ -158,6 +164,7 @@ export async function buildStockScore(ticker: string, mode: "swing" | "day" = "s
       },
       high52w: technicalScores.high52w,
       obv: technicalScores.obv,
+      aroon: technicalScores.aroon,
     },
     trailing_pe: cleanPe(trailingPe),
     forward_pe: cleanPe(forwardPe),
@@ -202,7 +209,7 @@ export async function buildStockDetail(ticker: string, mode: "swing" | "day" = "
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const high52w  = (qp2?.fiftyTwoWeekHigh as number | null) ?? null;
-  const extras2  = { volumes: volumesForScore, high52w };
+  const extras2  = { volumes: volumesForScore, high52w, highs: highsForScore, lows: lowsForScore };
   const technicalScores = mode === "day" ? computeScoreDay(closesForScore, sizeKey2, extras2) : computeScore(closesForScore, sizeKey2, extras2);
   const technicalTotal = technicalScores.total;
 
@@ -300,6 +307,7 @@ export async function buildStockDetail(ticker: string, mode: "swing" | "day" = "
       },
       high52w: technicalScores.high52w,
       obv: technicalScores.obv,
+      aroon: technicalScores.aroon,
     },
     trailing_pe: cleanPe(trailingPe),
     forward_pe: cleanPe(forwardPe),

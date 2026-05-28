@@ -108,6 +108,25 @@ export function calcATR(highs: number[], lows: number[], closes: number[], perio
   return atr;
 }
 
+// Aroon (25-period): measures how recently the highest high / lowest low occurred.
+// AroonUp=100 → new 25-bar high just made; AroonDown=100 → new 25-bar low just made.
+export function calcAroon(highs: number[], lows: number[], period = 25): { up: number[]; down: number[] } {
+  const n = highs.length;
+  const up   = new Array(n).fill(NaN);
+  const down = new Array(n).fill(NaN);
+  for (let i = period; i < n; i++) {
+    let maxH = -Infinity, barsFromHigh = 0;
+    let minL =  Infinity, barsFromLow  = 0;
+    for (let j = 0; j <= period; j++) {
+      if (highs[i - j] > maxH) { maxH = highs[i - j]; barsFromHigh = j; }
+      if (lows[i  - j] < minL) { minL = lows[i  - j]; barsFromLow  = j; }
+    }
+    up[i]   = ((period - barsFromHigh) / period) * 100;
+    down[i] = ((period - barsFromLow)  / period) * 100;
+  }
+  return { up, down };
+}
+
 // OBV (On-Balance Volume) — cumulative signed volume
 export function calcOBV(closes: number[], volumes: number[]): number[] {
   const n = closes.length;

@@ -191,6 +191,7 @@ export default function ScoreExplainButton({ mode = "swing" }: Props) {
                 <div className="space-y-1 text-xs text-gray-500">
                   <p><span className="text-cyan-400">52週高値距離 (最大+12点)</span>: 高値から5〜15%下が最高点。直近高値付近は上値余地が限られ低得点。</p>
                   <p><span className="text-cyan-400">OBV出来高圧力 (最大+8点)</span>: 10日間のOBV変化を平均出来高で正規化。機関投資家の買い集めを検出。</p>
+                  <p><span className="text-indigo-400">Aroon (最大+10点)</span>: 25本足の高値/安値タイミングからトレンド方向を判定。AroonUp&gt;70かつAroonDown&lt;30で最高点。デイトレでは全規模に適用 (ΔSharpe +5.80)。</p>
                 </div>
               </section>
 

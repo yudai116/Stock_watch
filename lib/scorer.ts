@@ -1,4 +1,4 @@
-import { calcRSI, calcMACD, calcBollinger, calcEMA, calcOBV } from "./indicators";
+import { calcRSI, calcMACD, calcBollinger, calcEMA, calcOBV, calcAroon } from "./indicators";
 
 function interp(value: number, bp: [number, number][]): number {
   if (value <= bp[0][0]) return bp[0][1];
@@ -237,6 +237,31 @@ export function scoreAnalyst(trend: AnalystTrend | null): { score: number; signa
 // Backtest result: far_from_52w_high ΔSharpe +5.98, OBV_rising ΔSharpe +2.77
 // These are scored separately and added as bonus points (max 12 + max 8 = 20).
 
+// Aroon (25-period): trend direction and strength.
+// Backtest ΔSharpe: swing +0.61 (large cap), day trade +5.80 (all sizes).
+// Max 10 pts for day trade (all sizes), max 10 pts for swing (large cap only).
+export function scoreAroon(highs: number[], lows: number[]): { score: number; signal: string } {
+  if (highs.length < 27 || lows.length < 27) return { score: 5, signal: "insufficient_data" };
+  const { up, down } = calcAroon(highs, lows);
+  const n = up.length;
+  let aroonUp = NaN, aroonDown = NaN, prevUp = NaN;
+  for (let i = n - 1; i >= 0; i--) {
+    if (!isNaN(up[i])) {
+      if (isNaN(aroonUp)) { aroonUp = up[i]; aroonDown = down[i]; }
+      else if (isNaN(prevUp)) { prevUp = up[i]; break; }
+    }
+  }
+  if (isNaN(aroonUp)) return { score: 5, signal: "insufficient_data" };
+  const risingUp = !isNaN(prevUp) && aroonUp > prevUp;
+
+  if (aroonUp > 70 && aroonDown < 30)              return { score: 10, signal: "aroon_strong_up" };
+  if (aroonUp > aroonDown && aroonUp > 50 && risingUp) return { score: 8, signal: "aroon_uptrend_building" };
+  if (aroonUp > aroonDown)                          return { score: 6, signal: "aroon_uptrend" };
+  if (Math.abs(aroonUp - aroonDown) <= 10)          return { score: 4, signal: "aroon_sideways" };
+  if (aroonDown > 70 && aroonUp < 30)              return { score: 0, signal: "aroon_strong_down" };
+  return { score: 2, signal: "aroon_downtrend" };
+}
+
 // Distance below 52-week high: sweet spot is 5-15% below (room to recover, not broken)
 export function score52wHigh(currentPrice: number, high52w: number | null): { score: number; dist_pct: number | null } {
   if (!high52w || high52w <= 0) return { score: 6, dist_pct: null };  // neutral if unknown
@@ -279,7 +304,7 @@ export function scoreOBV(closes: number[], volumes: number[]): { score: number; 
   return { score, signal };
 }
 
-export function computeScore(closes: number[], size: "large" | "mid" | "small" = "mid", extras?: { volumes?: number[]; high52w?: number | null }) {
+export function computeScore(closes: number[], size: "large" | "mid" | "small" = "mid", extras?: { volumes?: number[]; high52w?: number | null; highs?: number[]; lows?: number[] }) {
   const rsi = scoreRSI(closes);
   const macd = scoreMACD(closes);
   const bollinger = scoreBollinger(closes);
@@ -305,13 +330,17 @@ export function computeScore(closes: number[], size: "large" | "mid" | "small" =
     movingAvg.score * mMa
   );
 
-  // Additive confirmation bonuses: only large cap benefits (backtest: large +27% Sharpe;
-  // mid/small are hurt — the 4-indicator base system already captures their dynamics).
-  const highResult = size === "large" ? score52wHigh(closes[closes.length - 1], extras?.high52w ?? null) : { score: 0, dist_pct: null as null };
-  const obvResult  = size === "large" ? scoreOBV(closes, extras?.volumes ?? []) : { score: 0, signal: "n/a" };
+  // Additive confirmation bonuses: only large cap benefits (backtest ΔSharpe).
+  const isLarge = size === "large";
+  const highResult  = isLarge ? score52wHigh(closes[closes.length - 1], extras?.high52w ?? null) : { score: 0, dist_pct: null as null };
+  const obvResult   = isLarge ? scoreOBV(closes, extras?.volumes ?? []) : { score: 0, signal: "n/a" };
+  // Aroon swing ΔSharpe +0.61 — large cap only (consistent with 52w/OBV policy)
+  const aroonResult = isLarge && extras?.highs && extras?.lows
+    ? scoreAroon(extras.highs, extras.lows)
+    : { score: 0, signal: "n/a" };
 
-  const total = Math.min(100, base + highResult.score + obvResult.score);
-  return { total, rsi, macd, bollinger, moving_avg: movingAvg, high52w: highResult, obv: obvResult };
+  const total = Math.min(100, base + highResult.score + obvResult.score + aroonResult.score);
+  return { total, rsi, macd, bollinger, moving_avg: movingAvg, high52w: highResult, obv: obvResult, aroon: aroonResult };
 }
 
 // ── Day trade scoring functions ───────────────────────────────────────────────
@@ -409,7 +438,7 @@ export function scoreMADay(closes: number[]): ScoreResult {
   };
 }
 
-export function computeScoreDay(closes: number[], size: "large" | "mid" | "small" = "mid", extras?: { volumes?: number[]; high52w?: number | null }) {
+export function computeScoreDay(closes: number[], size: "large" | "mid" | "small" = "mid", extras?: { volumes?: number[]; high52w?: number | null; highs?: number[]; lows?: number[] }) {
   const rsi       = scoreRSIDay(closes);
   const macd      = scoreMACD(closes);
   const bollinger = scoreBollinger(closes);
@@ -432,10 +461,16 @@ export function computeScoreDay(closes: number[], size: "large" | "mid" | "small
     bollinger.score * mBb   +
     movingAvg.score * mMa
   );
-  const highResult = size === "large" ? score52wHigh(closes[closes.length - 1], extras?.high52w ?? null) : { score: 0, dist_pct: null as null };
-  const obvResult  = size === "large" ? scoreOBV(closes, extras?.volumes ?? []) : { score: 0, signal: "n/a" };
-  const total = Math.min(100, base + highResult.score + obvResult.score);
-  return { total, rsi, macd, bollinger, moving_avg: movingAvg, high52w: highResult, obv: obvResult };
+  const isLarge = size === "large";
+  const highResult  = isLarge ? score52wHigh(closes[closes.length - 1], extras?.high52w ?? null) : { score: 0, dist_pct: null as null };
+  const obvResult   = isLarge ? scoreOBV(closes, extras?.volumes ?? []) : { score: 0, signal: "n/a" };
+  // Aroon day trade ΔSharpe +5.80 — all sizes benefit
+  const aroonResult = extras?.highs && extras?.lows
+    ? scoreAroon(extras.highs, extras.lows)
+    : { score: 0, signal: "n/a" };
+
+  const total = Math.min(100, base + highResult.score + obvResult.score + aroonResult.score);
+  return { total, rsi, macd, bollinger, moving_avg: movingAvg, high52w: highResult, obv: obvResult, aroon: aroonResult };
 }
 
 export function getPeLabel(pe: number | null | undefined, market: string): string | null {

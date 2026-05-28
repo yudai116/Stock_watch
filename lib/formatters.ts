@@ -128,6 +128,13 @@ export function signalToJa(signal: string): string {
     above_ma5: "EMA5上方",
     at_ma5: "EMA5付近",
     below_ma5: "EMA5下方",
+    // Aroon signals
+    aroon_strong_up: "強い上昇トレンド",
+    aroon_uptrend_building: "上昇トレンド形成中",
+    aroon_uptrend: "上昇トレンド",
+    aroon_sideways: "横ばい",
+    aroon_downtrend: "下降トレンド",
+    aroon_strong_down: "強い下降トレンド",
   };
   return map[signal] ?? signal;
 }
