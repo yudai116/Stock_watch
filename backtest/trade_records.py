@@ -246,61 +246,100 @@ def compute_all_scores(closes, highs, lows, mode, size):
 
     return {"total":total,"rsi":rsi_sc,"macd":macd_sc,"bb":bb_sc,"ma":ma_sc,
             "aroon":aroon_sc,"aroon_used":use_aroon,
-            "rsi_v":rv,"macd_v":ml,"bb_v":pb,"ma_f":mf,"ma_s":ms,
+            "rsi_v":rv,"macd_v":ml,"signal_v":sl,"hist_v":hl_,"bb_v":pb,"ma_f":mf,"ma_s":ms,
             "au":au,"ad":ad,"mults":mults}
 
-# ─── シグナル説明テキスト生成 ─────────────────────────────────────────────────
-def rsi_explain(rsi_val, rsi_score, mode):
-    if rsi_val is None: return "データ不足"
-    v=rsi_val
+# ─── シグナル説明テキスト生成（実値ベース）────────────────────────────────────
+def rsi_explain(tr, mode):
+    v=tr.get("rsi_val"); p=tr.get("rsi_prev")
+    if v is None: return "RSI: データ不足"
+    rising = (p is not None and v > p)
+    dir_str = "↑上昇中" if rising else ("↓下降中" if p is not None and v<p else "")
     if mode=="swing":
-        if v<25: return f"RSI={v:.1f} 極度売られすぎ（基準<25）→逆張り買いシグナル"
-        if v<35: return f"RSI={v:.1f} 売られすぎゾーン（25-35）→回復期待"
-        if v<45: return f"RSI={v:.1f} 売られすぎ接近（35-45）"
-        if v<55: return f"RSI={v:.1f} 中立（45-55）"
-        if v<65: return f"RSI={v:.1f} やや強気（55-65）"
-        return f"RSI={v:.1f} 買われすぎ圏（>65）"
+        if v<25:   zone="極度売られすぎ（<25）→強い逆張り買いシグナル"
+        elif v<35: zone=f"売られすぎゾーン（25-35）→回復期待 {dir_str}"
+        elif v<45: zone=f"売られすぎ接近（35-45）{dir_str}"
+        elif v<55: zone=f"中立ゾーン（45-55）{dir_str}"
+        elif v<65: zone=f"やや強気（55-65）{dir_str}"
+        elif v<75: zone="買われすぎ圏（65-75）"
+        else:      zone="強い買われすぎ（>75）"
     else:
-        if v<25: return f"RSI={v:.1f} 極度売られすぎ→反発期待（デイ）"
-        if v<40: return f"RSI={v:.1f} 売られすぎ回復中（デイ）"
-        if 55<=v<70: return f"RSI={v:.1f} 上昇モメンタム帯（55-70、デイV字）"
-        return f"RSI={v:.1f} スコア={rsi_score}点"
+        if v<25:       zone="極度売られすぎ→強い反発期待（デイV字底）"
+        elif v<40:     zone=f"売られすぎ回復中（25-40）{dir_str}"
+        elif v<50:     zone=f"中立下方（40-50）{dir_str}"
+        elif v<55:     zone=f"中立上方（50-55）{dir_str}"
+        elif v<70:     zone=f"上昇モメンタム帯（55-70）{dir_str} ← デイV字高得点域"
+        else:          zone=f"過熱圏（>70）"
+    prev_str = f"（前日:{p:.1f}）" if p is not None else ""
+    return f"RSI = {v:.1f} {prev_str}  ▸ {zone}"
 
-def macd_explain(macd_score):
-    m={24:"ゴールデンクロス当日（MACDがシグナル上抜け）",
-       20:"直近クロス後ヒストグラム拡大中",
-       15:"MACDがシグナル線上方かつヒストグラム拡大",
-       10:"MACDがシグナル線の上方",
-       6: "弱気弱まり（ヒストグラム上昇）",
-       3: "下落トレンド継続",
-       2: "デッドクロス当日"}
-    return m.get(macd_score, f"スコア={macd_score}点")
+def macd_explain(tr):
+    mv=tr.get("macd_val"); sv=tr.get("sig_val"); hv=tr.get("hist_val"); hp=tr.get("hist_prev")
+    sc=tr.get("macd_s",0)
+    mv_str = f"{mv:.4f}" if mv is not None else "?"
+    sv_str = f"{sv:.4f}" if sv is not None else "?"
+    hv_str = f"{hv:+.4f}" if hv is not None else "?"
+    cross_dir = ""
+    if mv is not None and sv is not None:
+        cross_dir = "MACD > シグナル（強気域）" if mv>sv else "MACD < シグナル（弱気域）"
+    hist_dir = ""
+    if hv is not None and hp is not None and not (hv==hv)==False:
+        hist_dir = "ヒスト拡大↑" if hv>hp else "ヒスト縮小↓"
+    if   sc==24: signal="ゴールデンクロス当日（MACDがシグナル線を上抜け）"
+    elif sc==20: signal="直近クロス後ヒストグラム拡大継続中"
+    elif sc==15: signal="MACD > シグナル かつヒストグラム拡大中"
+    elif sc==10: signal="MACD > シグナル（上昇継続）"
+    elif sc==6:  signal="弱気だがヒストグラム上昇（底打ち示唆）"
+    elif sc==2:  signal="デッドクロス当日（MACDがシグナル線を下抜け）"
+    else:        signal="下落トレンド継続"
+    return (f"MACD={mv_str} / シグナル={sv_str} / ヒスト={hv_str} {hist_dir}\n"
+            f"       　  ▸ {cross_dir}  →  {signal}")
 
-def bb_explain(bb_val, bb_score):
-    if bb_val is None: return "データ不足"
-    v=bb_val
-    if v<0:   return f"%B={v:.3f} 下限バンド突破（過売り極値）→強い逆張りシグナル"
-    if v<0.1: return f"%B={v:.3f} 下限バンド付近（0〜0.1）→売られすぎ圏"
-    if v<0.3: return f"%B={v:.3f} 下方域（0.1〜0.3）"
-    if v<0.5: return f"%B={v:.3f} 下半分（0.3〜0.5）"
-    if v<0.7: return f"%B={v:.3f} 上半分（0.5〜0.7）"
-    return f"%B={v:.3f} 上限帯付近（>0.7）"
+def bb_explain(tr):
+    v=tr.get("bb_val"); sc=tr.get("bb_s",0)
+    if v is None: return "BB %B: データ不足"
+    if   v<0:    zone="下限バンド突破（過売り極値）→強い逆張りシグナル"
+    elif v<0.1:  zone="下限バンド付近（0〜0.1）→売られすぎ圏"
+    elif v<0.3:  zone="下方域（0.1〜0.3）→やや売られすぎ"
+    elif v<0.5:  zone="下半分（0.3〜0.5）→中立下方"
+    elif v<0.7:  zone="上半分（0.5〜0.7）→中立上方"
+    elif v<0.9:  zone="上方域（0.7〜0.9）→やや買われすぎ"
+    else:        zone="上限バンド付近（>0.9）→買われすぎ"
+    return f"BB %B = {v:.3f}  ▸ {zone}"
 
-def ma_explain(ma_score, mode):
-    labels={15:f"{'EMA20' if mode=='swing' else 'EMA5'}上抜け当日（クロスオーバー）",
-            12:"直近上抜け（2-3日前）",13:"直近上抜け（2日前）",
-            9:"EMA上方（乖離小）",6:"EMA上方（乖離中）",5:"EMA付近（±0.5%）",
-            4:"EMA下方（乖離小）",3:"EMA下方（乖離中）"}
-    return labels.get(ma_score, f"スコア={ma_score}点")
+def ma_explain(tr, mode):
+    ratio=tr.get("ma_ratio"); mf=tr.get("ma_fast"); ms_=tr.get("ma_slow"); sc=tr.get("ma_s",0)
+    fast_name="EMA20" if mode=="swing" else "EMA5"
+    slow_name="EMA50" if mode=="swing" else "EMA10"
+    ratio_str="?" if ratio is None else f"{ratio:.4f}"
+    if ratio is not None:
+        pct=(ratio-1)*100
+        if   pct>0: dist_str=f"株価は{fast_name}の{pct:+.1f}%上方"
+        elif pct<0: dist_str=f"株価は{fast_name}の{abs(pct):.1f}%下方"
+        else:       dist_str=f"株価は{fast_name}と同値"
+    else: dist_str=""
+    if mf is not None and ms_ is not None:
+        gc_str = f"{'↑ゴールデンクロス帯' if mf>ms_ else '↓デッドクロス帯'}（{fast_name}={'>' if mf>ms_ else '<'}{slow_name}）"
+    else: gc_str=""
+    if   sc==15: action=f"{fast_name}上抜け当日（クロスオーバー発生）"
+    elif sc==13: action="直近上抜け（2日前）"
+    elif sc==12: action="直近上抜け（2-3日前）"
+    elif sc>=18: action=f"{fast_name}大きく上方乖離（強いトレンド）"
+    elif sc>=9:  action=f"{fast_name}上方（乖離{abs((ratio or 1)-1)*100:.1f}%）"
+    elif sc==5:  action=f"{fast_name}付近（±0.5%）"
+    else:        action=f"{fast_name}下方"
+    return (f"価格/{fast_name} = {ratio_str}  {gc_str}\n"
+            f"       　  ▸ {dist_str}  →  {action}")
 
-def aroon_explain(aroon_score, au_val, ad_val):
-    if aroon_score==10: return f"AroonUp={au_val:.0f} Down={ad_val:.0f}→強い上昇トレンド（Up>70, Down<30）"
-    if aroon_score==8:  return f"AroonUp={au_val:.0f} Down={ad_val:.0f}→上昇トレンド形成中（Up>Down+50上昇中）"
-    if aroon_score==6:  return f"AroonUp={au_val:.0f} Down={ad_val:.0f}→上昇トレンド（Up>Down）"
-    if aroon_score==4:  return f"AroonUp={au_val:.0f} Down={ad_val:.0f}→横ばい"
-    if aroon_score==2:  return f"AroonUp={au_val:.0f} Down={ad_val:.0f}→下降トレンド"
-    if aroon_score==0:  return f"AroonUp={au_val:.0f} Down={ad_val:.0f}→強い下降トレンド"
-    return "非適用（規模/モード外）"
+def aroon_explain(tr):
+    u=tr.get("au_val",0); d=tr.get("ad_val",0); sc=tr.get("aroon_s",0)
+    if   sc==10: sig="強い上昇トレンド（Up>70 かつ Down<30）"
+    elif sc==8:  sig="上昇トレンド形成中（Up>Down+50 かつ 上昇中）"
+    elif sc==6:  sig="上昇トレンド（Up>Down）"
+    elif sc==4:  sig="横ばい（Up-Down の差≤10）"
+    elif sc==2:  sig="下降トレンド（Down>Up）"
+    else:        sig="強い下降トレンド（Down>70 かつ Up<30）"
+    return f"AroonUp={u:.0f} / AroonDown={d:.0f}  ▸ {sig}"
 
 # ─── 全銘柄スキャン ───────────────────────────────────────────────────────────
 def scan_all(mode):
@@ -322,13 +361,21 @@ def scan_all(mode):
                 if np.isnan(sv) or sv<thr: continue
                 entry=closes[p,t]; exit_=closes[p,t+hold]
                 ret=(exit_-entry)/entry
-                # 各指標の値を取得
-                rsi_val_=sc_dict["rsi_v"][p,t]
-                bb_val_ =sc_dict["bb_v"][p,t]
-                au_val_ =sc_dict["au"][p,t]
-                ad_val_ =sc_dict["ad"][p,t]
-                maf_t   =sc_dict["ma_f"][p,t]
-                ma_ratio_=closes[p,t]/maf_t if not np.isnan(maf_t) else np.nan
+                # 各指標の実値を取得
+                rsi_val_ = sc_dict["rsi_v"][p,t]
+                macd_v_  = sc_dict["macd_v"][p,t]
+                sig_v_   = sc_dict["signal_v"][p,t]
+                hist_v_  = sc_dict["hist_v"][p,t]
+                # 前バーのhistogram（ヒストグラム拡大判定用）
+                hist_p_  = sc_dict["hist_v"][p,t-1] if t>0 else np.nan
+                bb_val_  = sc_dict["bb_v"][p,t]
+                au_val_  = sc_dict["au"][p,t]
+                ad_val_  = sc_dict["ad"][p,t]
+                maf_t    = sc_dict["ma_f"][p,t]
+                mas_t    = sc_dict["ma_s"][p,t]
+                ma_ratio_= closes[p,t]/maf_t if not np.isnan(maf_t) else np.nan
+                # RSI前バー（上昇中か判定）
+                rsi_prev_= sc_dict["rsi_v"][p,t-1] if t>0 else np.nan
 
                 rsi_s  =round(sc_dict["rsi"][p,t])  if not np.isnan(sc_dict["rsi"][p,t])  else 0
                 macd_s =round(sc_dict["macd"][p,t]) if not np.isnan(sc_dict["macd"][p,t]) else 0
@@ -337,6 +384,7 @@ def scan_all(mode):
                 ar_s   =round(sc_dict["aroon"][p,t]) if (sc_dict["aroon_used"] and not np.isnan(sc_dict["aroon"][p,t])) else 0
                 base_=rsi_s*m[0]+macd_s*m[1]+bb_s*m[2]+ma_s*m[3]
 
+                def _f(v): return round(float(v),4) if not np.isnan(v) else None
                 all_trades.append({
                     "ticker":ticker,"name":name_ja,"size":size,
                     "path":p,"bar_buy":t,"bar_sell":t+hold,
@@ -345,11 +393,18 @@ def scan_all(mode):
                     "return_pct":round(ret*100,2),"score":round(sv,1),
                     "rsi_s":rsi_s,"macd_s":macd_s,"bb_s":bb_s,"ma_s":ma_s,"aroon_s":ar_s,
                     "base":round(base_,1),"mults":m,"aroon_used":sc_dict["aroon_used"],
-                    "rsi_val":round(float(rsi_val_),1) if not np.isnan(rsi_val_) else None,
-                    "bb_val": round(float(bb_val_),3)  if not np.isnan(bb_val_)  else None,
-                    "au_val": round(float(au_val_),1)  if not np.isnan(au_val_)  else None,
-                    "ad_val": round(float(ad_val_),1)  if not np.isnan(ad_val_)  else None,
-                    "ma_ratio":round(float(ma_ratio_),4) if not np.isnan(ma_ratio_) else None,
+                    "rsi_val":  round(float(rsi_val_),1) if not np.isnan(rsi_val_) else None,
+                    "rsi_prev": round(float(rsi_prev_),1) if not np.isnan(rsi_prev_) else None,
+                    "macd_val": _f(macd_v_),
+                    "sig_val":  _f(sig_v_),
+                    "hist_val": _f(hist_v_),
+                    "hist_prev":_f(hist_p_),
+                    "bb_val":   round(float(bb_val_),3) if not np.isnan(bb_val_) else None,
+                    "au_val":   round(float(au_val_),1) if not np.isnan(au_val_) else None,
+                    "ad_val":   round(float(ad_val_),1) if not np.isnan(ad_val_) else None,
+                    "ma_ratio": round(float(ma_ratio_),4) if not np.isnan(ma_ratio_) else None,
+                    "ma_fast":  round(float(maf_t),4) if not np.isnan(maf_t) else None,
+                    "ma_slow":  round(float(mas_t),4) if not np.isnan(mas_t) else None,
                 })
         n_sig=len([x for x in all_trades if x["ticker"]==ticker])
         print(f"{n_sig}件シグナル", flush=True)
@@ -359,44 +414,82 @@ def scan_all(mode):
 
 # ─── 表示 ─────────────────────────────────────────────────────────────────────
 def print_trade(rank, tr, mode):
-    sep="="*78
+    sep="="*78; sub="-"*78
     hold=SWING_HOLD if mode=="swing" else DAY_HOLD
     m=tr["mults"]
+    thr=SWING_THR if mode=="swing" else DAY_THR
+    fast_name="EMA20" if mode=="swing" else "EMA5"
+
     print(f"\n{sep}")
     print(f"  #{rank}  {tr['name']} ({tr['ticker']})  規模:{tr['size']}  パス:{tr['path']}")
     print(sep)
-    print(f"\n  ▶ 買い  {tr['date_buy']} ({tr['bar_buy']}営業日目)  株価: {tr['price_buy']:.2f}")
-    print(f"         総合スコア: {tr['score']:.1f} 点  (閾値 ≥ {SWING_THR if mode=='swing' else DAY_THR}点でエントリー)")
+
+    # ── 買いエントリー ──
+    print(f"\n  ◆ 買いエントリー")
+    print(f"    日付  : {tr['date_buy']} ({tr['bar_buy']}営業日目)")
+    print(f"    株価  : {tr['price_buy']:.2f}")
+    print(f"    スコア: {tr['score']:.1f} 点  ← 閾値 {thr} 点を超えているためエントリー")
     print()
-    print(f"    指標          値        スコア   重み     寄与    根拠")
-    print(f"    " + "-"*68)
 
-    def row(name,val_str,sc,mult):
+    # ── 指標詳細テーブル ──
+    print(f"    ┌{'─'*74}┐")
+    print(f"    │ {'指標':<10s}  {'実値':^18s}  {'スコア':^6s}  {'重み':^6s}  {'寄与':^6s}  {'バー':^16s} │")
+    print(f"    ├{'─'*74}┤")
+
+    def row(name, val_str, sc, mult, extra=""):
         cont=round(sc*mult,1); bar="█"*min(int(sc),25)
-        print(f"    {name:<12s}  {val_str:>8s}   {sc:2d}/25点  ×{mult:.3f}  {cont:5.1f}点   {bar}")
+        print(f"    │ {name:<10s}  {val_str:^18s}  {sc:2d}/25点  ×{mult:.3f}  {cont:5.1f}点  {bar:<16s} │")
+        if extra:
+            for line in extra.split("\n"):
+                print(f"    │   └─ {line:<68s} │")
 
-    row("RSI",    f"{tr['rsi_val']:.1f}" if tr['rsi_val'] else "—",  tr['rsi_s'],  m[0])
-    print(f"       └ {rsi_explain(tr['rsi_val'], tr['rsi_s'], mode)}")
-    row("MACD",   "—",                                                tr['macd_s'], m[1])
-    print(f"       └ {macd_explain(tr['macd_s'])}")
-    row("BB %B",  f"{tr['bb_val']:.3f}" if tr['bb_val'] is not None else "—", tr['bb_s'], m[2])
-    print(f"       └ {bb_explain(tr['bb_val'], tr['bb_s'])}")
-    row("MA比率", f"{tr['ma_ratio']:.4f}" if tr['ma_ratio'] else "—", tr['ma_s'], m[3])
-    print(f"       └ {ma_explain(tr['ma_s'], mode)}")
-    print(f"    " + "-"*68)
-    print(f"    {'4指標合計':<12s}  {'':>8s}         {'':>7s}  {tr['base']:5.1f}点")
-    if tr['aroon_used'] and tr['aroon_s']>0:
-        row("Aroon(bonus)", f"Up={tr['au_val']:.0f}" if tr['au_val'] else "—", tr['aroon_s'], 1.0)
-        print(f"       └ {aroon_explain(tr['aroon_s'], tr['au_val'] or 0, tr['ad_val'] or 0)}")
-    print(f"    {'◆ 総合スコア':<12s}  {'':>8s}         {'':>7s}  {tr['score']:5.1f}点 ✓ エントリー")
+    rsi_str = f"{tr['rsi_val']:.1f}" if tr['rsi_val'] is not None else "—"
+    row("RSI", rsi_str, tr['rsi_s'], m[0], rsi_explain(tr, mode))
 
-    print(f"\n  ▶ 売り  {tr['date_sell']} ({tr['bar_sell']}営業日目)  株価: {tr['price_sell']:.2f}")
+    macd_str = f"MACD:{tr['macd_val']:.4f}" if tr['macd_val'] is not None else "MACD:—"
+    row("MACD", macd_str, tr['macd_s'], m[1], macd_explain(tr))
+
+    bb_str = f"%B={tr['bb_val']:.3f}" if tr['bb_val'] is not None else "—"
+    row("BB %B", bb_str, tr['bb_s'], m[2], bb_explain(tr))
+
+    ma_str = f"ratio={tr['ma_ratio']:.4f}" if tr['ma_ratio'] is not None else "—"
+    row(f"MA({fast_name})", ma_str, tr['ma_s'], m[3], ma_explain(tr, mode))
+
+    print(f"    ├{'─'*74}┤")
+    print(f"    │ {'4指標合計':<10s}  {'':^18s}  {'':^6s}  {'':^6s}  {tr['base']:5.1f}点  {'':16s} │")
+
+    if tr['aroon_used']:
+        ar_s=tr['aroon_s']; ar_str=f"Up={tr['au_val']:.0f}" if tr['au_val'] is not None else "—"
+        row("Aroon+10", ar_str, ar_s, 1.0, aroon_explain(tr))
+
+    print(f"    ├{'─'*74}┤")
+    print(f"    │ {'◆ 総合スコア':<10s}  {'':^18s}  {'':^6s}  {'':^6s}  {tr['score']:5.1f}点  {'✓ エントリー':16s} │")
+    print(f"    └{'─'*74}┘")
+
+    # ── 買い根拠まとめ ──
+    reasons=[]
+    if tr['macd_s']>=20: reasons.append(f"MACD{'ゴールデンクロス' if tr['macd_s']==24 else '直近クロス後拡大'}（+{round(tr['macd_s']*m[1],1)}点）")
+    elif tr['macd_s']>=15: reasons.append(f"MACDシグナル上方+ヒスト拡大（+{round(tr['macd_s']*m[1],1)}点）")
+    if tr['rsi_s']>=19: reasons.append(f"RSI売られすぎ圏（{tr['rsi_val']:.1f}、+{round(tr['rsi_s']*m[0],1)}点）")
+    if tr['bb_s']>=15: reasons.append(f"BB下限バンド付近（%B={tr['bb_val']:.3f}、+{round(tr['bb_s']*m[2],1)}点）")
+    if tr['ma_s']>=15: reasons.append(f"{fast_name}上抜け当日（+{round(tr['ma_s']*m[3],1)}点）")
+    elif tr['ma_s']>=12: reasons.append(f"直近{fast_name}上抜け（+{round(tr['ma_s']*m[3],1)}点）")
+    elif tr['ma_s']>=9:  reasons.append(f"{fast_name}上方乖離（+{round(tr['ma_s']*m[3],1)}点）")
+    if tr['aroon_used'] and tr['aroon_s']>=8: reasons.append(f"Aroon強い上昇トレンド（+{tr['aroon_s']}点ボーナス）")
+    elif tr['aroon_used'] and tr['aroon_s']>=6: reasons.append(f"Aroon上昇トレンド（+{tr['aroon_s']}点ボーナス）")
+    print(f"\n    【買い根拠】 {' ／ '.join(reasons) if reasons else 'スコア閾値超過'}")
+
+    # ── 売りクローズ ──
+    print(f"\n  ◆ 売りクローズ")
+    print(f"    日付  : {tr['date_sell']} ({tr['bar_sell']}営業日目)")
+    print(f"    株価  : {tr['price_sell']:.2f}")
     sign="+" if tr['return_pct']>=0 else ""
     result="✅ 利益確定" if tr['return_pct']>=0 else "❌ 損切り"
-    print(f"         リターン: {sign}{tr['return_pct']:.2f}%  {result}")
-    print(f"         売り根拠: 保有期間 {hold} 営業日経過による機械的クローズ")
+    print(f"    損益  : {sign}{tr['return_pct']:.2f}%  {result}")
+    print(f"    【売り根拠】 保有期間 {hold} 営業日経過による機械的クローズ")
+    print(f"             （固定ホールド戦略：エントリー後 {hold} 日目の終値で必ずクローズ）")
     if mode=="swing":
-        print(f"         （上限BBバンド到達 or -5%ストップロスでも早期決済）")
+        print(f"             ※ 実運用ではBB上限タッチ or -5%ストップロスで早期決済も可")
 
 # ─── メイン ───────────────────────────────────────────────────────────────────
 def main():
