@@ -1,0 +1,416 @@
+{
+  "version": "v4",
+  "look_ahead_bias_issues": 0,
+  "swing": {
+    "large": {
+      "mode": "swing",
+      "name": "large",
+      "sig_sharpes": {
+        "RSI": 0.32669007007742346,
+        "MACD": 0.5405981106824165,
+        "BB": 0.30297243091757514,
+        "MA": 0.5145448635139936
+      },
+      "sig_winrates": {
+        "RSI": 0.5218129731941886,
+        "MACD": 0.5355369475917483,
+        "BB": 0.5215453819313071,
+        "MA": 0.5339592140314661
+      },
+      "ranking": [
+        "MACD",
+        "MA",
+        "RSI",
+        "BB"
+      ],
+      "derived_mults": {
+        "RSI": 0.776,
+        "MACD": 1.283,
+        "BB": 0.719,
+        "MA": 1.222
+      },
+      "rank_match": true,
+      "aroon_delta": 0.0057,
+      "aroon_base_sh": 0.4827,
+      "folds": [
+        {
+          "fold": 1,
+          "train": 6.379,
+          "test": -2.379,
+          "thr": 70,
+          "hold": 3
+        },
+        {
+          "fold": 2,
+          "train": 5.997,
+          "test": -99.0,
+          "thr": 75,
+          "hold": 7
+        },
+        {
+          "fold": 3,
+          "train": 5.309,
+          "test": -99.0,
+          "thr": 70,
+          "hold": 10
+        },
+        {
+          "fold": 4,
+          "train": 6.475,
+          "test": -99.0,
+          "thr": 75,
+          "hold": 3
+        },
+        {
+          "fold": 5,
+          "train": 6.607,
+          "test": -99.0,
+          "thr": 75,
+          "hold": 3
+        }
+      ]
+    },
+    "mid": {
+      "mode": "swing",
+      "name": "mid",
+      "sig_sharpes": {
+        "RSI": 0.3566343117341596,
+        "MACD": 0.4276393064550297,
+        "BB": 0.34745463117205994,
+        "MA": 0.4872936695231622
+      },
+      "sig_winrates": {
+        "RSI": 0.5176942986381559,
+        "MACD": 0.519940617748375,
+        "BB": 0.5153438052637054,
+        "MA": 0.5224984782506906
+      },
+      "ranking": [
+        "MA",
+        "MACD",
+        "RSI",
+        "BB"
+      ],
+      "derived_mults": {
+        "RSI": 0.881,
+        "MACD": 1.057,
+        "BB": 0.858,
+        "MA": 1.204
+      },
+      "rank_match": true,
+      "aroon_delta": 0.1451,
+      "aroon_base_sh": 0.2536,
+      "folds": [
+        {
+          "fold": 1,
+          "train": 5.227,
+          "test": -99.0,
+          "thr": 67,
+          "hold": 5
+        },
+        {
+          "fold": 2,
+          "train": 7.577,
+          "test": -99.0,
+          "thr": 65,
+          "hold": 3
+        },
+        {
+          "fold": 3,
+          "train": 5.496,
+          "test": 0.62,
+          "thr": 67,
+          "hold": 5
+        },
+        {
+          "fold": 4,
+          "train": 5.414,
+          "test": -1.698,
+          "thr": 67,
+          "hold": 5
+        },
+        {
+          "fold": 5,
+          "train": 3.712,
+          "test": -2.351,
+          "thr": 67,
+          "hold": 5
+        }
+      ]
+    },
+    "small": {
+      "mode": "swing",
+      "name": "small",
+      "sig_sharpes": {
+        "RSI": 0.5830616026391104,
+        "MACD": 0.4444800776488894,
+        "BB": 0.5200734618870915,
+        "MA": 0.5302391412132205
+      },
+      "sig_winrates": {
+        "RSI": 0.5078893632819751,
+        "MACD": 0.4981606024027131,
+        "BB": 0.5090476962134716,
+        "MA": 0.5040775014459224
+      },
+      "ranking": [
+        "RSI",
+        "MA",
+        "BB",
+        "MACD"
+      ],
+      "derived_mults": {
+        "RSI": 1.122,
+        "MACD": 0.856,
+        "BB": 1.001,
+        "MA": 1.021
+      },
+      "rank_match": true,
+      "aroon_delta": -0.7662,
+      "aroon_base_sh": 0.6799,
+      "folds": [
+        {
+          "fold": 1,
+          "train": 6.644,
+          "test": 0.732,
+          "thr": 70,
+          "hold": 3
+        },
+        {
+          "fold": 2,
+          "train": 3.345,
+          "test": 0.836,
+          "thr": 75,
+          "hold": 3
+        },
+        {
+          "fold": 3,
+          "train": 4.377,
+          "test": -99.0,
+          "thr": 70,
+          "hold": 5
+        },
+        {
+          "fold": 4,
+          "train": 4.021,
+          "test": -99.0,
+          "thr": 70,
+          "hold": 3
+        },
+        {
+          "fold": 5,
+          "train": 5.397,
+          "test": -99.0,
+          "thr": 67,
+          "hold": 3
+        }
+      ]
+    }
+  },
+  "day": {
+    "large": {
+      "mode": "day",
+      "name": "large",
+      "sig_sharpes": {
+        "RSI": 0.4070534158802716,
+        "MACD": 0.49899515116157805,
+        "BB": 0.3178724273482097,
+        "MA": 0.5912835643079881
+      },
+      "sig_winrates": {
+        "RSI": 0.5140386617773552,
+        "MACD": 0.5183601155547531,
+        "BB": 0.5105567817432224,
+        "MA": 0.5211908545787204
+      },
+      "ranking": [
+        "MA",
+        "MACD",
+        "RSI",
+        "BB"
+      ],
+      "derived_mults": {
+        "RSI": 0.897,
+        "MACD": 1.1,
+        "BB": 0.7,
+        "MA": 1.303
+      },
+      "rank_match": true,
+      "aroon_delta": -0.0062,
+      "aroon_base_sh": 0.542,
+      "folds": [
+        {
+          "fold": 1,
+          "train": 1.357,
+          "test": 1.34,
+          "thr": 70,
+          "hold": 1
+        },
+        {
+          "fold": 2,
+          "train": 1.924,
+          "test": -3.545,
+          "thr": 70,
+          "hold": 1
+        },
+        {
+          "fold": 3,
+          "train": 4.899,
+          "test": -99.0,
+          "thr": 70,
+          "hold": 2
+        },
+        {
+          "fold": 4,
+          "train": 4.12,
+          "test": -99.0,
+          "thr": 70,
+          "hold": 2
+        },
+        {
+          "fold": 5,
+          "train": 4.94,
+          "test": -99.0,
+          "thr": 70,
+          "hold": 2
+        }
+      ]
+    },
+    "mid": {
+      "mode": "day",
+      "name": "mid",
+      "sig_sharpes": {
+        "RSI": 0.3885766337106683,
+        "MACD": 0.36617900520185453,
+        "BB": 0.1539298749398316,
+        "MA": 0.4989768126073487
+      },
+      "sig_winrates": {
+        "RSI": 0.5099087799315849,
+        "MACD": 0.507485310889431,
+        "BB": 0.5047805132213105,
+        "MA": 0.5112430502126671
+      },
+      "ranking": [
+        "MA",
+        "RSI",
+        "MACD",
+        "BB"
+      ],
+      "derived_mults": {
+        "RSI": 1.104,
+        "MACD": 1.041,
+        "BB": 0.437,
+        "MA": 1.418
+      },
+      "rank_match": true,
+      "aroon_delta": 0.0693,
+      "aroon_base_sh": 0.3873,
+      "folds": [
+        {
+          "fold": 1,
+          "train": 5.418,
+          "test": 0.03,
+          "thr": 70,
+          "hold": 1
+        },
+        {
+          "fold": 2,
+          "train": 8.442,
+          "test": -99.0,
+          "thr": 70,
+          "hold": 1
+        },
+        {
+          "fold": 3,
+          "train": 6.908,
+          "test": -99.0,
+          "thr": 70,
+          "hold": 1
+        },
+        {
+          "fold": 4,
+          "train": 6.539,
+          "test": -99.0,
+          "thr": 70,
+          "hold": 1
+        },
+        {
+          "fold": 5,
+          "train": 7.136,
+          "test": -99.0,
+          "thr": 70,
+          "hold": 1
+        }
+      ]
+    },
+    "small": {
+      "mode": "day",
+      "name": "small",
+      "sig_sharpes": {
+        "RSI": 0.5253451412632636,
+        "MACD": 0.5879799499088632,
+        "BB": 0.5652156196407531,
+        "MA": 0.6142362266682375
+      },
+      "sig_winrates": {
+        "RSI": 0.4998598589246508,
+        "MACD": 0.5039134438305709,
+        "BB": 0.5032951598962835,
+        "MA": 0.5050894674809815
+      },
+      "ranking": [
+        "MA",
+        "MACD",
+        "BB",
+        "RSI"
+      ],
+      "derived_mults": {
+        "RSI": 0.917,
+        "MACD": 1.026,
+        "BB": 0.986,
+        "MA": 1.072
+      },
+      "rank_match": true,
+      "aroon_delta": -0.0264,
+      "aroon_base_sh": 0.5403,
+      "folds": [
+        {
+          "fold": 1,
+          "train": 3.645,
+          "test": -1.114,
+          "thr": 70,
+          "hold": 1
+        },
+        {
+          "fold": 2,
+          "train": 6.283,
+          "test": -99.0,
+          "thr": 70,
+          "hold": 1
+        },
+        {
+          "fold": 3,
+          "train": 4.67,
+          "test": 3.896,
+          "thr": 70,
+          "hold": 1
+        },
+        {
+          "fold": 4,
+          "train": 4.287,
+          "test": 0.343,
+          "thr": 70,
+          "hold": 1
+        },
+        {
+          "fold": 5,
+          "train": 5.328,
+          "test": -99.0,
+          "thr": 70,
+          "hold": 2
+        }
+      ]
+    }
+  }
+}
