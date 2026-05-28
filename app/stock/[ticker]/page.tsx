@@ -94,22 +94,32 @@ export default function StockDetailPage({ params }: Props) {
               </div>
             </div>
             {/* Yahoo Finance links */}
-            <div className="flex flex-wrap gap-2 mt-4">
-              {yahooFinanceUrls(detail.ticker).map(({ label, href }) => (
+            <div className="flex flex-wrap gap-2 mt-4 items-center">
+              <span className="text-xs text-gray-600">Yahoo Finance:</span>
+              {yahooFinanceUrls(detail.ticker).map(({ label, href, kind }) => (
                 <a
                   key={href}
                   href={href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-500 text-xs text-gray-300 hover:text-white transition-colors"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                    kind === "chart"
+                      ? "bg-blue-950/60 border border-blue-800/50 text-blue-400 hover:bg-blue-900/60 hover:text-blue-200"
+                      : "bg-gray-800 border border-gray-700 text-gray-400 hover:bg-gray-700 hover:text-gray-200"
+                  }`}
                 >
-                  <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
+                  {kind === "chart" ? (
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  )}
                   {label}
                 </a>
               ))}
-              <span className="text-xs text-gray-600 self-center">← データソース</span>
             </div>
           </div>
           <div className="flex flex-col items-center gap-2">
@@ -182,7 +192,35 @@ export default function StockDetailPage({ params }: Props) {
 
       {/* チャート */}
       <div>
-        <h2 className="text-white font-semibold mb-3">チャート (90日)</h2>
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <h2 className="text-white font-semibold">チャート (90日)</h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            {yahooFinanceUrls(detail.ticker).map(({ label, href, kind }) => (
+              <a
+                key={href}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                  kind === "chart"
+                    ? "bg-blue-950/60 border border-blue-800/50 text-blue-400 hover:bg-blue-900/60 hover:text-blue-200"
+                    : "bg-gray-800 border border-gray-700 text-gray-400 hover:bg-gray-700 hover:text-gray-200"
+                }`}
+              >
+                {kind === "chart" ? (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                )}
+                {label}
+              </a>
+            ))}
+          </div>
+        </div>
         <PriceChart detail={detail} />
       </div>
     </div>

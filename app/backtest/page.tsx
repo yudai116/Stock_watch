@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { yahooFinanceUrls } from "@/lib/formatters";
 
 // ─── Static data from backtest_results_v4.json + trade_records.py ─────────────
 
@@ -296,12 +297,7 @@ function AroonDeltaRow({ mode }: { mode: "swing" | "day" }) {
 function TradeCard({ tr, mode }: { tr: TradeRecord; mode: "swing" | "day" }) {
   const m = MULTS[mode][tr.size];
   const holdDays = mode === "swing" ? 5 : 1;
-  const yfUrls = tr.ticker.endsWith(".T")
-    ? [
-        { label: "Yahoo Finance JP", href: `https://finance.yahoo.co.jp/quote/${tr.ticker}` },
-        { label: "Yahoo Finance US", href: `https://finance.yahoo.com/quote/${tr.ticker}` },
-      ]
-    : [{ label: "Yahoo Finance", href: `https://finance.yahoo.com/quote/${tr.ticker}` }];
+  const yfUrls = yahooFinanceUrls(tr.ticker);
 
   const indicators = [
     { name: "RSI",  val: `${tr.rsi.val}`,  score: tr.rsi.score,  mult: m.RSI,  color: "bg-emerald-500" },
@@ -324,13 +320,23 @@ function TradeCard({ tr, mode }: { tr: TradeRecord; mode: "swing" | "day" }) {
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {yfUrls.map(({ label, href }) => (
+        <div className="flex items-center gap-2 flex-wrap">
+          {yfUrls.map(({ label, href, kind }) => (
             <a key={href} href={href} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-xs text-gray-300 hover:text-white transition-colors">
-              <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                kind === "chart"
+                  ? "bg-blue-950/60 text-blue-400 hover:bg-blue-900/60 hover:text-blue-200"
+                  : "bg-gray-700 text-gray-400 hover:bg-gray-600 hover:text-gray-200"
+              }`}>
+              {kind === "chart" ? (
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                </svg>
+              ) : (
+                <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              )}
               {label}
             </a>
           ))}

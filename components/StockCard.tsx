@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import type { StockScore } from "@/types";
-import { formatPrice, formatChangePct, analystSignalToJa, analystSignalColor, sectorBadgeColor } from "@/lib/formatters";
+import { formatPrice, formatChangePct, analystSignalToJa, analystSignalColor, sectorBadgeColor, yahooFinanceUrls } from "@/lib/formatters";
 import { getSector } from "@/lib/sectors";
 
 function ScoreRing({ score }: { score: number }) {
@@ -137,6 +137,31 @@ export default function StockCard({ stock, onRemove }: Props) {
           </span>
         </div>
       )}
+
+      {/* Yahoo Finance links */}
+      <div className="px-4 py-2 border-t border-gray-800 flex items-center gap-2 flex-wrap">
+        <span className="text-gray-700 text-xs flex-shrink-0">Yahoo Finance:</span>
+        {yahooFinanceUrls(stock.ticker).map(({ label, href, kind }) => (
+          <a
+            key={href}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors ${
+              kind === "chart"
+                ? "bg-blue-950/60 text-blue-400 hover:bg-blue-900/60 hover:text-blue-200"
+                : "bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-gray-300"
+            }`}
+          >
+            {kind === "chart" && (
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+              </svg>
+            )}
+            {label}
+          </a>
+        ))}
+      </div>
     </div>
   );
 }

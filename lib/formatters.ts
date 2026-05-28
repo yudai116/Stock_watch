@@ -1,11 +1,18 @@
-export function yahooFinanceUrls(ticker: string): { label: string; href: string }[] {
+export function yahooFinanceUrls(
+  ticker: string
+): { label: string; href: string; kind: "quote" | "chart" }[] {
   if (ticker.endsWith(".T")) {
     return [
-      { label: "Yahoo Finance JP", href: `https://finance.yahoo.co.jp/quote/${ticker}` },
-      { label: "Yahoo Finance US", href: `https://finance.yahoo.com/quote/${ticker}` },
+      { label: "チャート (JP)", href: `https://finance.yahoo.co.jp/chart/${ticker}`,  kind: "chart" },
+      { label: "チャート (US)", href: `https://finance.yahoo.com/chart/${ticker}`,    kind: "chart" },
+      { label: "クオート (JP)", href: `https://finance.yahoo.co.jp/quote/${ticker}`,  kind: "quote" },
+      { label: "クオート (US)", href: `https://finance.yahoo.com/quote/${ticker}`,    kind: "quote" },
     ];
   }
-  return [{ label: "Yahoo Finance", href: `https://finance.yahoo.com/quote/${ticker}` }];
+  return [
+    { label: "チャート", href: `https://finance.yahoo.com/chart/${ticker}`,  kind: "chart" },
+    { label: "クオート", href: `https://finance.yahoo.com/quote/${ticker}`,  kind: "quote" },
+  ];
 }
 
 export function formatPrice(price: number | null, currency: string): string {
