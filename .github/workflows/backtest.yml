@@ -1,7 +1,7 @@
-name: バックテスト実行（実データ）
+name: バックテスト実行（実データ・16ジョブ並列）
 
 on:
-  workflow_dispatch:        # iPhone / GitHub から手動起動
+  workflow_dispatch:
     inputs:
       mode:
         description: 'バックテストモード'
@@ -9,161 +9,537 @@ on:
         default: 'swing'
         type: choice
         options:
-          - swing     # スイングトレード (デフォルト)
-          - day       # デイトレード
-          - both      # 両方同時並列実行 (各~4時間, 合計~4時間)
+          - swing
+          - day
+          - both
   schedule:
-    - cron: '0 1 * * 0'    # 毎週日曜 AM10:00 JST に自動実行（swing）
+    - cron: '0 1 * * 0'
 
 jobs:
-  # ── Job 1: 価格データ取得 (共通) ───────────────────────────────────────────
+
+  # ── Job 1: 価格データ取得 ──────────────────────────────────────────────────
   fetch-data:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
     steps:
       - name: リポジトリをチェックアウト
         uses: actions/checkout@v4
         with:
           ref: claude/stock-price-dashboard-QrhiS
-
       - name: Node.js セットアップ
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-
       - name: npm install
         run: npm ci
-
       - name: 1時間足データ取得 (直近730日, 25銘柄)
         run: node backtest/fetch_data.mjs --intraday
-
-      - name: データファイルをアーティファクトとして保存
+      - name: データをアーティファクトとして保存
         uses: actions/upload-artifact@v4
         with:
           name: price-data
           path: backtest/price_data_intraday.json
           retention-days: 1
 
-  # ── Job 2: スイング戦略最適化 (並列) ─────────────────────────────────────
-  optimize-swing:
+  # ── Job 2: スイング DOE ────────────────────────────────────────────────────
+  swing-doe:
     needs: fetch-data
     if: ${{ github.event.inputs.mode != 'day' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 350      # 5時間50分 (GHA上限6時間の直前)
-
+    timeout-minutes: 30
     steps:
-      - name: リポジトリをチェックアウト
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: claude/stock-price-dashboard-QrhiS
-
-      - name: 価格データを取得
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: price-data
           path: backtest/
-
-      - name: Python セットアップ
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: numpy インストール
-        run: pip install numpy --quiet
-
-      - name: スイング戦略最適化 (DOE→WF4fold×全売りルール→GA→ホールドアウト)
-        run: python3 backtest/strategy_search.py --swing
-
-      - name: 結果をアーティファクトとして保存
-        uses: actions/upload-artifact@v4
+      - run: pip install numpy --quiet
+      - run: mkdir -p backtest/phase_artifacts
+      - name: スイング DOE 実行
+        run: python3 backtest/strategy_search.py --phase doe --mode swing
+      - uses: actions/upload-artifact@v4
         with:
-          name: result-swing
-          path: backtest/strategy_results_swing.json
+          name: doe-swing
+          path: backtest/phase_artifacts/doe_swing.json
           retention-days: 1
 
-  # ── Job 3: デイトレ戦略最適化 (並列) ─────────────────────────────────────
-  optimize-day:
+  # ── Job 3: デイトレ DOE ────────────────────────────────────────────────────
+  day-doe:
     needs: fetch-data
     if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 350      # 5時間50分
-
+    timeout-minutes: 30
     steps:
-      - name: リポジトリをチェックアウト
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: claude/stock-price-dashboard-QrhiS
-
-      - name: 価格データを取得
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: price-data
           path: backtest/
-
-      - name: Python セットアップ
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - run: pip install numpy --quiet
+      - run: mkdir -p backtest/phase_artifacts
+      - name: デイトレ DOE 実行
+        run: python3 backtest/strategy_search.py --phase doe --mode day
+      - uses: actions/upload-artifact@v4
+        with:
+          name: doe-day
+          path: backtest/phase_artifacts/doe_day.json
+          retention-days: 1
 
-      - name: numpy インストール
-        run: pip install numpy --quiet
+  # ── Job 4: スイング WF Fold 0 ─────────────────────────────────────────────
+  swing-wf-fold-0:
+    needs: [fetch-data, swing-doe]
+    if: ${{ github.event.inputs.mode != 'day' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/stock-price-dashboard-QrhiS
+      - uses: actions/download-artifact@v4
+        with:
+          name: price-data
+          path: backtest/
+      - run: mkdir -p backtest/phase_artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: doe-swing
+          path: backtest/phase_artifacts/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy --quiet
+      - name: スイング WF Fold 0 実行
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wf-swing-fold-0
+          path: backtest/phase_artifacts/wf_swing_fold_0.json
+          retention-days: 1
 
-      - name: デイトレ戦略最適化 (DOE→WF4fold×全売りルール→GA→ホールドアウト)
-        run: python3 backtest/strategy_search.py --day
+  # ── Job 5: スイング WF Fold 1 ─────────────────────────────────────────────
+  swing-wf-fold-1:
+    needs: [fetch-data, swing-doe]
+    if: ${{ github.event.inputs.mode != 'day' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/stock-price-dashboard-QrhiS
+      - uses: actions/download-artifact@v4
+        with:
+          name: price-data
+          path: backtest/
+      - run: mkdir -p backtest/phase_artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: doe-swing
+          path: backtest/phase_artifacts/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy --quiet
+      - name: スイング WF Fold 1 実行
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wf-swing-fold-1
+          path: backtest/phase_artifacts/wf_swing_fold_1.json
+          retention-days: 1
 
-      - name: 結果をアーティファクトとして保存
-        uses: actions/upload-artifact@v4
+  # ── Job 6: スイング WF Fold 2 ─────────────────────────────────────────────
+  swing-wf-fold-2:
+    needs: [fetch-data, swing-doe]
+    if: ${{ github.event.inputs.mode != 'day' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/stock-price-dashboard-QrhiS
+      - uses: actions/download-artifact@v4
+        with:
+          name: price-data
+          path: backtest/
+      - run: mkdir -p backtest/phase_artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: doe-swing
+          path: backtest/phase_artifacts/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy --quiet
+      - name: スイング WF Fold 2 実行
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wf-swing-fold-2
+          path: backtest/phase_artifacts/wf_swing_fold_2.json
+          retention-days: 1
+
+  # ── Job 7: スイング WF Fold 3 ─────────────────────────────────────────────
+  swing-wf-fold-3:
+    needs: [fetch-data, swing-doe]
+    if: ${{ github.event.inputs.mode != 'day' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/stock-price-dashboard-QrhiS
+      - uses: actions/download-artifact@v4
+        with:
+          name: price-data
+          path: backtest/
+      - run: mkdir -p backtest/phase_artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: doe-swing
+          path: backtest/phase_artifacts/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy --quiet
+      - name: スイング WF Fold 3 実行
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wf-swing-fold-3
+          path: backtest/phase_artifacts/wf_swing_fold_3.json
+          retention-days: 1
+
+  # ── Job 8: スイング 最終GA ─────────────────────────────────────────────────
+  swing-final:
+    needs: [fetch-data, swing-doe]
+    if: ${{ github.event.inputs.mode != 'day' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/stock-price-dashboard-QrhiS
+      - uses: actions/download-artifact@v4
+        with:
+          name: price-data
+          path: backtest/
+      - run: mkdir -p backtest/phase_artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: doe-swing
+          path: backtest/phase_artifacts/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy --quiet
+      - name: スイング 最終GA 実行
+        run: python3 backtest/strategy_search.py --phase final --mode swing
+      - uses: actions/upload-artifact@v4
+        with:
+          name: final-swing
+          path: backtest/phase_artifacts/final_swing.json
+          retention-days: 1
+
+  # ── Job 9: デイトレ WF Fold 0 ─────────────────────────────────────────────
+  day-wf-fold-0:
+    needs: [fetch-data, day-doe]
+    if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/stock-price-dashboard-QrhiS
+      - uses: actions/download-artifact@v4
+        with:
+          name: price-data
+          path: backtest/
+      - run: mkdir -p backtest/phase_artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: doe-day
+          path: backtest/phase_artifacts/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy --quiet
+      - name: デイトレ WF Fold 0 実行
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wf-day-fold-0
+          path: backtest/phase_artifacts/wf_day_fold_0.json
+          retention-days: 1
+
+  # ── Job 10: デイトレ WF Fold 1 ────────────────────────────────────────────
+  day-wf-fold-1:
+    needs: [fetch-data, day-doe]
+    if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/stock-price-dashboard-QrhiS
+      - uses: actions/download-artifact@v4
+        with:
+          name: price-data
+          path: backtest/
+      - run: mkdir -p backtest/phase_artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: doe-day
+          path: backtest/phase_artifacts/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy --quiet
+      - name: デイトレ WF Fold 1 実行
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wf-day-fold-1
+          path: backtest/phase_artifacts/wf_day_fold_1.json
+          retention-days: 1
+
+  # ── Job 11: デイトレ WF Fold 2 ────────────────────────────────────────────
+  day-wf-fold-2:
+    needs: [fetch-data, day-doe]
+    if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/stock-price-dashboard-QrhiS
+      - uses: actions/download-artifact@v4
+        with:
+          name: price-data
+          path: backtest/
+      - run: mkdir -p backtest/phase_artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: doe-day
+          path: backtest/phase_artifacts/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy --quiet
+      - name: デイトレ WF Fold 2 実行
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wf-day-fold-2
+          path: backtest/phase_artifacts/wf_day_fold_2.json
+          retention-days: 1
+
+  # ── Job 12: デイトレ WF Fold 3 ────────────────────────────────────────────
+  day-wf-fold-3:
+    needs: [fetch-data, day-doe]
+    if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/stock-price-dashboard-QrhiS
+      - uses: actions/download-artifact@v4
+        with:
+          name: price-data
+          path: backtest/
+      - run: mkdir -p backtest/phase_artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: doe-day
+          path: backtest/phase_artifacts/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy --quiet
+      - name: デイトレ WF Fold 3 実行
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wf-day-fold-3
+          path: backtest/phase_artifacts/wf_day_fold_3.json
+          retention-days: 1
+
+  # ── Job 13: デイトレ 最終GA ───────────────────────────────────────────────
+  day-final:
+    needs: [fetch-data, day-doe]
+    if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/stock-price-dashboard-QrhiS
+      - uses: actions/download-artifact@v4
+        with:
+          name: price-data
+          path: backtest/
+      - run: mkdir -p backtest/phase_artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: doe-day
+          path: backtest/phase_artifacts/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy --quiet
+      - name: デイトレ 最終GA 実行
+        run: python3 backtest/strategy_search.py --phase final --mode day
+      - uses: actions/upload-artifact@v4
+        with:
+          name: final-day
+          path: backtest/phase_artifacts/final_day.json
+          retention-days: 1
+
+  # ── Job 14: スイング アセンブル ───────────────────────────────────────────
+  swing-assemble:
+    needs: [swing-wf-fold-0, swing-wf-fold-1, swing-wf-fold-2, swing-wf-fold-3, swing-final]
+    if: ${{ github.event.inputs.mode != 'day' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/stock-price-dashboard-QrhiS
+      - uses: actions/download-artifact@v4
+        with:
+          name: price-data
+          path: backtest/
+      - run: mkdir -p backtest/phase_artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: doe-swing
+          path: backtest/phase_artifacts/
+      - uses: actions/download-artifact@v4
+        with:
+          name: wf-swing-fold-0
+          path: backtest/phase_artifacts/
+      - uses: actions/download-artifact@v4
+        with:
+          name: wf-swing-fold-1
+          path: backtest/phase_artifacts/
+      - uses: actions/download-artifact@v4
+        with:
+          name: wf-swing-fold-2
+          path: backtest/phase_artifacts/
+      - uses: actions/download-artifact@v4
+        with:
+          name: wf-swing-fold-3
+          path: backtest/phase_artifacts/
+      - uses: actions/download-artifact@v4
+        with:
+          name: final-swing
+          path: backtest/phase_artifacts/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy --quiet
+      - name: スイング アセンブル実行
+        run: python3 backtest/strategy_search.py --phase assemble --mode swing
+      - uses: actions/upload-artifact@v4
+        with:
+          name: result-swing
+          path: backtest/strategy_results_swing.json
+          retention-days: 7
+
+  # ── Job 15: デイトレ アセンブル ───────────────────────────────────────────
+  day-assemble:
+    needs: [day-wf-fold-0, day-wf-fold-1, day-wf-fold-2, day-wf-fold-3, day-final]
+    if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/stock-price-dashboard-QrhiS
+      - uses: actions/download-artifact@v4
+        with:
+          name: price-data
+          path: backtest/
+      - run: mkdir -p backtest/phase_artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: doe-day
+          path: backtest/phase_artifacts/
+      - uses: actions/download-artifact@v4
+        with:
+          name: wf-day-fold-0
+          path: backtest/phase_artifacts/
+      - uses: actions/download-artifact@v4
+        with:
+          name: wf-day-fold-1
+          path: backtest/phase_artifacts/
+      - uses: actions/download-artifact@v4
+        with:
+          name: wf-day-fold-2
+          path: backtest/phase_artifacts/
+      - uses: actions/download-artifact@v4
+        with:
+          name: wf-day-fold-3
+          path: backtest/phase_artifacts/
+      - uses: actions/download-artifact@v4
+        with:
+          name: final-day
+          path: backtest/phase_artifacts/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy --quiet
+      - name: デイトレ アセンブル実行
+        run: python3 backtest/strategy_search.py --phase assemble --mode day
+      - uses: actions/upload-artifact@v4
         with:
           name: result-day
           path: backtest/strategy_results_day.json
-          retention-days: 1
+          retention-days: 7
 
-  # ── Job 4: 結果をリポジトリにコミット (両Job完了後) ──────────────────────
+  # ── Job 16: 結果をリポジトリにコミット ────────────────────────────────────
   commit-results:
-    needs: [optimize-swing, optimize-day]
+    needs: [swing-assemble, day-assemble]
     if: |
       always() && !cancelled() &&
-      (needs.optimize-swing.result == 'success' || needs.optimize-day.result == 'success')
+      (needs.swing-assemble.result == 'success' || needs.day-assemble.result == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
-
     steps:
       - name: リポジトリをチェックアウト
         uses: actions/checkout@v4
         with:
           ref: claude/stock-price-dashboard-QrhiS
-
-      - name: 価格データを取得
-        uses: actions/download-artifact@v4
-        with:
-          name: price-data
-          path: backtest/
-        continue-on-error: true
-
       - name: スイング結果を取得
         uses: actions/download-artifact@v4
         with:
           name: result-swing
           path: backtest/
         continue-on-error: true
-
       - name: デイトレ結果を取得
         uses: actions/download-artifact@v4
         with:
           name: result-day
           path: backtest/
         continue-on-error: true
-
       - name: 結果コミット & プッシュ
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add backtest/price_data_intraday.json \
-                  backtest/strategy_results_swing.json \
+          git add backtest/strategy_results_swing.json \
                   backtest/strategy_results_day.json 2>/dev/null || true
           git diff --staged --quiet && echo "変更なし" || (
             git commit -m "chore: バックテスト結果を更新 [skip ci]" &&

@@ -822,7 +822,371 @@ def run_ga_all_sells(ticker_data: dict, mode: str, doe_effects: dict,
     return best_overall, all_ga_results
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 11. 全体評価パイプライン
+# 11. フェーズ実行 (16ジョブ並列用)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def run_phase_doe(mode: str) -> None:
+    """Phase DOE: L18直交表実験 → phase_artifacts/doe_{mode}.json"""
+    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+    print(f"[PHASE: DOE] mode={mode}")
+
+    ticker_data, T_min, t_holdout = _load_ticker_data(mode)
+    doe_effects, doe_ranked = run_doe(ticker_data, mode, t_holdout)
+
+    artifact = {
+        "mode":        mode,
+        "T_min":       T_min,
+        "t_holdout":   t_holdout,
+        "doe_effects": {k: round(v, 6) for k, v in doe_effects.items()},
+        "doe_ranked":  doe_ranked,
+    }
+    out_path = ARTIFACTS_DIR / f"doe_{mode}.json"
+    out_path.write_text(json.dumps(artifact, ensure_ascii=False, indent=2))
+    print(f"[PHASE: DOE] 保存: {out_path}")
+
+
+def run_phase_wf_fold(mode: str, fold_i: int) -> None:
+    """Phase WF-Fold: 1fold分の全売りルール×GA → phase_artifacts/wf_{mode}_fold_{fold_i}.json"""
+    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    doe_path = ARTIFACTS_DIR / f"doe_{mode}.json"
+    if not doe_path.exists():
+        print(f"ERROR: {doe_path} が見つかりません"); sys.exit(1)
+    doe_art     = json.loads(doe_path.read_text())
+    T_min       = doe_art["T_min"]
+    t_holdout   = doe_art["t_holdout"]
+    doe_effects = doe_art["doe_effects"]
+
+    splits = _wf_splits(T_min, t_holdout)
+    if fold_i < 0 or fold_i >= len(splits):
+        print(f"ERROR: fold_i={fold_i} 範囲外 (0〜{len(splits)-1})"); sys.exit(1)
+
+    t_train_f, t_oos_end_f = splits[fold_i]
+    print(f"[PHASE: WF Fold {fold_i}] mode={mode}  train=[0,{t_train_f}] oos=[{t_train_f},{t_oos_end_f}]")
+
+    ticker_data, _, _ = _load_ticker_data(mode)
+    sell_hold = SWING_SELL_HOLD if mode == "swing" else DAY_SELL_HOLD
+    ind_names = IND_NAMES_SWING if mode == "swing" else IND_NAMES_DAY
+
+    best_fold, all_ga_results = run_ga_all_sells(ticker_data, mode, doe_effects, t_train_f)
+
+    hb_f     = sell_hold[best_fold["sell"]]
+    oos_stats = detailed_eval_single(ticker_data, best_fold["weights"],
+                                     best_fold["sell"], best_fold["threshold"],
+                                     hb_f, t_train_f, t_oos_end_f)
+    wm_f      = best_fold["weights"].reshape(1, 8)
+    oos_shp_m = batch_sharpe(ticker_data, wm_f, best_fold["sell"],
+                              [best_fold["threshold"]], hb_f, t_train_f, t_oos_end_f)
+    oos_shp_f = float(oos_shp_m[0, 0]) if not np.isnan(oos_shp_m[0, 0]) else 0.
+
+    all_sell_oos: dict = {}
+    for sname, gr in all_ga_results.items():
+        hb_ = sell_hold[sname]
+        wm_ = gr["weights"].reshape(1, 8)
+        sm  = batch_sharpe(ticker_data, wm_, sname, [gr["threshold"]], hb_, t_train_f, t_oos_end_f)
+        os_ = float(sm[0, 0]) if not np.isnan(sm[0, 0]) else 0.
+        ds  = detailed_eval_single(ticker_data, gr["weights"], sname, gr["threshold"],
+                                    hb_, t_train_f, t_oos_end_f)
+        all_sell_oos[sname] = {
+            "oos_sharpe":    round(os_, 4),
+            "oos_n_trades":  ds["n_trades"],
+            "oos_win_rate":  ds["win_rate"],
+            "oos_avg_return": ds["avg_return"],
+        }
+
+    artifact = {
+        "mode":           mode,
+        "fold":           fold_i,
+        "t_train_f":      t_train_f,
+        "t_oos_end_f":    t_oos_end_f,
+        "best_sell":      best_fold["sell"],
+        "best_threshold": best_fold["threshold"],
+        "best_weights":   best_fold["weights"].tolist(),
+        "train_sharpe":   round(float(best_fold["sharpe"]), 4),
+        "oos_sharpe":     round(oos_shp_f, 4),
+        "oos_n_trades":   oos_stats["n_trades"],
+        "oos_win_rate":   oos_stats["win_rate"],
+        "oos_avg_return": oos_stats["avg_return"],
+        "oos_max_dd":     oos_stats["max_dd"],
+        "all_sell_oos":   all_sell_oos,
+    }
+    out_path = ARTIFACTS_DIR / f"wf_{mode}_fold_{fold_i}.json"
+    out_path.write_text(json.dumps(artifact, ensure_ascii=False, indent=2))
+    print(f"[PHASE: WF Fold {fold_i}] 保存: {out_path}  "
+          f"train={best_fold['sharpe']:.4f}  oos={oos_shp_f:.4f}  N={oos_stats['n_trades']}")
+
+
+def run_phase_final(mode: str) -> None:
+    """Phase Final: 訓練全体で全売りルール×GA → phase_artifacts/final_{mode}.json"""
+    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    doe_path = ARTIFACTS_DIR / f"doe_{mode}.json"
+    if not doe_path.exists():
+        print(f"ERROR: {doe_path} が見つかりません"); sys.exit(1)
+    doe_art     = json.loads(doe_path.read_text())
+    t_holdout   = doe_art["t_holdout"]
+    doe_effects = doe_art["doe_effects"]
+
+    print(f"[PHASE: FINAL] mode={mode}  t_holdout={t_holdout}")
+    ticker_data, _, _ = _load_ticker_data(mode)
+
+    best_overall, all_ga_results = run_ga_all_sells(ticker_data, mode, doe_effects, t_holdout)
+
+    artifact = {
+        "mode":           mode,
+        "t_holdout":      t_holdout,
+        "best_sell":      best_overall["sell"],
+        "best_threshold": best_overall["threshold"],
+        "best_weights":   best_overall["weights"].tolist(),
+        "train_sharpe":   round(float(best_overall["sharpe"]), 4),
+        "convergence":    [round(v, 4) for v in best_overall["convergence"]],
+        "all_ga_results": {
+            sname: {
+                "sharpe":     round(float(gr["sharpe"]), 4),
+                "threshold":  gr["threshold"],
+                "weights":    gr["weights"].tolist(),
+                "convergence": [round(v, 4) for v in gr["convergence"]],
+            }
+            for sname, gr in all_ga_results.items()
+        },
+    }
+    out_path = ARTIFACTS_DIR / f"final_{mode}.json"
+    out_path.write_text(json.dumps(artifact, ensure_ascii=False, indent=2))
+    print(f"[PHASE: FINAL] 保存: {out_path}  sell={best_overall['sell']}  "
+          f"thresh={best_overall['threshold']}  train={best_overall['sharpe']:.4f}")
+
+
+def run_phase_assemble(mode: str) -> None:
+    """Phase Assemble: 全アーティファクト集約 → strategy_results_{mode}.json"""
+    sell_rules = SWING_SELL_RULES if mode == "swing" else DAY_SELL_RULES
+    sell_hold  = SWING_SELL_HOLD  if mode == "swing" else DAY_SELL_HOLD
+    sell_ja    = SWING_SELL_JA    if mode == "swing" else DAY_SELL_JA
+    ind_names  = IND_NAMES_SWING  if mode == "swing" else IND_NAMES_DAY
+    out_file   = RESULTS_SWING if mode == "swing" else RESULTS_DAY
+
+    print(f"[PHASE: ASSEMBLE] mode={mode}")
+
+    doe_path   = ARTIFACTS_DIR / f"doe_{mode}.json"
+    final_path = ARTIFACTS_DIR / f"final_{mode}.json"
+    for p in [doe_path, final_path]:
+        if not p.exists():
+            print(f"ERROR: {p} が見つかりません"); sys.exit(1)
+
+    doe_art   = json.loads(doe_path.read_text())
+    final_art = json.loads(final_path.read_text())
+    T_min       = doe_art["T_min"]
+    t_holdout   = doe_art["t_holdout"]
+    doe_effects = doe_art["doe_effects"]
+    doe_ranked  = doe_art["doe_ranked"]
+
+    splits     = _wf_splits(T_min, t_holdout)
+    n_wf_folds = len(splits)
+
+    wf_folds: list[dict] = []
+    fold_weights_list: list[np.ndarray] = []
+    for fold_i in range(n_wf_folds):
+        wf_path = ARTIFACTS_DIR / f"wf_{mode}_fold_{fold_i}.json"
+        if not wf_path.exists():
+            print(f"ERROR: {wf_path} が見つかりません"); sys.exit(1)
+        wa = json.loads(wf_path.read_text())
+        wf_folds.append({
+            "fold":           fold_i,
+            "train_bars":     wa["t_train_f"],
+            "oos_bars":       wa["t_oos_end_f"] - wa["t_train_f"],
+            "best_sell":      wa["best_sell"],
+            "best_threshold": wa["best_threshold"],
+            "train_sharpe":   wa["train_sharpe"],
+            "oos_sharpe":     wa["oos_sharpe"],
+            "oos_n_trades":   wa["oos_n_trades"],
+            "oos_win_rate":   wa["oos_win_rate"],
+            "oos_avg_return": wa["oos_avg_return"],
+            "oos_max_dd":     wa["oos_max_dd"],
+            "all_sell_oos":   wa.get("all_sell_oos", {}),
+        })
+        fold_weights_list.append(np.array(wa["best_weights"]))
+
+    avg_oos_sharpe = float(np.mean([f["oos_sharpe"] for f in wf_folds]))
+    oos_arr = np.array([f["oos_sharpe"] for f in wf_folds])
+    wf_stability = float(1. - np.std(oos_arr) / (abs(np.mean(oos_arr)) + 1e-6))
+
+    best_sell   = final_art["best_sell"]
+    best_thresh = final_art["best_threshold"]
+    best_w      = np.array(final_art["best_weights"])
+    train_shp   = final_art["train_sharpe"]
+    convergence = final_art["convergence"]
+    all_ga_results_raw = final_art["all_ga_results"]
+    best_weights = {nm: round(float(best_w[i]), 4) for i, nm in enumerate(ind_names)}
+
+    # ウェイト信頼区間 (WF fold 最良重み + final 最良重み)
+    fold_weights_list.append(best_w)
+    fold_weights_arr = np.stack(fold_weights_list, axis=0)
+    weight_ci: dict = {}
+    for i, nm in enumerate(ind_names):
+        col  = fold_weights_arr[:, i]
+        mean = float(np.mean(col)); std = float(np.std(col))
+        cv   = std / (abs(mean) + 1e-6)
+        weight_ci[nm] = {"mean": round(mean, 4), "std": round(std, 4), "cv": round(cv, 4)}
+
+    print("  データ読み込み・指標計算中...")
+    ticker_data, _, _ = _load_ticker_data(mode)
+
+    hb      = sell_hold[best_sell]
+    wm_best = best_w.reshape(1, 8)
+
+    print("  MC最終評価 (5000) ...")
+    np.random.seed(99)
+    alpha = _make_alpha(doe_effects, ind_names)
+    mc_w  = np.random.dirichlet(alpha, 5000) * 4.0
+    mc_w  = np.vstack([mc_w, best_w.reshape(1, 8)])
+
+    all_results: list[dict] = []
+    shp_mat = batch_sharpe(ticker_data, mc_w, best_sell, BUY_THRESHOLDS, hb, 0, t_holdout)
+    for wi in range(len(mc_w)):
+        for ti, thr in enumerate(BUY_THRESHOLDS):
+            sv = shp_mat[wi, ti]
+            if np.isnan(sv): continue
+            all_results.append({"weights": mc_w[wi], "thr": thr, "shp": float(sv)})
+    all_results.sort(key=lambda x: x["shp"], reverse=True)
+    top100 = all_results[:100]
+
+    if len(all_results) >= 10:
+        mc_slice    = all_results[:min(2000, len(all_results))]
+        weights_arr = np.array([r["weights"] for r in mc_slice])
+        sharpes_arr = np.array([r["shp"]     for r in mc_slice])
+        ind_corr = {nm: round(float(np.corrcoef(weights_arr[:, i], sharpes_arr)[0, 1])
+                               if np.isfinite(np.corrcoef(weights_arr[:, i], sharpes_arr)[0, 1]) else 0., 4)
+                    for i, nm in enumerate(ind_names)}
+    else:
+        ind_corr = {nm: 0. for nm in ind_names}
+
+    if top100:
+        tw_arr = np.array([r["weights"] for r in top100])
+        med_w  = {nm: round(float(np.median(tw_arr[:, i])), 3) for i, nm in enumerate(ind_names)}
+    else:
+        med_w = {nm: round(float(best_w[i]), 3) for i, nm in enumerate(ind_names)}
+    weight_ranking = sorted(ind_names, key=lambda n: med_w[n], reverse=True)
+
+    print("  ホールドアウト評価...")
+    test_shp_m = batch_sharpe(ticker_data, wm_best, best_sell, [best_thresh], hb, t_holdout, T_min)
+    test_shp   = float(test_shp_m[0, 0]) if not np.isnan(test_shp_m[0, 0]) else 0.
+    test_stats = detailed_eval_single(ticker_data, best_w, best_sell, best_thresh, hb, t_holdout, T_min)
+    overfit_ratio = round(test_shp / train_shp, 4) if abs(train_shp) > 1e-6 else 0.
+
+    print("  売りルールランキング評価中...")
+    sell_stats: list[dict] = []
+    for sname in sell_rules:
+        hb_ = sell_hold[sname]
+        sm  = batch_sharpe(ticker_data, wm_best, sname, BUY_THRESHOLDS, hb_, 0, t_holdout)
+        if not np.all(np.isnan(sm)):
+            best_ti    = int(np.nanargmax(sm[0]))
+            best_thr_s = BUY_THRESHOLDS[best_ti]
+            best_shp_s = float(sm[0, best_ti])
+            avg_shp    = float(np.nanmean(sm[0]))
+            dstats     = detailed_eval_single(ticker_data, best_w, sname, best_thr_s, hb_, 0, t_holdout)
+        else:
+            best_thr_s = BUY_THRESHOLDS[0]; best_shp_s = 0.; avg_shp = 0.
+            dstats = {"win_rate": 0., "n_trades": 0, "avg_return": 0., "max_dd": 0.}
+        sell_stats.append({
+            "sell_rule": sname, "sell_rule_ja": sell_ja[sname],
+            "best_sharpe": round(best_shp_s, 4), "avg_sharpe": round(avg_shp, 4),
+            "best_win_rate": dstats["win_rate"], "best_n_trades": dstats["n_trades"],
+            "best_avg_return": dstats["avg_return"], "best_weights": best_weights,
+            "best_threshold": best_thr_s,
+        })
+    sell_stats.sort(key=lambda x: x["best_sharpe"], reverse=True)
+
+    print("  top100 詳細評価中...")
+    top100_out: list[dict] = []
+    for r in top100:
+        ds = detailed_eval_single(ticker_data, r["weights"], best_sell, r["thr"], hb, 0, t_holdout)
+        top100_out.append({
+            "buy_weights":   {nm: round(float(r["weights"][i]), 3) for i, nm in enumerate(ind_names)},
+            "buy_threshold": r["thr"],
+            "sell_rule":     best_sell,
+            "sharpe":        ds["sharpe"],
+            "n_trades":      ds["n_trades"],
+            "win_rate":      ds["win_rate"],
+            "avg_return":    ds["avg_return"],
+            "max_dd":        ds["max_dd"],
+        })
+
+    ga_all_sells_summary = {
+        sname: {
+            "sharpe":    round(float(gr["sharpe"]), 4),
+            "threshold": gr["threshold"],
+            "weights":   {nm: round(float(gr["weights"][i]), 4) for i, nm in enumerate(ind_names)},
+        }
+        for sname, gr in all_ga_results_raw.items()
+    }
+
+    result = {
+        "version":       7,
+        "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
+        "mode":          mode,
+        "data_source":   "price_data_intraday.json (1h bars)",
+        "n_tickers":     len(ticker_data),
+        "tickers":       list(ticker_data.keys()),
+        "n_evaluated":   len(all_results),
+        "transaction_costs": {"US_pct": round(US_COST * 100, 2), "JP_pct": round(JP_COST * 100, 2)},
+        "lookahead_bias_fixed": True,
+        "entry_price":   "open of bar t+1 (signal at close of bar t)",
+        "top100":        top100_out,
+        "sell_rule_ranking": sell_stats,
+        "indicator_weight_corr_with_sharpe": ind_corr,
+        "top100_median_weights":   med_w,
+        "top100_weight_ranking":   weight_ranking,
+        "weight_confidence_intervals": weight_ci,
+        "summary": {
+            "best_sharpe":       round(train_shp, 4),
+            "best_sharpe_train": round(train_shp, 4),
+            "avg_oos_sharpe":    round(avg_oos_sharpe, 4),
+            "wf_stability":      round(wf_stability, 4),
+            "overfit_ratio":     overfit_ratio,
+            "best_sell_rule":    best_sell,
+            "best_weights":      best_weights,
+            "best_threshold":    best_thresh,
+        },
+        "doe_results": {
+            "n_experiments":     18,
+            "indicator_effects": {k: round(v, 4) for k, v in doe_effects.items()},
+            "ranking":           doe_ranked,
+        },
+        "ga_results": {
+            "population":             GA_POP,
+            "generations":            GA_GENS,
+            "n_sell_rules_optimized": len(sell_rules),
+            "all_sell_rules":         ga_all_sells_summary,
+            "best_weights":           best_weights,
+            "best_sharpe_train":      round(train_shp, 4),
+            "best_sell_rule":         best_sell,
+            "best_threshold":         best_thresh,
+            "convergence":            [round(v, 4) for v in convergence],
+        },
+        "walk_forward": {
+            "n_folds":         n_wf_folds,
+            "folds":           wf_folds,
+            "avg_oos_sharpe":  round(avg_oos_sharpe, 4),
+            "wf_stability":    round(wf_stability, 4),
+            "overfit_ratio":   overfit_ratio,
+            "train_ratio":     0.80,
+            "train_bars":      t_holdout,
+            "test_bars":       T_min - t_holdout,
+            "train_sharpe":    round(train_shp, 4),
+            "test_sharpe":     round(test_shp, 4),
+            "test_win_rate":   round(test_stats["win_rate"], 4),
+            "test_n_trades":   test_stats["n_trades"],
+            "test_avg_return": round(test_stats["avg_return"], 3),
+            "test_max_dd":     round(test_stats["max_dd"], 3),
+        },
+    }
+    out_file.write_text(json.dumps(result, ensure_ascii=False, indent=2))
+    print(f"[PHASE: ASSEMBLE] 保存完了: {out_file}  ({out_file.stat().st_size // 1024} KB)")
+    print(f"  avg_oos_sharpe={avg_oos_sharpe:.4f}  wf_stability={wf_stability:.4f}  "
+          f"overfit_ratio={overfit_ratio:.4f}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 12. 全体評価パイプライン
 # ══════════════════════════════════════════════════════════════════════════════
 
 def full_evaluation(ticker_data: dict, mode: str) -> dict:
@@ -1067,7 +1431,7 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
     }
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 12. モード実行
+# 13. モード実行
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_mode(mode: str):
@@ -1144,28 +1508,46 @@ def run_mode(mode: str):
     print()
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 13. エントリーポイント
+# 14. エントリーポイント
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main():
-    parser = argparse.ArgumentParser(description="バックテスト v3 (DOE→WF3fold→GA全売り→ホールドアウト)")
-    parser.add_argument("--swing", action="store_true", help="スイングトレードモード")
-    parser.add_argument("--day",   action="store_true", help="デイトレードモード")
-    parser.add_argument("--both",  action="store_true", help="両方実行")
+    parser = argparse.ArgumentParser(
+        description="バックテスト (DOE→WF4fold×GA全売り→ホールドアウト)")
+    # レガシーモード (後方互換)
+    parser.add_argument("--swing", action="store_true", help="スイングトレードモード (レガシー)")
+    parser.add_argument("--day",   action="store_true", help="デイトレードモード (レガシー)")
+    parser.add_argument("--both",  action="store_true", help="両方実行 (レガシー)")
+    # フェーズモード (16ジョブ並列用)
+    parser.add_argument("--phase", type=str,
+                        choices=["doe", "wf-fold", "final", "assemble"],
+                        help="実行フェーズ: doe / wf-fold / final / assemble")
+    parser.add_argument("--mode",  type=str, choices=["swing", "day"],
+                        help="トレードモード (--phase と一緒に使用)")
+    parser.add_argument("--fold",  type=int, default=0,
+                        help="WF Fold番号 0〜3 (--phase wf-fold と一緒に使用)")
     args = parser.parse_args()
 
-    if not (args.swing or args.day or args.both):
-        print("引数が必要です: --swing / --day / --both")
-        parser.print_help()
-        sys.exit(1)
-
-    if args.both:
-        run_mode("swing")
-        run_mode("day")
+    if args.phase:
+        if not args.mode:
+            print("--phase 使用時は --mode が必要です"); sys.exit(1)
+        if args.phase == "doe":
+            run_phase_doe(args.mode)
+        elif args.phase == "wf-fold":
+            run_phase_wf_fold(args.mode, args.fold)
+        elif args.phase == "final":
+            run_phase_final(args.mode)
+        elif args.phase == "assemble":
+            run_phase_assemble(args.mode)
+    elif args.both:
+        run_mode("swing"); run_mode("day")
     elif args.swing:
         run_mode("swing")
-    else:
+    elif args.day:
         run_mode("day")
+    else:
+        print("引数が必要です: --swing / --day / --both  または  --phase <phase> --mode <mode>")
+        parser.print_help(); sys.exit(1)
 
 
 if __name__ == "__main__":

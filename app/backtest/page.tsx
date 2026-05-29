@@ -41,6 +41,8 @@ type WalkForward = {
   n_folds?: number;
   folds?: WalkForwardFold[];
   avg_oos_sharpe?: number;
+  wf_stability?: number;
+  overfit_ratio?: number;
   train_sharpe: number;
   test_sharpe: number;
   test_win_rate: number;
@@ -256,11 +258,15 @@ type StrategyData = {
   indicator_weight_corr_with_sharpe?: Record<string, number>;
   top100_median_weights?: Record<string, number>;
   top100_weight_ranking?: string[];
+  weight_confidence_intervals?: Record<string, { mean: number; std: number; cv: number }>;
   summary: {
     best_sharpe: number;
     best_sell_rule: string;
     best_weights: Record<string, number>;
     best_threshold: number;
+    avg_oos_sharpe?: number;
+    wf_stability?: number;
+    overfit_ratio?: number;
   };
   lookahead_bias_fixed?: boolean;
   entry_price?: string;
@@ -886,6 +892,24 @@ export default function BacktestPage({
                     </p>
                     <p className="text-gray-400 text-xs mt-0.5">WF平均OOS Sharpe</p>
                     <p className="text-gray-600 text-xs">{strategyData.walk_forward.n_folds ?? 3}fold平均 ← 信頼性指標</p>
+                  </div>
+                )}
+                {strategyData.walk_forward.wf_stability != null && (
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <p className={`font-bold text-base ${strategyData.walk_forward.wf_stability > 0.7 ? "text-emerald-400" : strategyData.walk_forward.wf_stability > 0.4 ? "text-yellow-400" : "text-red-400"}`}>
+                      {strategyData.walk_forward.wf_stability.toFixed(3)}
+                    </p>
+                    <p className="text-gray-500 text-xs mt-0.5">WF安定度</p>
+                    <p className="text-gray-600 text-xs">1 − std/mean ← 高いほど安定</p>
+                  </div>
+                )}
+                {strategyData.walk_forward.overfit_ratio != null && (
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <p className={`font-bold text-base ${strategyData.walk_forward.overfit_ratio > 0.6 ? "text-emerald-400" : strategyData.walk_forward.overfit_ratio > 0.3 ? "text-yellow-400" : "text-red-400"}`}>
+                      {strategyData.walk_forward.overfit_ratio.toFixed(3)}
+                    </p>
+                    <p className="text-gray-500 text-xs mt-0.5">過学習比率</p>
+                    <p className="text-gray-600 text-xs">テスト÷学習Sharpe ← 1に近いほど良</p>
                   </div>
                 )}
                 {[
