@@ -216,52 +216,100 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
   );
 }
 
+const RANK_BADGE_COLORS = [
+  "bg-yellow-500/20 text-yellow-400 border border-yellow-500/40",
+  "bg-gray-600/20 text-gray-300 border border-gray-600/40",
+  "bg-orange-700/20 text-orange-500 border border-orange-700/40",
+  "bg-gray-800 text-gray-600 border border-gray-700/40",
+];
+
+function getRanks(row: Record<string, number>, inds: string[]) {
+  const sorted = [...inds].sort((a, b) => row[b] - row[a]);
+  return Object.fromEntries(inds.map((ind) => [ind, sorted.indexOf(ind)]));
+}
+
 function MultsTable({ mode }: { mode: "swing" | "day" }) {
   const data = MULTS[mode];
   const sh   = SHARPES[mode];
   const sizes: ("large" | "mid" | "small")[] = ["large", "mid", "small"];
   const inds:  ("RSI" | "MACD" | "BB" | "MA")[] = ["RSI", "MACD", "BB", "MA"];
   const sizeJa = { large: "大型株", mid: "中型株", small: "小型株" };
+  const rankLabels = ["1位", "2位", "3位", "4位"];
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="text-gray-500 border-b border-gray-800">
-            <th className="text-left py-2 pr-4">規模</th>
-            {inds.map((ind) => (
-              <th key={ind} className="text-center py-2 px-3">
-                <span className={`inline-block w-2 h-2 rounded-full mr-1 ${INDICATOR_COLORS[ind]}`} />
-                {ind}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sizes.map((sz) => (
-            <tr key={sz} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-              <td className="py-2.5 pr-4 text-gray-400">{sizeJa[sz]}</td>
-              {inds.map((ind) => {
-                const mult = data[sz][ind];
-                const sharpe = sh[sz][ind];
-                return (
-                  <td key={ind} className="py-2.5 px-3 text-center">
-                    <div className={`font-mono ${multColor(mult)}`}>×{mult.toFixed(3)}</div>
-                    <div className="mt-1 relative h-1 bg-gray-800 rounded-full w-12 mx-auto">
-                      <div
-                        className={`absolute left-0 top-0 h-1 rounded-full ${INDICATOR_COLORS[ind]}`}
-                        style={{ width: `${sharpeBar(sharpe)}%`, opacity: 0.7 }}
-                      />
-                    </div>
-                    <div className="text-gray-600 mt-0.5">Sh={sharpe.toFixed(3)}</div>
-                  </td>
-                );
-              })}
+    <div className="space-y-4">
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-gray-500 border-b border-gray-800">
+              <th className="text-left py-2 pr-4">規模</th>
+              {inds.map((ind) => (
+                <th key={ind} className="text-center py-2 px-3">
+                  <span className={`inline-block w-2 h-2 rounded-full mr-1 ${INDICATOR_COLORS[ind]}`} />
+                  {ind}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="text-gray-600 text-xs mt-2">
+          </thead>
+          <tbody>
+            {sizes.map((sz) => {
+              const ranks = getRanks(data[sz] as Record<string, number>, inds);
+              return (
+                <tr key={sz} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                  <td className="py-2.5 pr-4 text-gray-400">{sizeJa[sz]}</td>
+                  {inds.map((ind) => {
+                    const mult = data[sz][ind];
+                    const sharpe = sh[sz][ind];
+                    const rankIdx = ranks[ind];
+                    return (
+                      <td key={ind} className="py-2.5 px-3 text-center">
+                        <span className={`inline-block text-xs font-bold px-1 py-0.5 rounded mb-1 ${RANK_BADGE_COLORS[rankIdx]}`}>
+                          {rankLabels[rankIdx]}
+                        </span>
+                        <div className={`font-mono ${multColor(mult)}`}>×{mult.toFixed(3)}</div>
+                        <div className="mt-1 relative h-1 bg-gray-800 rounded-full w-12 mx-auto">
+                          <div
+                            className={`absolute left-0 top-0 h-1 rounded-full ${INDICATOR_COLORS[ind]}`}
+                            style={{ width: `${sharpeBar(sharpe)}%`, opacity: 0.7 }}
+                          />
+                        </div>
+                        <div className="text-gray-600 mt-0.5">Sh={sharpe.toFixed(3)}</div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Ranked summary per size */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {sizes.map((sz) => {
+          const sorted = [...inds].sort((a, b) => data[sz][b] - data[sz][a]);
+          return (
+            <div key={sz} className="bg-gray-800/50 rounded-xl p-3">
+              <p className="text-gray-400 text-xs font-semibold mb-2">{sizeJa[sz]} 重要度ランキング</p>
+              <div className="space-y-1">
+                {sorted.map((ind, i) => (
+                  <div key={ind} className="flex items-center gap-2">
+                    <span className={`text-xs font-bold w-5 flex-shrink-0 ${["text-yellow-400","text-gray-300","text-orange-500","text-gray-600"][i]}`}>
+                      {i + 1}位
+                    </span>
+                    <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${INDICATOR_COLORS[ind]}`} />
+                    <span className="text-gray-300 text-xs font-medium w-8">{ind}</span>
+                    <span className="text-gray-500 text-xs font-mono">×{(data[sz][ind] as number).toFixed(3)}</span>
+                    {i === 0 && <span className="text-yellow-600 text-xs ml-auto">最重視</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="text-gray-600 text-xs">
         重みは50銘柄×10年 Monte Carlo Walk-Forward（5 fold）でシャープレシオを最大化して導出。
         バーの長さ = 単体シャープレシオ（高いほど重みが大きい）。
       </p>

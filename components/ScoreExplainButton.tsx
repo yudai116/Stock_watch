@@ -6,16 +6,22 @@ interface Props {
   mode?: TradeMode;
 }
 
+// Each array is pre-sorted descending (1位 → 4位)
 const SWING_WEIGHTS = {
-  large: ["MACD×1.283", "MA×1.222", "RSI×0.776", "BB×0.719"],
-  mid:   ["MA×1.204", "MACD×1.057", "BB×0.858", "RSI×0.881"],
-  small: ["RSI×1.122", "BB×1.001", "MA×1.021", "MACD×0.856"],
+  large: [{ name: "MACD", mult: 1.283 }, { name: "MA",   mult: 1.222 }, { name: "RSI",  mult: 0.776 }, { name: "BB",   mult: 0.719 }],
+  mid:   [{ name: "MA",   mult: 1.204 }, { name: "MACD", mult: 1.057 }, { name: "RSI",  mult: 0.881 }, { name: "BB",   mult: 0.858 }],
+  small: [{ name: "RSI",  mult: 1.122 }, { name: "BB",   mult: 1.001 }, { name: "MA",   mult: 1.021 }, { name: "MACD", mult: 0.856 }],
 };
 
 const DAY_WEIGHTS = {
-  large: ["MA×1.303", "MACD×1.100", "RSI×0.897", "BB×0.700"],
-  mid:   ["MA×1.418", "RSI×1.104", "MACD×1.041", "BB×0.437"],
-  small: ["MA×1.072", "MACD×1.026", "BB×0.986", "RSI×0.917"],
+  large: [{ name: "MA",   mult: 1.303 }, { name: "MACD", mult: 1.100 }, { name: "RSI",  mult: 0.897 }, { name: "BB",   mult: 0.700 }],
+  mid:   [{ name: "MA",   mult: 1.418 }, { name: "RSI",  mult: 1.104 }, { name: "MACD", mult: 1.041 }, { name: "BB",   mult: 0.437 }],
+  small: [{ name: "MA",   mult: 1.072 }, { name: "MACD", mult: 1.026 }, { name: "BB",   mult: 0.986 }, { name: "RSI",  mult: 0.917 }],
+};
+
+const RANK_COLORS = ["text-yellow-400", "text-gray-300", "text-orange-500", "text-gray-600"] as const;
+const IND_COLORS: Record<string, string> = {
+  RSI: "text-emerald-400", MACD: "text-blue-400", BB: "text-purple-400", MA: "text-orange-400",
 };
 
 export default function ScoreExplainButton({ mode = "swing" }: Props) {
@@ -213,10 +219,21 @@ export default function ScoreExplainButton({ mode = "swing" }: Props) {
                 <div className="space-y-2 text-xs">
                   {(["large", "mid", "small"] as const).map((sz) => (
                     <div key={sz} className="bg-gray-800 rounded-lg px-3 py-2">
-                      <span className="text-gray-400 font-medium mr-2">
+                      <p className="text-gray-400 font-medium mb-1.5">
                         {sz === "large" ? "大型株" : sz === "mid" ? "中型株" : "小型株"}
-                      </span>
-                      <span className="text-gray-500">{weights[sz].join(" + ")}</span>
+                      </p>
+                      <div className="space-y-0.5">
+                        {weights[sz].map((w, i) => (
+                          <div key={w.name} className="flex items-center gap-2">
+                            <span className={`w-6 text-right font-bold flex-shrink-0 ${RANK_COLORS[i]}`}>
+                              {i + 1}位
+                            </span>
+                            <span className={`font-medium flex-shrink-0 w-10 ${IND_COLORS[w.name]}`}>{w.name}</span>
+                            <span className="text-gray-500 font-mono">×{w.mult.toFixed(3)}</span>
+                            {i === 0 && <span className="text-yellow-600 text-xs">← 最重視</span>}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>
