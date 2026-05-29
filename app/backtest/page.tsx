@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { readFileSync, existsSync } from "fs";
+import path from "path";
 import { yahooFinanceUrls } from "@/lib/formatters";
 
 // ─── Static data from backtest_results_v4.json + trade_records.py ─────────────
@@ -168,6 +170,61 @@ const DAY_TRADES: TradeRecord[] = [
     buyReason: "MACD 直近クロス後ヒスト拡大 ／ EMA5 上方（+1.7%）＋ゴールデンクロス帯",
   },
 ];
+
+// ─── Strategy results loader (server-side) ────────────────────────────────────
+
+type StrategyResult = {
+  buy_weights: Record<string, number>;
+  buy_threshold: number;
+  sell_rule: string;
+  sharpe: number;
+  n_trades: number;
+  win_rate: number;
+  avg_return: number;
+  max_dd: number;
+};
+
+type SellRuleStat = {
+  sell_rule: string;
+  sell_rule_ja: string;
+  best_sharpe: number;
+  avg_sharpe: number;
+  best_win_rate: number;
+  best_n_trades: number;
+  best_avg_return: number;
+  best_weights: Record<string, number>;
+  best_threshold: number;
+};
+
+type StrategyData = {
+  available: true;
+  version: number;
+  generated_at: string;
+  n_tickers: number;
+  tickers: string[];
+  n_evaluated: number;
+  top100: StrategyResult[];
+  sell_rule_ranking: SellRuleStat[];
+  indicator_weight_corr_with_sharpe: Record<string, number>;
+  top100_median_weights: Record<string, number>;
+  top100_weight_ranking: string[];
+  summary: {
+    best_sharpe: number;
+    best_sell_rule: string;
+    best_weights: Record<string, number>;
+    best_threshold: number;
+  };
+} | { available: false };
+
+function loadStrategyData(): StrategyData {
+  const filePath = path.join(process.cwd(), "backtest", "strategy_results.json");
+  if (!existsSync(filePath)) return { available: false };
+  try {
+    return { available: true, ...JSON.parse(readFileSync(filePath, "utf-8")) };
+  } catch {
+    return { available: false };
+  }
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -480,11 +537,203 @@ function TradeCard({ tr, mode }: { tr: TradeRecord; mode: "swing" | "day" }) {
   );
 }
 
+// ─── Real-data strategy result components ─────────────────────────────────────
+
+const SELL_RULE_SHORT: Record<string, string> = {
+  hold_3d: "固定3日", hold_5d: "固定5日", hold_7d: "固定7日",
+  hold_10d: "固定10日", hold_15d: "固定15日", hold_20d: "固定20日",
+  "target5_stop3":  "+5%/−3%", "target10_stop5": "+10%/−5%",
+  "target15_stop5": "+15%/−5%", "target20_stop5": "+20%/−5%",
+  "target15_stop7": "+15%/−7%", "target20_stop7": "+20%/−7%",
+  trail_5pct: "Trail5%", trail_10pct: "Trail10%",
+};
+
+const IND_COLORS_CLS: Record<string, string> = {
+  RSI: "bg-emerald-500", MACD: "bg-blue-500", BB: "bg-purple-500", MA: "bg-orange-500",
+};
+const IND_TEXT_CLS: Record<string, string> = {
+  RSI: "text-emerald-400", MACD: "text-blue-400", BB: "text-purple-400", MA: "text-orange-400",
+};
+const RANK_TEXT = ["text-yellow-400", "text-gray-300", "text-orange-500", "text-gray-600"];
+
+function WeightBar({ weights }: { weights: Record<string, number> }) {
+  const total = Object.values(weights).reduce((a, b) => a + b, 0) || 1;
+  const sorted = Object.entries(weights).sort(([, a], [, b]) => b - a);
+  return (
+    <div className="flex h-3 rounded overflow-hidden gap-px w-full">
+      {sorted.map(([name, w]) => (
+        <div
+          key={name}
+          className={`${IND_COLORS_CLS[name] ?? "bg-gray-500"} opacity-80`}
+          style={{ width: `${(w / total) * 100}%` }}
+          title={`${name}: ${w.toFixed(2)}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function SellRuleRankingSection({ stats }: { stats: SellRuleStat[] }) {
+  const maxSharpe = Math.max(...stats.map((s) => s.best_sharpe));
+  return (
+    <div className="space-y-2">
+      {stats.map((sr, i) => {
+        const barW = Math.round((sr.best_sharpe / maxSharpe) * 100);
+        return (
+          <div key={sr.sell_rule} className="bg-gray-800/60 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-3 mb-2">
+              <span className={`text-sm font-bold w-5 flex-shrink-0 ${RANK_TEXT[Math.min(i, 3)]}`}>
+                {i + 1}位
+              </span>
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-gray-200 text-sm font-medium">{sr.sell_rule_ja}</span>
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="text-emerald-400 font-bold">シャープ {sr.best_sharpe.toFixed(3)}</span>
+                    <span className="text-gray-400">勝率 {(sr.best_win_rate * 100).toFixed(1)}%</span>
+                    <span className="text-gray-400">平均 {sr.best_avg_return > 0 ? "+" : ""}{sr.best_avg_return.toFixed(2)}%</span>
+                  </div>
+                </div>
+                <div className="relative h-2 bg-gray-700 rounded-full">
+                  <div
+                    className="absolute left-0 top-0 h-2 rounded-full bg-emerald-500 opacity-70"
+                    style={{ width: `${barW}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="ml-8">
+              <p className="text-gray-600 text-xs mb-1">最適買いシグナル重み</p>
+              <div className="flex items-center gap-3">
+                <WeightBar weights={sr.best_weights} />
+                <div className="flex gap-2 flex-shrink-0 text-xs">
+                  {Object.entries(sr.best_weights)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([name, w]) => (
+                      <span key={name} className={IND_TEXT_CLS[name] ?? "text-gray-400"}>
+                        {name}×{w.toFixed(2)}
+                      </span>
+                    ))}
+                </div>
+                <span className="text-gray-600 text-xs flex-shrink-0">≥{sr.best_threshold}点</span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TopStrategiesSection({ strategies }: { strategies: StrategyResult[] }) {
+  const top = strategies.slice(0, 20);
+  return (
+    <div className="space-y-2">
+      {top.map((s, i) => {
+        const ranked = Object.entries(s.buy_weights).sort(([, a], [, b]) => b - a);
+        return (
+          <div key={i} className="bg-gray-800/50 rounded-xl px-4 py-3 text-xs">
+            <div className="flex items-start gap-3">
+              <span className={`text-sm font-bold w-5 flex-shrink-0 mt-0.5 ${RANK_TEXT[Math.min(i, 3)]}`}>
+                {i + 1}
+              </span>
+              <div className="flex-1 space-y-1.5">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <span className="text-emerald-400 font-bold">シャープ {s.sharpe.toFixed(3)}</span>
+                  <span className="text-gray-300">勝率 {(s.win_rate * 100).toFixed(1)}%</span>
+                  <span className="text-gray-300">平均 {s.avg_return > 0 ? "+" : ""}{s.avg_return.toFixed(2)}%</span>
+                  <span className="text-gray-500">{s.n_trades}件</span>
+                  <span className="text-red-400/70">最大損失 {s.max_dd.toFixed(1)}%</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-gray-500">買い:</span>
+                  {ranked.map(([name, w]) => (
+                    <span key={name} className={`${IND_TEXT_CLS[name] ?? "text-gray-400"} font-medium`}>
+                      {name}×{w.toFixed(2)}
+                    </span>
+                  ))}
+                  <span className="text-gray-600">≥{s.buy_threshold}点</span>
+                  <span className="text-gray-700">|</span>
+                  <span className="text-gray-500">売り:</span>
+                  <span className="text-yellow-300/80">{SELL_RULE_SHORT[s.sell_rule] ?? s.sell_rule}</span>
+                </div>
+                <WeightBar weights={s.buy_weights} />
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function IndicatorImportanceSection({
+  corr, medWeights, ranking,
+}: {
+  corr: Record<string, number>;
+  medWeights: Record<string, number>;
+  ranking: string[];
+}) {
+  const maxCorr = Math.max(...Object.values(corr).map(Math.abs));
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="bg-gray-800/50 rounded-xl p-4">
+        <p className="text-gray-400 text-xs font-semibold mb-3">指標重要度ランキング (上位100戦略での重み中央値)</p>
+        <div className="space-y-2">
+          {ranking.map((name, i) => {
+            const med = medWeights[name] ?? 0;
+            const barW = Math.round((med / 4) * 100);
+            return (
+              <div key={name} className="flex items-center gap-2">
+                <span className={`text-xs font-bold w-5 flex-shrink-0 ${RANK_TEXT[Math.min(i, 3)]}`}>{i + 1}位</span>
+                <span className={`${IND_COLORS_CLS[name] ? `inline-block w-2 h-2 rounded-full ${IND_COLORS_CLS[name]}` : ""} flex-shrink-0`} />
+                <span className={`${IND_TEXT_CLS[name] ?? "text-gray-400"} font-medium w-10 text-xs`}>{name}</span>
+                <div className="flex-1 relative h-3 bg-gray-700 rounded-full overflow-hidden">
+                  <div className={`absolute left-0 top-0 h-3 rounded-full ${IND_COLORS_CLS[name] ?? "bg-gray-400"}`}
+                    style={{ width: `${barW}%`, opacity: 0.75 }} />
+                </div>
+                <span className="text-gray-400 font-mono text-xs w-12 text-right">×{med.toFixed(2)}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div className="bg-gray-800/50 rounded-xl p-4">
+        <p className="text-gray-400 text-xs font-semibold mb-3">シャープレシオとの相関 (高いほど重視すべき)</p>
+        <div className="space-y-2">
+          {Object.entries(corr).sort(([, a], [, b]) => b - a).map(([name, c]) => {
+            const barW = Math.round((Math.abs(c) / (maxCorr || 1)) * 100);
+            const isPos = c >= 0;
+            return (
+              <div key={name} className="flex items-center gap-2">
+                <span className={`${IND_TEXT_CLS[name] ?? "text-gray-400"} font-medium w-10 text-xs flex-shrink-0`}>{name}</span>
+                <div className="flex-1 relative h-3 bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className={`absolute left-0 top-0 h-3 rounded-full ${isPos ? "bg-emerald-500" : "bg-red-500"}`}
+                    style={{ width: `${barW}%`, opacity: 0.75 }}
+                  />
+                </div>
+                <span className={`${isPos ? "text-emerald-400" : "text-red-400"} font-mono text-xs w-14 text-right`}>
+                  {c >= 0 ? "+" : ""}{c.toFixed(3)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-gray-600 text-xs mt-3">
+          正の相関 = 重みが大きいほどシャープが高い傾向
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function BacktestPage() {
   const swingStats = { signals: 1386, winRate: 56.2, avgRet: 0.70 };
   const dayStats   = { signals: 14967, winRate: 52.1, avgRet: 0.15 };
+  const strategyData = loadStrategyData();
 
   return (
     <div className="space-y-10 pb-12">
@@ -499,33 +748,106 @@ export default function BacktestPage() {
       <div>
         <h1 className="text-2xl font-bold text-white">バックテスト結果</h1>
         <p className="text-gray-500 text-sm mt-1">
-          Monte Carlo Walk-Forward シミュレーション — 9銘柄 × 6パス × 2520営業日（2015-01-02〜2024-12-31相当）
+          買い指標 × 売りルール 最適化 + Monte Carlo Walk-Forward シミュレーション
         </p>
       </div>
 
-      {/* Overview cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: "検証銘柄数", value: "9", sub: "半導体・AI・量子" },
-          { label: "シミュレーション期間", value: "10年", sub: "2520 営業日" },
-          { label: "先読みバイアス検証", value: "30点", sub: "全テスト通過 ✓" },
-          { label: "最適化手法", value: "Walk-Forward", sub: "5 fold CV" },
-        ].map(({ label, value, sub }) => (
-          <div key={label} className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
-            <p className="text-white font-bold text-lg">{value}</p>
-            <p className="text-gray-400 text-xs mt-0.5">{label}</p>
-            <p className="text-gray-600 text-xs">{sub}</p>
+      {/* ── Real data strategy search results ── */}
+      {strategyData.available ? (
+        <section className="space-y-6">
+          <div className="flex items-center gap-3 flex-wrap">
+            <SectionHeading>実データ戦略最適化結果</SectionHeading>
+            <span className="text-xs text-emerald-400 bg-emerald-900/30 border border-emerald-700/50 px-2 py-0.5 rounded-full">
+              実株価データ ✓
+            </span>
           </div>
-        ))}
-      </div>
 
-      {/* Disclaimer */}
-      <div className="bg-yellow-950/40 border border-yellow-800/50 rounded-xl p-4 text-xs text-yellow-200/70">
-        <p className="font-semibold text-yellow-300 mb-1">⚠️ シミュレーションについて</p>
-        <p>本バックテストは実際の市場データではなく、各銘柄の2015-2024年 CAGR・ボラティリティに基づく
-        モンテカルロ GBM（体制転換モデル）によるシミュレーションです。
-        株価は全て100.0から開始。過去の模擬パフォーマンスは将来の実績を保証しません。
-        投資判断は自己責任でお願いします。</p>
+          {/* Summary stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: "検証銘柄数", value: String(strategyData.n_tickers), sub: strategyData.tickers.join(", ").substring(0, 30) + "..." },
+              { label: "検証戦略数", value: strategyData.n_evaluated.toLocaleString(), sub: "買い×売り組み合わせ" },
+              { label: "最高シャープ", value: strategyData.summary.best_sharpe?.toFixed(3) ?? "—", sub: "リスク調整後収益" },
+              { label: "最良売りルール", value: SELL_RULE_SHORT[strategyData.summary.best_sell_rule ?? ""] ?? "—", sub: "上位戦略で最多" },
+            ].map(({ label, value, sub }) => (
+              <div key={label} className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
+                <p className="text-white font-bold text-lg">{value}</p>
+                <p className="text-gray-400 text-xs mt-0.5">{label}</p>
+                <p className="text-gray-600 text-xs">{sub}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-gray-600 text-xs -mt-2">
+            生成日時: {strategyData.generated_at} — numpy Monte Carlo (seed=42) による重み探索
+          </p>
+
+          {/* Sell rule ranking */}
+          <div>
+            <h3 className="text-gray-300 text-sm font-semibold mb-3">
+              売りルール ランキング — どの売り方が最も有効か
+            </h3>
+            <SellRuleRankingSection stats={strategyData.sell_rule_ranking} />
+          </div>
+
+          {/* Indicator importance */}
+          <div>
+            <h3 className="text-gray-300 text-sm font-semibold mb-3">
+              買い指標 重要度ランキング — どの指標を重視すべきか
+            </h3>
+            <IndicatorImportanceSection
+              corr={strategyData.indicator_weight_corr_with_sharpe}
+              medWeights={strategyData.top100_median_weights}
+              ranking={strategyData.top100_weight_ranking}
+            />
+          </div>
+
+          {/* Top strategies */}
+          <div>
+            <h3 className="text-gray-300 text-sm font-semibold mb-3">
+              総合 TOP 20 戦略 — 買い指標 + 売りルール 最強の組み合わせ
+            </h3>
+            <TopStrategiesSection strategies={strategyData.top100} />
+          </div>
+        </section>
+      ) : (
+        <section>
+          <div className="bg-blue-950/40 border border-blue-700/50 rounded-xl p-6">
+            <h3 className="text-blue-300 font-semibold mb-3">実データ戦略最適化を実行するには</h3>
+            <p className="text-blue-200/70 text-sm mb-4">
+              以下を手元のPC（ネットワーク接続あり）で実行すると、実際の株価データを使って
+              56万通り以上の買い×売り戦略を検証し、最優秀の組み合わせをランキング表示します。
+            </p>
+            <div className="bg-gray-900 rounded-lg p-4 font-mono text-xs space-y-1">
+              <p className="text-gray-500"># Step 1: 実株価データ取得（インターネット接続が必要）</p>
+              <p className="text-emerald-400">node backtest/fetch_data.mjs</p>
+              <p className="text-gray-500 mt-2"># Step 2: 戦略最適化実行（約5〜15分）</p>
+              <p className="text-emerald-400">python3 backtest/strategy_search.py</p>
+              <p className="text-gray-500 mt-2"># 結果は backtest/strategy_results.json に保存</p>
+              <p className="text-gray-500"># その後 git push すればこのページに自動表示されます</p>
+            </div>
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              {[
+                { icon: "📊", title: "売りルール14種", desc: "固定保有3〜20日、利確+ストップ、トレーリングストップ" },
+                { icon: "⚖️", title: "重み10,000通り", desc: "RSI/MACD/BB/MA の Dirichlet サンプリング" },
+                { icon: "🏆", title: "評価指標", desc: "アニュアライズド・シャープレシオ（リスク調整後）" },
+              ].map(({ icon, title, desc }) => (
+                <div key={title} className="bg-gray-800/50 rounded-lg p-3">
+                  <p className="text-gray-300 font-medium">{icon} {title}</p>
+                  <p className="text-gray-500 mt-1">{desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* MC Overview cards */}
+      <div className="bg-yellow-950/30 border border-yellow-800/40 rounded-xl p-4 text-xs text-yellow-200/60">
+        <p className="font-semibold text-yellow-300/80 mb-1">⚠️ 以下のセクション（重み付け・Aroon・トレード例）について</p>
+        <p>実際の市場データではなく、2015-2024年の CAGR・ボラティリティに基づく Monte Carlo GBM による
+        シミュレーションです。株価は全て100.0から開始。過去の模擬パフォーマンスは将来の実績を保証しません。
+        実データ結果は上記「実データ戦略最適化結果」セクションをご参照ください。</p>
       </div>
 
       {/* ── Weights section ── */}
