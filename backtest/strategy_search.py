@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-strategy_search.py v3 — DOE (Taguchi L18) → GA → Walk-Forward 最適化
+strategy_search.py v3 — DOE (Taguchi L18) → GA × 全売りルール → Walk-Forward 3折
 
 【モード】
   --swing : スイング (1h足, RSI14/MACD12-26/BB20/EMA20-50/Aroon25/Stoch14/CCI20/ROC10)
@@ -8,9 +8,12 @@ strategy_search.py v3 — DOE (Taguchi L18) → GA → Walk-Forward 最適化
   --both  : 両方順番に実行
 
 【パイプライン】
-  1. DOE  (Taguchi L18 直交表) → 指標の主効果ランキング
-  2. GA   (pop=200, gen=120)   → 訓練データ (0-80%) でウェイト最適化
-  3. Walk-Forward 検証         → テストデータ (80-100%) で汎化確認
+  1. DOE   (Taguchi L18 直交表) → 指標の主効果ランキング
+  2. WF    (4折拡大窓, 訓練データ内) → 各Fold: 全売りルール × GA (pop=2000, gen=500)
+  3. 最終GA (全売りルール × pop=2000 × gen=500) → best (sell, weights)
+  4. MC最終評価 (5000サンプル) → top100
+  5. ホールドアウト評価 (後ろ20%)
+  ※ --both で約8時間 (swing/dayそれぞれ約4時間)
 
 【その他】
   - 取引コスト: US 0.16% / JP 0.30% (往復)
@@ -35,6 +38,14 @@ RESULTS_DAY   = HERE / "strategy_results_day.json"
 
 MIN_TRADES    = 30
 BARS_PER_YEAR = 1500   # 1h bars/year (US+JP平均)
+
+# GA ハイパーパラメータ
+GA_POP   = 2000   # 個体数
+GA_GENS  = 500    # 世代数
+GA_ELITE = 40     # エリート保存数
+GA_TOURN = 7      # トーナメントサイズ
+GA_SIGMA = 0.10   # Gaussian突然変異σ
+GA_MPROB = 0.25   # 突然変異確率
 
 # ── 取引コスト (往復) ────────────────────────────────────────────────────────
 JP_COST = 0.0030   # 東証: 0.30%
@@ -625,23 +636,24 @@ def run_doe(ticker_data: dict, mode: str, t_train_end: int) -> tuple[dict, list]
     return effects, ranked
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 9. 遺伝的アルゴリズム
+# 9. 遺伝的アルゴリズム (1売りルール)
 # ══════════════════════════════════════════════════════════════════════════════
+
+def _make_alpha(doe_effects: dict, ind_names: list) -> np.ndarray:
+    effects_arr = np.array([doe_effects.get(n, 0.1) for n in ind_names])
+    effects_arr = np.maximum(effects_arr, 0.05)
+    return effects_arr / effects_arr.sum() * 8.
 
 def run_ga(ticker_data: dict, mode: str, doe_effects: dict,
            best_sell: str, best_thresh: int,
            t_train_end: int) -> tuple[np.ndarray, float, list]:
-    sell_rules = SWING_SELL_RULES if mode == "swing" else DAY_SELL_RULES
     sell_hold  = SWING_SELL_HOLD  if mode == "swing" else DAY_SELL_HOLD
     ind_names  = IND_NAMES_SWING  if mode == "swing" else IND_NAMES_DAY
 
-    POP = 200; GENS = 120; ELITE = 10
-    TOURN_SIZE = 5; MUT_SIGMA = 0.12; MUT_PROB = 0.20
+    POP = GA_POP; GENS = GA_GENS; ELITE = GA_ELITE
+    TOURN_SIZE = GA_TOURN; MUT_SIGMA = GA_SIGMA; MUT_PROB = GA_MPROB
 
-    # Dirichlet 初期化: DOE 効果に比例した alpha
-    effects_arr = np.array([doe_effects.get(n, 0.1) for n in ind_names])
-    effects_arr = np.maximum(effects_arr, 0.05)
-    alpha = effects_arr / effects_arr.sum() * 8.
+    alpha = _make_alpha(doe_effects, ind_names)
     np.random.seed(42)
     pop = np.random.dirichlet(alpha, POP) * 4.0  # (POP, 8), sum≈4
 
@@ -660,7 +672,7 @@ def run_ga(ticker_data: dict, mode: str, doe_effects: dict,
         best_fit  = fit[elite_idx[0]]
         convergence.append(float(best_fit) if np.isfinite(best_fit) else 0.)
 
-        if gen % 20 == 0 or gen == GENS - 1:
+        if gen % 50 == 0 or gen == GENS - 1:
             print(f"    [GA] gen {gen+1:3d}/{GENS}  best_sharpe={best_fit:.4f}")
 
         # トーナメント選択
@@ -696,7 +708,62 @@ def run_ga(ticker_data: dict, mode: str, doe_effects: dict,
     return best_w, best_shp, convergence
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 10. 全体評価パイプライン
+# 10. 全売りルール GA 最適化
+# ══════════════════════════════════════════════════════════════════════════════
+
+def run_ga_all_sells(ticker_data: dict, mode: str, doe_effects: dict,
+                     t_train_end: int) -> tuple[dict, dict]:
+    """全売りルールそれぞれでGAを走らせ、最良の (sell, weights) を返す"""
+    sell_rules = SWING_SELL_RULES if mode == "swing" else DAY_SELL_RULES
+    sell_hold  = SWING_SELL_HOLD  if mode == "swing" else DAY_SELL_HOLD
+    ind_names  = IND_NAMES_SWING  if mode == "swing" else IND_NAMES_DAY
+
+    alpha = _make_alpha(doe_effects, ind_names)
+
+    # MC probe (300サンプル) で各売りルールの best_thresh を事前決定
+    np.random.seed(0)
+    probe_w = np.random.dirichlet(alpha, 300) * 4.0
+    best_thresh_per_sell: dict[str, int] = {}
+    for sname in sell_rules:
+        hb = sell_hold[sname]
+        shp_mat = batch_sharpe(ticker_data, probe_w, sname, BUY_THRESHOLDS, hb, 0, t_train_end)
+        col_means = np.nanmean(shp_mat, axis=0)
+        if not np.all(np.isnan(col_means)):
+            best_ti = int(np.nanargmax(col_means))
+        else:
+            best_ti = 0
+        best_thresh_per_sell[sname] = BUY_THRESHOLDS[best_ti]
+
+    # 全売りルールでGA
+    best_overall: dict | None = None
+    all_ga_results: dict = {}
+    n_rules = len(sell_rules)
+    for rule_i, sname in enumerate(sell_rules, 1):
+        print(f"  [{rule_i}/{n_rules}] 売りルール: {sname} (thresh={best_thresh_per_sell[sname]})")
+        thresh = best_thresh_per_sell[sname]
+        best_w, train_shp, convergence = run_ga(
+            ticker_data, mode, doe_effects, sname, thresh, t_train_end)
+        all_ga_results[sname] = {
+            "weights":    best_w,
+            "sharpe":     train_shp,
+            "threshold":  thresh,
+            "convergence": convergence,
+        }
+        if best_overall is None or train_shp > best_overall["sharpe"]:
+            best_overall = {
+                "sell":       sname,
+                "weights":    best_w,
+                "sharpe":     train_shp,
+                "threshold":  thresh,
+                "convergence": convergence,
+            }
+        print(f"    → train_sharpe={train_shp:.4f}  (current best: {best_overall['sharpe']:.4f})")
+
+    assert best_overall is not None
+    return best_overall, all_ga_results
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 11. 全体評価パイプライン
 # ══════════════════════════════════════════════════════════════════════════════
 
 def full_evaluation(ticker_data: dict, mode: str) -> dict:
@@ -705,47 +772,81 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
     sell_ja    = SWING_SELL_JA    if mode == "swing" else DAY_SELL_JA
     ind_names  = IND_NAMES_SWING  if mode == "swing" else IND_NAMES_DAY
 
-    # 全銘柄の最小バー数で分割
-    T_min = min(len(td["ind_scores"][0]) for td in ticker_data.values())
-    t_train_end = int(T_min * 0.80)
-    print(f"  総バー数(最小): {T_min},  訓練終端: {t_train_end},  テスト: {t_train_end}〜{T_min}")
+    # 全銘柄の最小バー数でホールドアウト分割
+    T_min     = min(len(td["ind_scores"][0]) for td in ticker_data.values())
+    t_holdout = int(T_min * 0.80)  # 後ろ20%を真のホールドアウトとして確保
+    print(f"  総バー数(最小): {T_min},  ホールドアウト: {t_holdout}〜{T_min} ({T_min - t_holdout}バー)")
 
-    # ── Step 1: DOE ──────────────────────────────────────────────────────────
+    # ── Step 1: DOE (訓練データ全体 0〜t_holdout) ─────────────────────────────
     print("\n  ===== STEP 1: DOE (Taguchi L18) =====")
-    doe_effects, doe_ranked = run_doe(ticker_data, mode, t_train_end)
+    doe_effects, doe_ranked = run_doe(ticker_data, mode, t_holdout)
 
-    # ── Step 2: 事前プローブ (MC 1000サンプル) → best_sell, best_thresh ──────
-    print("\n  ===== STEP 2: 事前プローブ (MC 1000) =====")
-    np.random.seed(0)
-    effects_arr = np.array([doe_effects.get(n, 0.1) for n in ind_names])
-    effects_arr = np.maximum(effects_arr, 0.05)
-    alpha = effects_arr / effects_arr.sum() * 8.
-    probe_w = np.random.dirichlet(alpha, 1000) * 4.0
+    alpha = _make_alpha(doe_effects, ind_names)
 
-    best_sell = None; best_thresh = BUY_THRESHOLDS[0]; best_probe_shp = -np.inf
-    for sname, rule in sell_rules.items():
-        hb = sell_hold[sname]
-        shp_mat = batch_sharpe(ticker_data, probe_w, sname, BUY_THRESHOLDS, hb, 0, t_train_end)
-        mx = float(np.nanmax(shp_mat))
-        if mx > best_probe_shp:
-            best_probe_shp = mx
-            idx = np.unravel_index(np.nanargmax(shp_mat), shp_mat.shape)
-            best_thresh = BUY_THRESHOLDS[idx[1]]
-            best_sell   = sname
-        print(f"    {sname:<20s} best={mx:.4f}")
+    # ── Step 2: Walk-Forward バリデーション (4 folds, 拡大窓, 各Fold全売りルール×GA) ─
+    print("\n  ===== STEP 2: Walk-Forward バリデーション (4 folds × 全売りルール) =====")
+    # 各Foldで全売りルールのGAを走らせる → (4+1)×n_sells GArun = 60回/mode ≈ 4時間/mode
+    wf_splits = [
+        (int(T_min * 0.30), int(T_min * 0.43)),
+        (int(T_min * 0.43), int(T_min * 0.56)),
+        (int(T_min * 0.56), int(T_min * 0.69)),
+        (int(T_min * 0.69), t_holdout),
+    ]
+    n_wf_folds = len(wf_splits)
 
-    print(f"  → 売りルール: {best_sell}  閾値: {best_thresh}")
+    wf_folds = []
+    for fold_i, (t_train_f, t_oos_end_f) in enumerate(wf_splits):
+        print(f"\n  --- WF Fold {fold_i+1}/{n_wf_folds}: train=[0,{t_train_f}] oos=[{t_train_f},{t_oos_end_f}] ---")
 
-    # ── Step 3: GA ───────────────────────────────────────────────────────────
-    print("\n  ===== STEP 3: GA (pop=200, gen=120) =====")
-    best_w, train_shp, convergence = run_ga(
-        ticker_data, mode, doe_effects, best_sell, best_thresh, t_train_end)
+        # 全売りルールでGA → 最良を選択
+        best_fold_overall, _ = run_ga_all_sells(ticker_data, mode, doe_effects, t_train_f)
+
+        # OOS評価
+        hb_f = sell_hold[best_fold_overall["sell"]]
+        wm_f = best_fold_overall["weights"].reshape(1, 8)
+        oos_shp_mat = batch_sharpe(ticker_data, wm_f, best_fold_overall["sell"],
+                                    [best_fold_overall["threshold"]], hb_f, t_train_f, t_oos_end_f)
+        oos_shp_f = float(oos_shp_mat[0, 0]) if not np.isnan(oos_shp_mat[0, 0]) else 0.
+
+        oos_stats = detailed_eval_single(ticker_data, best_fold_overall["weights"],
+                                          best_fold_overall["sell"],
+                                          best_fold_overall["threshold"], hb_f, t_train_f, t_oos_end_f)
+
+        print(f"  訓練Sharpe: {best_fold_overall['sharpe']:.4f}  OOS Sharpe: {oos_shp_f:.4f}  "
+              f"OOS取引数: {oos_stats['n_trades']}  OOS勝率: {oos_stats['win_rate']*100:.1f}%")
+
+        wf_folds.append({
+            "fold":           fold_i,
+            "train_bars":     t_train_f,
+            "oos_bars":       t_oos_end_f - t_train_f,
+            "best_sell":      best_fold_overall["sell"],
+            "best_threshold": best_fold_overall["threshold"],
+            "train_sharpe":   round(best_fold_overall["sharpe"], 4),
+            "oos_sharpe":     round(oos_shp_f, 4),
+            "oos_n_trades":   oos_stats["n_trades"],
+            "oos_win_rate":   oos_stats["win_rate"],
+            "oos_avg_return": oos_stats["avg_return"],
+            "oos_max_dd":     oos_stats["max_dd"],
+        })
+
+    avg_oos_sharpe = float(np.mean([f["oos_sharpe"] for f in wf_folds]))
+    print(f"\n  WF平均OOSシャープ: {avg_oos_sharpe:.4f}")
+
+    # ── Step 3: 最終最適化 (全売りルール × GA, 訓練データ 0〜t_holdout) ───────
+    print("\n  ===== STEP 3: 最終GA最適化 (全売りルール × GA) =====")
+    best_overall, all_ga_results = run_ga_all_sells(ticker_data, mode, doe_effects, t_holdout)
+
+    best_sell   = best_overall["sell"]
+    best_thresh = best_overall["threshold"]
+    best_w      = best_overall["weights"]
+    train_shp   = best_overall["sharpe"]
+    convergence = best_overall["convergence"]
 
     best_weights = {nm: round(float(best_w[i]), 4) for i, nm in enumerate(ind_names)}
-    print(f"  [GA 完了] 訓練シャープ={train_shp:.4f}")
+    print(f"  [最終] sell={best_sell}  thresh={best_thresh}  train_sharpe={train_shp:.4f}")
     print(f"  最適ウェイト: {best_weights}")
 
-    # ── Step 4: MC最終評価 (5000サンプル, 訓練データ) ───────────────────────
+    # ── Step 4: MC最終評価 (5000サンプル, 訓練データ) ─────────────────────────
     print("\n  ===== STEP 4: MC最終評価 (5000) =====")
     np.random.seed(99)
     mc_w = np.random.dirichlet(np.ones(8), 5000) * 4.0
@@ -753,7 +854,7 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
 
     all_results = []
     hb = sell_hold[best_sell]
-    shp_mat = batch_sharpe(ticker_data, mc_w, best_sell, BUY_THRESHOLDS, hb, 0, t_train_end)
+    shp_mat = batch_sharpe(ticker_data, mc_w, best_sell, BUY_THRESHOLDS, hb, 0, t_holdout)
     for wi in range(len(mc_w)):
         for ti, thr in enumerate(BUY_THRESHOLDS):
             sv = shp_mat[wi, ti]
@@ -775,7 +876,6 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
     else:
         ind_corr = {nm: 0. for nm in ind_names}
 
-    # top100 中央値重みと重要度ランキング
     if top100:
         tw_arr = np.array([r["weights"] for r in top100])
         med_w  = {nm: round(float(np.median(tw_arr[:, i])), 3) for i, nm in enumerate(ind_names)}
@@ -783,56 +883,32 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
         med_w = {nm: round(float(best_w[i]), 3) for i, nm in enumerate(ind_names)}
     weight_ranking = sorted(ind_names, key=lambda n: med_w[n], reverse=True)
 
-    # ── Step 5: Walk-Forward テスト ──────────────────────────────────────────
-    print("\n  ===== STEP 5: Walk-Forward テスト =====")
+    # ── Step 5: ホールドアウト評価 (80〜100%) ─────────────────────────────────
+    print("\n  ===== STEP 5: ホールドアウト評価 (80〜100%) =====")
     wm_best = best_w.reshape(1, 8)
-    thresholds_single = [best_thresh]
-    hb = sell_hold[best_sell]
-
-    # テストデータで評価
     test_shp_mat = batch_sharpe(ticker_data, wm_best, best_sell,
-                                thresholds_single, hb, t_train_end, T_min)
+                                [best_thresh], hb, t_holdout, T_min)
     test_shp = float(test_shp_mat[0, 0]) if not np.isnan(test_shp_mat[0, 0]) else 0.
 
-    # テスト期間の詳細統計
-    test_n = 0; test_sum = 0.; test_wins = 0; test_sq = 0.; test_min = np.inf
-    for td in ticker_data.values():
-        ind  = td["ind_scores"][:, t_train_end:T_min].astype(np.float32)
-        sout = td["sell_outcomes"][best_sell][t_train_end:T_min].astype(np.float32)
-        vmask = td["vol_ok"][t_train_end:T_min]
-        if "edge_bar" in td:
-            vmask = vmask & ~td["edge_bar"][t_train_end:T_min]
-        valid = ~np.isnan(sout) & vmask
-        comp  = (wm_best @ ind)[0]
-        mask  = (comp >= best_thresh) & valid
-        trade_rets = sout[mask]
-        test_n    += int(mask.sum())
-        test_sum  += float(trade_rets.sum())
-        test_wins += int((trade_rets > 0).sum())
-        test_sq   += float((trade_rets**2).sum())
-        if len(trade_rets) > 0:
-            test_min = min(test_min, float(trade_rets.min()))
+    test_stats = detailed_eval_single(ticker_data, best_w, best_sell,
+                                       best_thresh, hb, t_holdout, T_min)
 
-    test_avg_ret = (test_sum / test_n * 100) if test_n > 0 else 0.
-    test_win_rate = (test_wins / test_n) if test_n > 0 else 0.
-    test_max_dd   = test_min * 100 if test_n > 0 else 0.
+    print(f"  テスト: N={test_stats['n_trades']}  Sharpe={test_shp:.4f}  "
+          f"勝率={test_stats['win_rate']*100:.1f}%  avg={test_stats['avg_return']:+.2f}%")
 
-    print(f"  テスト: N={test_n}  シャープ={test_shp:.4f}  "
-          f"勝率={test_win_rate*100:.1f}%  avg={test_avg_ret:+.2f}%")
-
-    # ── 売りルールランキング (訓練データ、GA最良重みで評価) ─────────────────
+    # ── 売りルールランキング (訓練データ, GA最良重みで評価) ───────────────────
     print("  売りルールランキング評価中...")
     sell_stats = []
     for sname in sell_rules:
         hb_ = sell_hold[sname]
-        sm  = batch_sharpe(ticker_data, wm_best, sname, BUY_THRESHOLDS, hb_, 0, t_train_end)
+        sm  = batch_sharpe(ticker_data, wm_best, sname, BUY_THRESHOLDS, hb_, 0, t_holdout)
         if not np.all(np.isnan(sm)):
             best_ti    = int(np.nanargmax(sm[0]))
             best_thr_s = BUY_THRESHOLDS[best_ti]
             best_shp_s = float(sm[0, best_ti])
             avg_shp    = float(np.nanmean(sm[0]))
             dstats     = detailed_eval_single(ticker_data, best_w, sname,
-                                               best_thr_s, hb_, 0, t_train_end)
+                                               best_thr_s, hb_, 0, t_holdout)
         else:
             best_thr_s = BUY_THRESHOLDS[0]; best_shp_s = 0.; avg_shp = 0.
             dstats = {"win_rate": 0., "n_trades": 0, "avg_return": 0., "max_dd": 0.}
@@ -849,13 +925,12 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
         })
     sell_stats.sort(key=lambda x: x["best_sharpe"], reverse=True)
 
-    # ── top100 詳細評価 ───────────────────────────────────────────────────────
+    # ── top100 詳細評価 ────────────────────────────────────────────────────────
     print("  top100 詳細評価中...")
-    hb = sell_hold[best_sell]
     top100_out = []
     for r in top100:
         ds = detailed_eval_single(ticker_data, r["weights"], best_sell,
-                                   r["thr"], hb, 0, t_train_end)
+                                   r["thr"], hb, 0, t_holdout)
         top100_out.append({
             "buy_weights":   {nm: round(float(r["weights"][i]), 3) for i, nm in enumerate(ind_names)},
             "buy_threshold": r["thr"],
@@ -867,8 +942,17 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
             "max_dd":        ds["max_dd"],
         })
 
+    # GA全売りルール結果サマリ
+    ga_all_sells_summary = {}
+    for sname, gr in all_ga_results.items():
+        ga_all_sells_summary[sname] = {
+            "sharpe":    round(float(gr["sharpe"]), 4),
+            "threshold": gr["threshold"],
+            "weights":   {nm: round(float(gr["weights"][i]), 4) for i, nm in enumerate(ind_names)},
+        }
+
     return {
-        "version":       5,
+        "version":       6,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
         "data_source":   "price_data_intraday.json (1h bars)",
@@ -886,6 +970,7 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
         "summary": {
             "best_sharpe":       round(train_shp, 4),
             "best_sharpe_train": round(train_shp, 4),
+            "avg_oos_sharpe":    round(avg_oos_sharpe, 4),
             "best_sell_rule":    best_sell,
             "best_weights":      best_weights,
             "best_threshold":    best_thresh,
@@ -896,29 +981,34 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
             "ranking":            doe_ranked,
         },
         "ga_results": {
-            "population":        200,
-            "generations":       120,
-            "best_weights":      best_weights,
-            "best_sharpe_train": round(train_shp, 4),
-            "best_sell_rule":    best_sell,
-            "best_threshold":    best_thresh,
-            "convergence":       [round(v, 4) for v in convergence],
+            "population":             GA_POP,
+            "generations":            GA_GENS,
+            "n_sell_rules_optimized": len(sell_rules),
+            "all_sell_rules":         ga_all_sells_summary,
+            "best_weights":           best_weights,
+            "best_sharpe_train":      round(train_shp, 4),
+            "best_sell_rule":         best_sell,
+            "best_threshold":         best_thresh,
+            "convergence":            [round(v, 4) for v in convergence],
         },
         "walk_forward": {
-            "train_ratio":    0.80,
-            "train_bars":     t_train_end,
-            "test_bars":      T_min - t_train_end,
-            "train_sharpe":   round(train_shp, 4),
-            "test_sharpe":    round(test_shp, 4),
-            "test_win_rate":  round(test_win_rate, 4),
-            "test_n_trades":  test_n,
-            "test_avg_return": round(test_avg_ret, 3),
-            "test_max_dd":    round(test_max_dd, 3),
+            "n_folds":          n_wf_folds,
+            "folds":            wf_folds,
+            "avg_oos_sharpe":   round(avg_oos_sharpe, 4),
+            "train_ratio":      0.80,
+            "train_bars":       t_holdout,
+            "test_bars":        T_min - t_holdout,
+            "train_sharpe":     round(train_shp, 4),
+            "test_sharpe":      round(test_shp, 4),
+            "test_win_rate":    round(test_stats["win_rate"], 4),
+            "test_n_trades":    test_stats["n_trades"],
+            "test_avg_return":  round(test_stats["avg_return"], 3),
+            "test_max_dd":      round(test_stats["max_dd"], 3),
         },
     }
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 11. モード実行
+# 12. モード実行
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_mode(mode: str):
@@ -930,7 +1020,7 @@ def run_mode(mode: str):
     t0 = time.time()
     print("=" * 65)
     print(f"  バックテスト v3 — {mode_ja} ({mode}) mode")
-    print(f"  DOE (L18) → GA (200×120) → Walk-Forward (80/20)")
+    print(f"  DOE (L18) → WF 4fold×全売り × GA (pop={GA_POP}, gen={GA_GENS}) → ホールドアウト20%")
     print("=" * 65)
 
     print("\n[1/3] データ読み込み中...")
@@ -945,8 +1035,8 @@ def run_mode(mode: str):
         h, lo = td["highs"], td["lows"]
         cr = td["cost"]
 
-        ind_scores   = compute_ind_scores(td, mode)
-        vol_ok       = vol_ok_mask(td["volumes"])
+        ind_scores = compute_ind_scores(td, mode)
+        vol_ok     = vol_ok_mask(td["volumes"])
 
         print(f"  {tkr}: 売りルール計算中 ({len(sell_rules)}件)...", end="", flush=True)
         sell_out = precompute_sell_outcomes(c, o, h, lo, cr, sell_rules, max_hold)
@@ -962,13 +1052,13 @@ def run_mode(mode: str):
 
         ticker_data[tkr] = entry_dict
 
-    print("\n[3/3] DOE → GA → Walk-Forward 実行中...")
+    print("\n[3/3] DOE → WF 3fold → GA (全売りルール) → ホールドアウト評価...")
     result = full_evaluation(ticker_data, mode)
 
     out_file.write_text(json.dumps(result, ensure_ascii=False, indent=2))
     elapsed = time.time() - t0
     print(f"\n結果保存: {out_file}  ({out_file.stat().st_size // 1024} KB)")
-    print(f"総実行時間: {elapsed:.0f}秒\n")
+    print(f"総実行時間: {elapsed:.0f}秒 ({elapsed/60:.1f}分)\n")
 
     wf = result["walk_forward"]
     ga = result["ga_results"]
@@ -976,25 +1066,30 @@ def run_mode(mode: str):
     print("=" * 65)
     print(f"  【{mode_ja} 最終結果】")
     print("=" * 65)
-    print(f"  訓練シャープ: {wf['train_sharpe']:.4f}  テストシャープ: {wf['test_sharpe']:.4f}")
+    print(f"  WF平均OOS Sharpe: {wf['avg_oos_sharpe']:.4f}  (3fold平均, 信頼性指標)")
+    print(f"  訓練Sharpe: {wf['train_sharpe']:.4f}  テストSharpe: {wf['test_sharpe']:.4f}")
     print(f"  テスト勝率: {wf['test_win_rate']*100:.1f}%  "
           f"平均リターン: {wf['test_avg_return']:+.3f}%  "
           f"取引数: {wf['test_n_trades']}")
     print(f"  売りルール: {ga['best_sell_rule']}  閾値: {ga['best_threshold']}")
     print(f"\n  指標重要度 (DOE): {doe['ranking']}")
-    ind_names = IND_NAMES_SWING if mode == "swing" else IND_NAMES_DAY
-    print("  最適ウェイト:")
-    for nm in ind_names:
+    for nm in (IND_NAMES_SWING if mode == "swing" else IND_NAMES_DAY):
         eff = doe["indicator_effects"].get(nm, 0.)
         w   = ga["best_weights"].get(nm, 0.)
         print(f"    {nm:<8s} ウェイト={w:.4f}  主効果={eff:.4f}")
+    print(f"\n  WF Fold別OOS Sharpe:")
+    for f in wf["folds"]:
+        print(f"    Fold {f['fold']+1}: train={f['train_bars']}bars  "
+              f"OOS_sharpe={f['oos_sharpe']:.4f}  "
+              f"N={f['oos_n_trades']}  勝率={f['oos_win_rate']*100:.1f}%")
+    print()
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 12. エントリーポイント
+# 13. エントリーポイント
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main():
-    parser = argparse.ArgumentParser(description="バックテスト v3 (DOE→GA→Walk-Forward)")
+    parser = argparse.ArgumentParser(description="バックテスト v3 (DOE→WF3fold→GA全売り→ホールドアウト)")
     parser.add_argument("--swing", action="store_true", help="スイングトレードモード")
     parser.add_argument("--day",   action="store_true", help="デイトレードモード")
     parser.add_argument("--both",  action="store_true", help="両方実行")

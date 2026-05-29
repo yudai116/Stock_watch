@@ -23,7 +23,24 @@ type GaResults = {
   convergence: number[];
 };
 
+type WalkForwardFold = {
+  fold: number;
+  train_bars: number;
+  oos_bars: number;
+  best_sell: string;
+  best_threshold: number;
+  train_sharpe: number;
+  oos_sharpe: number;
+  oos_n_trades: number;
+  oos_win_rate: number;
+  oos_avg_return: number;
+  oos_max_dd: number;
+};
+
 type WalkForward = {
+  n_folds?: number;
+  folds?: WalkForwardFold[];
+  avg_oos_sharpe?: number;
   train_sharpe: number;
   test_sharpe: number;
   test_win_rate: number;
@@ -855,18 +872,28 @@ export default function BacktestPage({
 
           {/* Walk-forward results (v3) */}
           {"walk_forward" in strategyData && strategyData.walk_forward && (
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-              <h3 className="text-gray-300 text-sm font-semibold mb-3">
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-4">
+              <h3 className="text-gray-300 text-sm font-semibold">
                 Walk-Forward 検証結果 — 未知データでの汎化性能
               </h3>
+
+              {/* Main metrics */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {strategyData.walk_forward.avg_oos_sharpe != null && (
+                  <div className="bg-blue-950/40 border border-blue-700/40 rounded-lg p-3 sm:col-span-1">
+                    <p className={`font-bold text-base ${strategyData.walk_forward.avg_oos_sharpe > 0 ? "text-blue-300" : "text-red-400"}`}>
+                      {strategyData.walk_forward.avg_oos_sharpe.toFixed(3)}
+                    </p>
+                    <p className="text-gray-400 text-xs mt-0.5">WF平均OOS Sharpe</p>
+                    <p className="text-gray-600 text-xs">{strategyData.walk_forward.n_folds ?? 3}fold平均 ← 信頼性指標</p>
+                  </div>
+                )}
                 {[
-                  { label: "学習Sharpe (80%)", value: strategyData.walk_forward.train_sharpe.toFixed(2), color: "text-emerald-400" },
-                  { label: "テストSharpe (20%)", value: strategyData.walk_forward.test_sharpe.toFixed(2), color: strategyData.walk_forward.test_sharpe > 0 ? "text-emerald-300" : "text-red-400" },
+                  { label: "最終学習Sharpe (80%)", value: strategyData.walk_forward.train_sharpe.toFixed(2), color: "text-emerald-400" },
+                  { label: "ホールドアウトSharpe (20%)", value: strategyData.walk_forward.test_sharpe.toFixed(2), color: strategyData.walk_forward.test_sharpe > 0 ? "text-emerald-300" : "text-red-400" },
                   { label: "テスト勝率", value: `${(strategyData.walk_forward.test_win_rate * 100).toFixed(1)}%`, color: "text-gray-200" },
                   { label: "テスト取引数", value: String(strategyData.walk_forward.test_n_trades), color: "text-gray-300" },
                   { label: "テスト平均リターン", value: `${strategyData.walk_forward.test_avg_return > 0 ? "+" : ""}${strategyData.walk_forward.test_avg_return.toFixed(2)}%`, color: strategyData.walk_forward.test_avg_return > 0 ? "text-emerald-300" : "text-red-400" },
-                  { label: "テスト最大損失", value: `${strategyData.walk_forward.test_max_dd.toFixed(1)}%`, color: "text-red-400/70" },
                 ].map(({ label, value, color }) => (
                   <div key={label} className="bg-gray-800/50 rounded-lg p-3">
                     <p className={`${color} font-bold text-base`}>{value}</p>
@@ -874,8 +901,57 @@ export default function BacktestPage({
                   </div>
                 ))}
               </div>
-              <p className="text-gray-600 text-xs mt-3">
-                学習データ(先頭80%)で最適化 → テストデータ(末尾20%)で評価。テストShapeが正なら過学習なし。
+
+              {/* WF folds detail table */}
+              {strategyData.walk_forward.folds && strategyData.walk_forward.folds.length > 0 && (
+                <div>
+                  <p className="text-gray-500 text-xs font-medium mb-2">Fold別OOS結果（訓練データ内クロスバリデーション）</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-gray-600 border-b border-gray-800">
+                          <th className="text-left py-1.5 pr-3">Fold</th>
+                          <th className="text-right py-1.5 px-2">学習バー</th>
+                          <th className="text-right py-1.5 px-2">OOSバー</th>
+                          <th className="text-right py-1.5 px-2">学習Sharpe</th>
+                          <th className="text-right py-1.5 px-2">OOS Sharpe</th>
+                          <th className="text-right py-1.5 px-2">OOS取引数</th>
+                          <th className="text-right py-1.5 px-2">OOS勝率</th>
+                          <th className="text-left py-1.5 pl-2">売りルール</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {strategyData.walk_forward.folds.map((f) => (
+                          <tr key={f.fold} className="border-b border-gray-800/40 hover:bg-gray-800/20">
+                            <td className="py-1.5 pr-3 text-gray-400 font-medium">Fold {f.fold + 1}</td>
+                            <td className="py-1.5 px-2 text-right text-gray-500 font-mono">{f.train_bars.toLocaleString()}</td>
+                            <td className="py-1.5 px-2 text-right text-gray-500 font-mono">{f.oos_bars.toLocaleString()}</td>
+                            <td className="py-1.5 px-2 text-right text-emerald-600 font-mono">{f.train_sharpe.toFixed(3)}</td>
+                            <td className={`py-1.5 px-2 text-right font-mono font-bold ${f.oos_sharpe > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                              {f.oos_sharpe.toFixed(3)}
+                            </td>
+                            <td className="py-1.5 px-2 text-right text-gray-400 font-mono">{f.oos_n_trades}</td>
+                            <td className="py-1.5 px-2 text-right text-gray-400 font-mono">{(f.oos_win_rate * 100).toFixed(1)}%</td>
+                            <td className="py-1.5 pl-2 text-yellow-400/80">{SELL_RULE_SHORT[f.best_sell] ?? f.best_sell}</td>
+                          </tr>
+                        ))}
+                        <tr className="border-t-2 border-gray-700">
+                          <td className="py-1.5 pr-3 text-gray-400 font-semibold">平均</td>
+                          <td className="py-1.5 px-2" colSpan={3} />
+                          <td className={`py-1.5 px-2 text-right font-mono font-bold ${(strategyData.walk_forward.avg_oos_sharpe ?? 0) > 0 ? "text-blue-300" : "text-red-400"}`}>
+                            {strategyData.walk_forward.avg_oos_sharpe?.toFixed(3) ?? "—"}
+                          </td>
+                          <td className="py-1.5 px-2" colSpan={3} />
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-gray-600 text-xs">
+                WF平均OOS Sharpe &gt; 0 なら汎化性あり。学習Sharpeとの差が小さいほど過学習なし。
+                最終最適化は先頭80%、ホールドアウト評価は末尾20%（最適化中は一切未使用）。
               </p>
             </div>
           )}
@@ -1011,8 +1087,8 @@ export default function BacktestPage({
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               {[
                 { icon: "🔬", title: "Taguchi L18", desc: "実験計画法で18実験から重要指標を特定" },
-                { icon: "🧬", title: "遺伝的アルゴリズム", desc: "Population 200, 120世代で重みを進化的最適化" },
-                { icon: "🧪", title: "Walk-Forward 検証", desc: "80%学習 / 20%テストで過学習を防止" },
+                { icon: "🧬", title: "遺伝的アルゴリズム", desc: "Population 2000, 500世代 × 全売りルールで重みを最適化" },
+                { icon: "🧪", title: "Walk-Forward 検証", desc: "4fold拡大窓バリデーション + ホールドアウト20%で過学習検出" },
               ].map(({ icon, title, desc }) => (
                 <div key={title} className="bg-gray-800/50 rounded-lg p-3">
                   <p className="text-gray-300 font-medium">{icon} {title}</p>
