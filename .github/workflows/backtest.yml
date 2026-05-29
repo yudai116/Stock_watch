@@ -11,15 +11,15 @@ on:
         options:
           - swing     # スイングトレード (デフォルト)
           - day       # デイトレード
-          - both      # 両方
+          - both      # 両方同時並列実行 (各~4時間, 合計~4時間)
   schedule:
     - cron: '0 1 * * 0'    # 毎週日曜 AM10:00 JST に自動実行（swing）
 
 jobs:
-  backtest:
+  # ── Job 1: 価格データ取得 (共通) ───────────────────────────────────────────
+  fetch-data:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write       # 結果ファイルをコミットするため
+    timeout-minutes: 30
 
     steps:
       - name: リポジトリをチェックアウト
@@ -27,7 +27,6 @@ jobs:
         with:
           ref: claude/stock-price-dashboard-QrhiS
 
-      # ── Step 1: 1時間足データ取得 (Node.js + yahoo-finance2) ────────────────
       - name: Node.js セットアップ
         uses: actions/setup-node@v4
         with:
@@ -40,7 +39,32 @@ jobs:
       - name: 1時間足データ取得 (直近730日, 25銘柄)
         run: node backtest/fetch_data.mjs --intraday
 
-      # ── Step 2: 戦略最適化 (Python + numpy) ──────────────────────────────
+      - name: データファイルをアーティファクトとして保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: price-data
+          path: backtest/price_data_intraday.json
+          retention-days: 1
+
+  # ── Job 2: スイング戦略最適化 (並列) ─────────────────────────────────────
+  optimize-swing:
+    needs: fetch-data
+    if: ${{ github.event.inputs.mode != 'day' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350      # 5時間50分 (GHA上限6時間の直前)
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: claude/stock-price-dashboard-QrhiS
+
+      - name: 価格データを取得
+        uses: actions/download-artifact@v4
+        with:
+          name: price-data
+          path: backtest/
+
       - name: Python セットアップ
         uses: actions/setup-python@v5
         with:
@@ -49,15 +73,91 @@ jobs:
       - name: numpy インストール
         run: pip install numpy --quiet
 
-      - name: スイング戦略最適化 (DOE→GA→Walk-Forward)
-        if: ${{ inputs.mode != 'day' }}
+      - name: スイング戦略最適化 (DOE→WF4fold×全売りルール→GA→ホールドアウト)
         run: python3 backtest/strategy_search.py --swing
 
-      - name: デイトレ戦略最適化 (DOE→GA→Walk-Forward)
-        if: ${{ inputs.mode == 'day' || inputs.mode == 'both' }}
+      - name: 結果をアーティファクトとして保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: result-swing
+          path: backtest/strategy_results_swing.json
+          retention-days: 1
+
+  # ── Job 3: デイトレ戦略最適化 (並列) ─────────────────────────────────────
+  optimize-day:
+    needs: fetch-data
+    if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350      # 5時間50分
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: claude/stock-price-dashboard-QrhiS
+
+      - name: 価格データを取得
+        uses: actions/download-artifact@v4
+        with:
+          name: price-data
+          path: backtest/
+
+      - name: Python セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: numpy インストール
+        run: pip install numpy --quiet
+
+      - name: デイトレ戦略最適化 (DOE→WF4fold×全売りルール→GA→ホールドアウト)
         run: python3 backtest/strategy_search.py --day
 
-      # ── Step 3: 結果をリポジトリにコミット ────────────────────────────────
+      - name: 結果をアーティファクトとして保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: result-day
+          path: backtest/strategy_results_day.json
+          retention-days: 1
+
+  # ── Job 4: 結果をリポジトリにコミット (両Job完了後) ──────────────────────
+  commit-results:
+    needs: [optimize-swing, optimize-day]
+    if: |
+      always() && !cancelled() &&
+      (needs.optimize-swing.result == 'success' || needs.optimize-day.result == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: claude/stock-price-dashboard-QrhiS
+
+      - name: 価格データを取得
+        uses: actions/download-artifact@v4
+        with:
+          name: price-data
+          path: backtest/
+        continue-on-error: true
+
+      - name: スイング結果を取得
+        uses: actions/download-artifact@v4
+        with:
+          name: result-swing
+          path: backtest/
+        continue-on-error: true
+
+      - name: デイトレ結果を取得
+        uses: actions/download-artifact@v4
+        with:
+          name: result-day
+          path: backtest/
+        continue-on-error: true
+
       - name: 結果コミット & プッシュ
         run: |
           git config user.name  "github-actions[bot]"
