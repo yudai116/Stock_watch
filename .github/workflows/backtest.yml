@@ -2,8 +2,18 @@ name: バックテスト実行（実データ）
 
 on:
   workflow_dispatch:        # iPhone / GitHub から手動起動
+    inputs:
+      mode:
+        description: 'バックテストモード: daily (日足) or intraday (1時間足)'
+        required: false
+        default: 'daily'
+        type: choice
+        options:
+          - daily
+          - intraday
+          - both
   schedule:
-    - cron: '0 1 * * 0'    # 毎週日曜 AM10:00 JST に自動実行
+    - cron: '0 1 * * 0'    # 毎週日曜 AM10:00 JST に自動実行（日足）
 
 jobs:
   backtest:
@@ -27,8 +37,13 @@ jobs:
       - name: npm install
         run: npm ci
 
-      - name: 実株価データ取得 (2015-2025, 15銘柄)
+      - name: 日足データ取得 (2015-2025, 15銘柄)
+        if: ${{ inputs.mode != 'intraday' }}
         run: node backtest/fetch_data.mjs
+
+      - name: 1時間足データ取得 (直近2年, 15銘柄)
+        if: ${{ inputs.mode == 'intraday' || inputs.mode == 'both' }}
+        run: node backtest/fetch_data.mjs --intraday
 
       # ── Step 2: 戦略最適化 (Python + numpy) ──────────────────────────────
       - name: Python セットアップ
@@ -39,15 +54,21 @@ jobs:
       - name: numpy インストール
         run: pip install numpy --quiet
 
-      - name: 戦略最適化実行 (~560,000 通りの組み合わせ検証)
+      - name: 日足 戦略最適化 (~450,000+ 組み合わせ)
+        if: ${{ inputs.mode != 'intraday' }}
         run: python3 backtest/strategy_search.py
+
+      - name: 1時間足 戦略最適化 (~450,000+ 組み合わせ)
+        if: ${{ inputs.mode == 'intraday' || inputs.mode == 'both' }}
+        run: python3 backtest/strategy_search.py --intraday
 
       # ── Step 3: 結果をリポジトリにコミット ────────────────────────────────
       - name: 結果コミット & プッシュ
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add backtest/price_data.json backtest/strategy_results.json
+          git add backtest/price_data.json backtest/strategy_results.json \
+                  backtest/price_data_intraday.json || true
           git diff --staged --quiet && echo "変更なし" || (
             git commit -m "chore: 実データバックテスト結果を更新 [skip ci]" &&
             git push origin claude/stock-price-dashboard-QrhiS

@@ -200,6 +200,7 @@ type StrategyData = {
   available: true;
   version: number;
   generated_at: string;
+  mode?: string;
   n_tickers: number;
   tickers: string[];
   n_evaluated: number;
@@ -214,6 +215,8 @@ type StrategyData = {
     best_weights: Record<string, number>;
     best_threshold: number;
   };
+  lookahead_bias_fixed?: boolean;
+  entry_price?: string;
 } | { available: false };
 
 function loadStrategyData(): StrategyData {
@@ -549,10 +552,12 @@ const SELL_RULE_SHORT: Record<string, string> = {
 };
 
 const IND_COLORS_CLS: Record<string, string> = {
-  RSI: "bg-emerald-500", MACD: "bg-blue-500", BB: "bg-purple-500", MA: "bg-orange-500",
+  RSI:   "bg-emerald-500", MACD:  "bg-blue-500",   BB:    "bg-purple-500", MA:    "bg-orange-500",
+  Aroon: "bg-cyan-500",    Stoch: "bg-pink-500",    CCI:   "bg-yellow-500", ROC:   "bg-red-500",
 };
 const IND_TEXT_CLS: Record<string, string> = {
-  RSI: "text-emerald-400", MACD: "text-blue-400", BB: "text-purple-400", MA: "text-orange-400",
+  RSI:   "text-emerald-400", MACD:  "text-blue-400",   BB:    "text-purple-400", MA:    "text-orange-400",
+  Aroon: "text-cyan-400",    Stoch: "text-pink-400",   CCI:   "text-yellow-400", ROC:   "text-red-400",
 };
 const RANK_TEXT = ["text-yellow-400", "text-gray-300", "text-orange-500", "text-gray-600"];
 
@@ -687,7 +692,7 @@ function IndicatorImportanceSection({
               <div key={name} className="flex items-center gap-2">
                 <span className={`text-xs font-bold w-5 flex-shrink-0 ${RANK_TEXT[Math.min(i, 3)]}`}>{i + 1}位</span>
                 <span className={`${IND_COLORS_CLS[name] ? `inline-block w-2 h-2 rounded-full ${IND_COLORS_CLS[name]}` : ""} flex-shrink-0`} />
-                <span className={`${IND_TEXT_CLS[name] ?? "text-gray-400"} font-medium w-10 text-xs`}>{name}</span>
+                <span className={`${IND_TEXT_CLS[name] ?? "text-gray-400"} font-medium w-12 text-xs`}>{name}</span>
                 <div className="flex-1 relative h-3 bg-gray-700 rounded-full overflow-hidden">
                   <div className={`absolute left-0 top-0 h-3 rounded-full ${IND_COLORS_CLS[name] ?? "bg-gray-400"}`}
                     style={{ width: `${barW}%`, opacity: 0.75 }} />
@@ -706,7 +711,7 @@ function IndicatorImportanceSection({
             const isPos = c >= 0;
             return (
               <div key={name} className="flex items-center gap-2">
-                <span className={`${IND_TEXT_CLS[name] ?? "text-gray-400"} font-medium w-10 text-xs flex-shrink-0`}>{name}</span>
+                <span className={`${IND_TEXT_CLS[name] ?? "text-gray-400"} font-medium w-12 text-xs flex-shrink-0`}>{name}</span>
                 <div className="flex-1 relative h-3 bg-gray-700 rounded-full overflow-hidden">
                   <div
                     className={`absolute left-0 top-0 h-3 rounded-full ${isPos ? "bg-emerald-500" : "bg-red-500"}`}
@@ -778,9 +783,19 @@ export default function BacktestPage() {
             ))}
           </div>
 
-          <p className="text-gray-600 text-xs -mt-2">
-            生成日時: {strategyData.generated_at} — numpy Monte Carlo (seed=42) による重み探索
-          </p>
+          <div className="flex flex-wrap items-center gap-3 text-xs -mt-2">
+            <span className="text-gray-600">生成日時: {strategyData.generated_at}</span>
+            {"lookahead_bias_fixed" in strategyData && strategyData.lookahead_bias_fixed && (
+              <span className="text-emerald-400/80 bg-emerald-900/20 border border-emerald-700/30 px-2 py-0.5 rounded-full">
+                先読みバイアスなし ✓ エントリー=翌始値
+              </span>
+            )}
+            {"mode" in strategyData && strategyData.mode && (
+              <span className="text-blue-400/80 bg-blue-900/20 border border-blue-700/30 px-2 py-0.5 rounded-full">
+                {strategyData.mode}
+              </span>
+            )}
+          </div>
 
           {/* Sell rule ranking */}
           <div>
@@ -829,7 +844,7 @@ export default function BacktestPage() {
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               {[
                 { icon: "📊", title: "売りルール14種", desc: "固定保有3〜20日、利確+ストップ、トレーリングストップ" },
-                { icon: "⚖️", title: "重み10,000通り", desc: "RSI/MACD/BB/MA の Dirichlet サンプリング" },
+                { icon: "⚖️", title: "重み8,000通り", desc: "RSI/MACD/BB/MA/Aroon/Stoch/CCI/ROC の Dirichlet サンプリング" },
                 { icon: "🏆", title: "評価指標", desc: "アニュアライズド・シャープレシオ（リスク調整後）" },
               ].map(({ icon, title, desc }) => (
                 <div key={title} className="bg-gray-800/50 rounded-lg p-3">
