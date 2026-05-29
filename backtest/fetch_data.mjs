@@ -16,20 +16,38 @@ const yf = new YFClass();
 
 const INTRADAY = process.argv.includes("--intraday");
 
-// Full list: 9 stocks used in scoring + backtest
+// 25 tickers — semiconductor / AI / cloud tech focus
 const TICKERS = [
-  "NVDA",    // large
-  "ASML",    // large
-  "MSFT",    // large
-  "8035.T",  // large (Tokyo Electron)
-  "MRVL",    // mid
-  "SMCI",    // mid
-  "CRWD",    // mid (IPO 2019)
-  "SOUN",    // small (SPAC 2022)
-  "IONQ",    // small (SPAC 2021)
-  // Additional large-cap for weight validation
-  "AMD", "TSM", "AMAT", "LRCX", "KLAC",
-  "6857.T",  // Advantest (JP large)
+  // ── US 大型半導体・AI ──────────────────────────────────────────
+  "NVDA",    // NVIDIA (GPU/AI)
+  "ASML",    // ASML (半導体露光装置)
+  "MSFT",    // Microsoft (クラウド/AI)
+  "AMD",     // AMD (CPU/GPU)
+  "AVGO",    // Broadcom (半導体/ネットワーク)
+  "QCOM",    // Qualcomm (モバイル半導体)
+  "MU",      // Micron Technology (DRAM/NAND)
+  "TSM",     // TSMC ADR (ファウンドリ)
+  "ARM",     // Arm Holdings (チップIP, IPO 2023)
+  // ── US 製造装置・EDA ─────────────────────────────────────────
+  "AMAT",    // Applied Materials
+  "LRCX",    // Lam Research
+  "KLAC",    // KLA Corp
+  // ── US AI・クラウド成長株 ─────────────────────────────────────
+  "MRVL",    // Marvell Technology
+  "CRWD",    // CrowdStrike (セキュリティ)
+  "PLTR",    // Palantir (AI/データ分析)
+  "SMCI",    // Super Micro Computer
+  // ── US 小型・高ボラ ───────────────────────────────────────────
+  "SOUN",    // SoundHound AI (SPAC 2022)
+  "IONQ",    // IonQ (量子コンピュータ, SPAC 2021)
+  // ── JP 半導体・電子部品 ────────────────────────────────────────
+  "8035.T",  // 東京エレクトロン
+  "6857.T",  // アドバンテスト
+  "6723.T",  // ルネサスエレクトロニクス
+  "4063.T",  // 信越化学工業
+  "6963.T",  // ローム
+  "6920.T",  // レーザーテック
+  "6146.T",  // ディスコ
 ];
 
 // Daily: 10 years of history

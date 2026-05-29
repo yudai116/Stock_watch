@@ -4,16 +4,16 @@ on:
   workflow_dispatch:        # iPhone / GitHub から手動起動
     inputs:
       mode:
-        description: 'バックテストモード: daily (日足) or intraday (1時間足)'
+        description: 'バックテストモード'
         required: false
-        default: 'daily'
+        default: 'swing'
         type: choice
         options:
-          - daily
-          - intraday
-          - both
+          - swing     # スイングトレード (デフォルト)
+          - day       # デイトレード
+          - both      # 両方
   schedule:
-    - cron: '0 1 * * 0'    # 毎週日曜 AM10:00 JST に自動実行（日足）
+    - cron: '0 1 * * 0'    # 毎週日曜 AM10:00 JST に自動実行（swing）
 
 jobs:
   backtest:
@@ -27,7 +27,7 @@ jobs:
         with:
           ref: claude/stock-price-dashboard-QrhiS
 
-      # ── Step 1: 実株価データ取得 (Node.js + yahoo-finance2) ───────────────
+      # ── Step 1: 1時間足データ取得 (Node.js + yahoo-finance2) ────────────────
       - name: Node.js セットアップ
         uses: actions/setup-node@v4
         with:
@@ -37,12 +37,7 @@ jobs:
       - name: npm install
         run: npm ci
 
-      - name: 日足データ取得 (2015-2025, 15銘柄)
-        if: ${{ inputs.mode != 'intraday' }}
-        run: node backtest/fetch_data.mjs
-
-      - name: 1時間足データ取得 (直近2年, 15銘柄)
-        if: ${{ inputs.mode == 'intraday' || inputs.mode == 'both' }}
+      - name: 1時間足データ取得 (直近730日, 25銘柄)
         run: node backtest/fetch_data.mjs --intraday
 
       # ── Step 2: 戦略最適化 (Python + numpy) ──────────────────────────────
@@ -54,22 +49,23 @@ jobs:
       - name: numpy インストール
         run: pip install numpy --quiet
 
-      - name: 日足 戦略最適化 (~450,000+ 組み合わせ)
-        if: ${{ inputs.mode != 'intraday' }}
-        run: python3 backtest/strategy_search.py
+      - name: スイング戦略最適化 (DOE→GA→Walk-Forward)
+        if: ${{ inputs.mode != 'day' }}
+        run: python3 backtest/strategy_search.py --swing
 
-      - name: 1時間足 戦略最適化 (~450,000+ 組み合わせ)
-        if: ${{ inputs.mode == 'intraday' || inputs.mode == 'both' }}
-        run: python3 backtest/strategy_search.py --intraday
+      - name: デイトレ戦略最適化 (DOE→GA→Walk-Forward)
+        if: ${{ inputs.mode == 'day' || inputs.mode == 'both' }}
+        run: python3 backtest/strategy_search.py --day
 
       # ── Step 3: 結果をリポジトリにコミット ────────────────────────────────
       - name: 結果コミット & プッシュ
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add backtest/price_data.json backtest/strategy_results.json \
-                  backtest/price_data_intraday.json || true
+          git add backtest/price_data_intraday.json \
+                  backtest/strategy_results_swing.json \
+                  backtest/strategy_results_day.json 2>/dev/null || true
           git diff --staged --quiet && echo "変更なし" || (
-            git commit -m "chore: 実データバックテスト結果を更新 [skip ci]" &&
+            git commit -m "chore: バックテスト結果を更新 [skip ci]" &&
             git push origin claude/stock-price-dashboard-QrhiS
           )

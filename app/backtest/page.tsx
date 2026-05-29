@@ -3,6 +3,35 @@ import { readFileSync, existsSync } from "fs";
 import path from "path";
 import { yahooFinanceUrls } from "@/lib/formatters";
 
+export const dynamic = "force-dynamic";
+
+// ─── Types for v3 strategy results ────────────────────────────────────────────
+
+type DoeResults = {
+  n_experiments: number;
+  indicator_effects: Record<string, number>;
+  ranking: string[];
+};
+
+type GaResults = {
+  population: number;
+  generations: number;
+  best_weights: Record<string, number>;
+  best_sharpe_train: number;
+  best_sell_rule: string;
+  best_threshold: number;
+  convergence: number[];
+};
+
+type WalkForward = {
+  train_sharpe: number;
+  test_sharpe: number;
+  test_win_rate: number;
+  test_n_trades: number;
+  test_avg_return: number;
+  test_max_dd: number;
+};
+
 // ─── Static data from backtest_results_v4.json + trade_records.py ─────────────
 
 const MULTS = {
@@ -201,9 +230,10 @@ type StrategyData = {
   version: number;
   generated_at: string;
   mode?: string;
+  data_source?: string;
   n_tickers: number;
   tickers: string[];
-  n_evaluated: number;
+  n_evaluated?: number;
   top100: StrategyResult[];
   sell_rule_ranking: SellRuleStat[];
   indicator_weight_corr_with_sharpe: Record<string, number>;
@@ -217,11 +247,19 @@ type StrategyData = {
   };
   lookahead_bias_fixed?: boolean;
   entry_price?: string;
+  transaction_costs?: { US_pct?: number; JP_pct?: number };
+  doe_results?: DoeResults;
+  ga_results?: GaResults;
+  walk_forward?: WalkForward;
 } | { available: false };
 
-function loadStrategyData(): StrategyData {
-  const filePath = path.join(process.cwd(), "backtest", "strategy_results.json");
-  if (!existsSync(filePath)) return { available: false };
+function loadStrategyData(mode: "swing" | "day"): StrategyData {
+  // v3: mode-specific files
+  const v3Path = path.join(process.cwd(), "backtest", `strategy_results_${mode}.json`);
+  // v2 fallback for swing only
+  const v2Path = path.join(process.cwd(), "backtest", "strategy_results.json");
+  const filePath = existsSync(v3Path) ? v3Path : (mode === "swing" ? v2Path : null);
+  if (!filePath || !existsSync(filePath)) return { available: false };
   try {
     return { available: true, ...JSON.parse(readFileSync(filePath, "utf-8")) };
   } catch {
@@ -735,10 +773,15 @@ function IndicatorImportanceSection({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function BacktestPage() {
+export default function BacktestPage({
+  searchParams,
+}: {
+  searchParams: { mode?: string };
+}) {
+  const mode = searchParams.mode === "day" ? "day" : "swing";
   const swingStats = { signals: 1386, winRate: 56.2, avgRet: 0.70 };
   const dayStats   = { signals: 14967, winRate: 52.1, avgRet: 0.15 };
-  const strategyData = loadStrategyData();
+  const strategyData = loadStrategyData(mode);
 
   return (
     <div className="space-y-10 pb-12">
@@ -749,12 +792,37 @@ export default function BacktestPage() {
         <span className="text-gray-400">バックテスト結果</span>
       </div>
 
-      {/* Title */}
-      <div>
-        <h1 className="text-2xl font-bold text-white">バックテスト結果</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          買い指標 × 売りルール 最適化 + Monte Carlo Walk-Forward シミュレーション
-        </p>
+      {/* Title + Mode tabs */}
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white">バックテスト結果</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            実験計画法 (DOE) + 遺伝的アルゴリズム + Walk-Forward 検証
+          </p>
+        </div>
+        {/* Mode switcher */}
+        <div className="flex gap-2">
+          <Link
+            href="/backtest?mode=swing"
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              mode === "swing"
+                ? "bg-emerald-700 text-white"
+                : "bg-gray-800 text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            スイングトレード
+          </Link>
+          <Link
+            href="/backtest?mode=day"
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              mode === "day"
+                ? "bg-blue-700 text-white"
+                : "bg-gray-800 text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            デイトレード (1h)
+          </Link>
+        </div>
       </div>
 
       {/* ── Real data strategy search results ── */}
@@ -770,10 +838,10 @@ export default function BacktestPage() {
           {/* Summary stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: "検証銘柄数", value: String(strategyData.n_tickers), sub: strategyData.tickers.join(", ").substring(0, 30) + "..." },
-              { label: "検証戦略数", value: strategyData.n_evaluated.toLocaleString(), sub: "買い×売り組み合わせ" },
-              { label: "最高シャープ", value: strategyData.summary.best_sharpe?.toFixed(3) ?? "—", sub: "リスク調整後収益" },
-              { label: "最良売りルール", value: SELL_RULE_SHORT[strategyData.summary.best_sell_rule ?? ""] ?? "—", sub: "上位戦略で最多" },
+              { label: "検証銘柄数", value: String(strategyData.n_tickers), sub: strategyData.tickers.slice(0, 5).join(", ") + "..." },
+              { label: "検証戦略数", value: (strategyData.n_evaluated ?? strategyData.top100?.length ?? 0).toLocaleString(), sub: "買い×売り組み合わせ" },
+              { label: "最高シャープ (学習)", value: strategyData.summary.best_sharpe?.toFixed(2) ?? "—", sub: "リスク調整後収益" },
+              { label: "最良売りルール", value: SELL_RULE_SHORT[strategyData.summary.best_sell_rule ?? ""] ?? strategyData.summary.best_sell_rule ?? "—", sub: "上位戦略で最多" },
             ].map(({ label, value, sub }) => (
               <div key={label} className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
                 <p className="text-white font-bold text-lg">{value}</p>
@@ -783,16 +851,108 @@ export default function BacktestPage() {
             ))}
           </div>
 
+          {/* Walk-forward results (v3) */}
+          {"walk_forward" in strategyData && strategyData.walk_forward && (
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+              <h3 className="text-gray-300 text-sm font-semibold mb-3">
+                Walk-Forward 検証結果 — 未知データでの汎化性能
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {[
+                  { label: "学習Sharpe (80%)", value: strategyData.walk_forward.train_sharpe.toFixed(2), color: "text-emerald-400" },
+                  { label: "テストSharpe (20%)", value: strategyData.walk_forward.test_sharpe.toFixed(2), color: strategyData.walk_forward.test_sharpe > 0 ? "text-emerald-300" : "text-red-400" },
+                  { label: "テスト勝率", value: `${(strategyData.walk_forward.test_win_rate * 100).toFixed(1)}%`, color: "text-gray-200" },
+                  { label: "テスト取引数", value: String(strategyData.walk_forward.test_n_trades), color: "text-gray-300" },
+                  { label: "テスト平均リターン", value: `${strategyData.walk_forward.test_avg_return > 0 ? "+" : ""}${strategyData.walk_forward.test_avg_return.toFixed(2)}%`, color: strategyData.walk_forward.test_avg_return > 0 ? "text-emerald-300" : "text-red-400" },
+                  { label: "テスト最大損失", value: `${strategyData.walk_forward.test_max_dd.toFixed(1)}%`, color: "text-red-400/70" },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="bg-gray-800/50 rounded-lg p-3">
+                    <p className={`${color} font-bold text-base`}>{value}</p>
+                    <p className="text-gray-500 text-xs mt-0.5">{label}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-gray-600 text-xs mt-3">
+                学習データ(先頭80%)で最適化 → テストデータ(末尾20%)で評価。テストShapeが正なら過学習なし。
+              </p>
+            </div>
+          )}
+
+          {/* DOE results (v3) */}
+          {"doe_results" in strategyData && strategyData.doe_results && (
+            <div>
+              <h3 className="text-gray-300 text-sm font-semibold mb-3">
+                実験計画法 (Taguchi L18) — 指標影響度スクリーニング
+              </h3>
+              <div className="bg-gray-800/50 rounded-xl p-4">
+                <p className="text-gray-500 text-xs mb-3">
+                  18実験の直交表でShapeへの主効果を測定 → 上位{(strategyData.doe_results as DoeResults).ranking.slice(0, 3).join("・")} が最も影響大
+                </p>
+                <div className="space-y-2">
+                  {(strategyData.doe_results as DoeResults).ranking.map((name, i) => {
+                    const eff = ((strategyData.doe_results as DoeResults).indicator_effects ?? {})[name] ?? 0;
+                    const maxEff = Math.max(...Object.values((strategyData.doe_results as DoeResults).indicator_effects ?? {}));
+                    const barW = Math.round((eff / (maxEff || 1)) * 100);
+                    return (
+                      <div key={name} className="flex items-center gap-2">
+                        <span className={`text-xs font-bold w-5 flex-shrink-0 ${RANK_TEXT[Math.min(i, 3)]}`}>{i + 1}位</span>
+                        <span className={`${IND_TEXT_CLS[name] ?? "text-gray-400"} font-medium w-14 text-xs flex-shrink-0`}>{name}</span>
+                        <div className="flex-1 relative h-3 bg-gray-700 rounded-full overflow-hidden">
+                          <div className={`absolute left-0 top-0 h-3 rounded-full ${IND_COLORS_CLS[name] ?? "bg-gray-500"}`}
+                            style={{ width: `${barW}%`, opacity: 0.8 }} />
+                        </div>
+                        <span className="text-gray-400 font-mono text-xs w-12 text-right">
+                          {eff.toFixed(3)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* GA results (v3) */}
+          {"ga_results" in strategyData && strategyData.ga_results && (
+            <div>
+              <h3 className="text-gray-300 text-sm font-semibold mb-3">
+                遺伝的アルゴリズム最適解
+              </h3>
+              <div className="bg-gray-800/50 rounded-xl p-4 space-y-3">
+                <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
+                  <span className="text-gray-500">集団サイズ: <span className="text-gray-300">{(strategyData.ga_results as GaResults).population}</span></span>
+                  <span className="text-gray-500">世代数: <span className="text-gray-300">{(strategyData.ga_results as GaResults).generations}</span></span>
+                  <span className="text-gray-500">最良Sharpe: <span className="text-emerald-400 font-bold">{(strategyData.ga_results as GaResults).best_sharpe_train?.toFixed(2)}</span></span>
+                  <span className="text-gray-500">売りルール: <span className="text-yellow-300">{SELL_RULE_SHORT[(strategyData.ga_results as GaResults).best_sell_rule] ?? (strategyData.ga_results as GaResults).best_sell_rule}</span></span>
+                  <span className="text-gray-500">閾値: <span className="text-gray-300">≥{(strategyData.ga_results as GaResults).best_threshold}点</span></span>
+                </div>
+                <div>
+                  <p className="text-gray-600 text-xs mb-1">最適化された指標重み</p>
+                  <WeightBar weights={(strategyData.ga_results as GaResults).best_weights} />
+                  <div className="flex flex-wrap gap-2 mt-1 text-xs">
+                    {Object.entries((strategyData.ga_results as GaResults).best_weights)
+                      .sort(([, a], [, b]) => b - a)
+                      .map(([name, w]) => (
+                        <span key={name} className={IND_TEXT_CLS[name] ?? "text-gray-400"}>
+                          {name}×{w.toFixed(2)}
+                        </span>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-3 text-xs -mt-2">
             <span className="text-gray-600">生成日時: {strategyData.generated_at}</span>
-            {"lookahead_bias_fixed" in strategyData && strategyData.lookahead_bias_fixed && (
+            {strategyData.lookahead_bias_fixed && (
               <span className="text-emerald-400/80 bg-emerald-900/20 border border-emerald-700/30 px-2 py-0.5 rounded-full">
-                先読みバイアスなし ✓ エントリー=翌始値
+                先読みバイアスなし ✓
               </span>
             )}
-            {"mode" in strategyData && strategyData.mode && (
-              <span className="text-blue-400/80 bg-blue-900/20 border border-blue-700/30 px-2 py-0.5 rounded-full">
-                {strategyData.mode}
+            {strategyData.transaction_costs && (
+              <span className="text-orange-400/80 bg-orange-900/20 border border-orange-700/30 px-2 py-0.5 rounded-full">
+                取引コスト込み (US {strategyData.transaction_costs.US_pct}% / JP {strategyData.transaction_costs.JP_pct}%)
               </span>
             )}
           </div>
@@ -828,24 +988,25 @@ export default function BacktestPage() {
       ) : (
         <section>
           <div className="bg-blue-950/40 border border-blue-700/50 rounded-xl p-6">
-            <h3 className="text-blue-300 font-semibold mb-3">実データ戦略最適化を実行するには</h3>
+            <h3 className="text-blue-300 font-semibold mb-3">
+              {mode === "day" ? "デイトレ" : "スイング"}戦略最適化を実行するには
+            </h3>
             <p className="text-blue-200/70 text-sm mb-4">
-              以下を手元のPC（ネットワーク接続あり）で実行すると、実際の株価データを使って
-              56万通り以上の買い×売り戦略を検証し、最優秀の組み合わせをランキング表示します。
+              GitHub Actions を使って実際の1時間足データ(25銘柄)で最適化できます。
+              iPhoneの Scriptable アプリから起動可能。
             </p>
             <div className="bg-gray-900 rounded-lg p-4 font-mono text-xs space-y-1">
-              <p className="text-gray-500"># Step 1: 実株価データ取得（インターネット接続が必要）</p>
-              <p className="text-emerald-400">node backtest/fetch_data.mjs</p>
-              <p className="text-gray-500 mt-2"># Step 2: 戦略最適化実行（約5〜15分）</p>
-              <p className="text-emerald-400">python3 backtest/strategy_search.py</p>
-              <p className="text-gray-500 mt-2"># 結果は backtest/strategy_results.json に保存</p>
-              <p className="text-gray-500"># その後 git push すればこのページに自動表示されます</p>
+              <p className="text-gray-500"># Step 1: 1時間足データ取得</p>
+              <p className="text-emerald-400">node backtest/fetch_data.mjs --intraday</p>
+              <p className="text-gray-500 mt-2"># Step 2: 戦略最適化実行（DOE→GA→Walk-Forward）</p>
+              <p className="text-emerald-400">python3 backtest/strategy_search.py --{mode}</p>
+              <p className="text-gray-500 mt-2"># または GitHub Actions ワークフローを起動</p>
             </div>
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               {[
-                { icon: "📊", title: "売りルール14種", desc: "固定保有3〜20日、利確+ストップ、トレーリングストップ" },
-                { icon: "⚖️", title: "重み8,000通り", desc: "RSI/MACD/BB/MA/Aroon/Stoch/CCI/ROC の Dirichlet サンプリング" },
-                { icon: "🏆", title: "評価指標", desc: "アニュアライズド・シャープレシオ（リスク調整後）" },
+                { icon: "🔬", title: "Taguchi L18", desc: "実験計画法で18実験から重要指標を特定" },
+                { icon: "🧬", title: "遺伝的アルゴリズム", desc: "Population 200, 120世代で重みを進化的最適化" },
+                { icon: "🧪", title: "Walk-Forward 検証", desc: "80%学習 / 20%テストで過学習を防止" },
               ].map(({ icon, title, desc }) => (
                 <div key={title} className="bg-gray-800/50 rounded-lg p-3">
                   <p className="text-gray-300 font-medium">{icon} {title}</p>

@@ -1,5 +1,5 @@
 // ============================================================
-// Scriptable スクリプト — バックテスト起動
+// Scriptable スクリプト — バックテスト起動 (デイ/スイング選択)
 // ============================================================
 // 【設定方法】
 // 1. GitHub で Personal Access Token を発行
@@ -29,6 +29,22 @@ if (GITHUB_TOKEN.includes("ここに")) {
   return;
 }
 
+// ── モード選択ダイアログ ──────────────────────────────────────
+const modeAlert = new Alert();
+modeAlert.title = "バックテストモード";
+modeAlert.message = "実行するモードを選んでください\n\n• スイング: 数日〜数週間保有の戦略最適化\n• デイ: 当日内 2〜8h 保有の戦略最適化\n• 両方: 約20〜40分かかります";
+modeAlert.addAction("スイング (推奨)");
+modeAlert.addAction("デイトレード");
+modeAlert.addAction("両方");
+modeAlert.addCancelAction("キャンセル");
+
+const modeIdx = await modeAlert.present();
+if (modeIdx === -1) { Script.complete(); return; }
+
+const modeMap = { 0: "swing", 1: "day", 2: "both" };
+const mode = modeMap[modeIdx];
+const modeJa = { swing: "スイング", day: "デイ", both: "スイング + デイ" }[mode];
+
 // ── ワークフロー起動 API リクエスト ────────────────────────────
 const url = `https://api.github.com/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches`;
 
@@ -39,26 +55,29 @@ req.headers = {
   "Accept":        "application/vnd.github.v3+json",
   "Content-Type":  "application/json",
 };
-req.body = JSON.stringify({ ref: BRANCH });
+req.body = JSON.stringify({
+  ref: BRANCH,
+  inputs: { mode: mode },
+});
 
 try {
   await req.load();
   const status = req.response.statusCode;
 
   if (status === 204) {
-    // 起動成功
     const a = new Alert();
-    a.title   = "バックテスト開始 ✓";
-    a.message = "GitHub Actions でバックテストが始まりました。\n\n約10〜20分後に完了し、\n結果が自動でサイトに反映されます。\n\n進捗は GitHub の Actions タブで確認できます。";
+    a.title   = `${modeJa} バックテスト開始 ✓`;
+    a.message = `GitHub Actions で「${modeJa}」バックテストが始まりました。\n\n` +
+                `実験計画法 (DOE) → 遺伝的アルゴリズム → Walk-Forward 検証\n\n` +
+                `完了まで約 ${mode === "both" ? "20〜40" : "10〜20"}分。\n` +
+                `結果は自動でサイトに反映されます。`;
     a.addAction("OK");
     await a.present();
 
   } else if (status === 401) {
     throw new Error("トークンが無効です。\nGitHub でトークンを再発行してください。");
-
   } else if (status === 404) {
-    throw new Error("リポジトリまたはワークフローが見つかりません。\nREPO / WORKFLOW の設定を確認してください。");
-
+    throw new Error("リポジトリまたはワークフローが見つかりません。");
   } else {
     throw new Error(`HTTPエラー: ${status}`);
   }
