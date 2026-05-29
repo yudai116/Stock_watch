@@ -33,7 +33,7 @@ DATA_FILE     = HERE / "price_data_intraday.json"
 RESULTS_SWING = HERE / "strategy_results_swing.json"
 RESULTS_DAY   = HERE / "strategy_results_day.json"
 
-MIN_TRADES    = 15
+MIN_TRADES    = 30
 BARS_PER_YEAR = 1500   # 1h bars/year (US+JP平均)
 
 # ── 取引コスト (往復) ────────────────────────────────────────────────────────
