@@ -17,3 +17,6 @@ next-env.d.ts
 # System
 .DS_Store
 *.log
+
+# Claude Code internal
+.claude/
