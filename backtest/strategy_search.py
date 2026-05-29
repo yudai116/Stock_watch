@@ -35,6 +35,7 @@ HERE          = Path(__file__).parent
 DATA_FILE     = HERE / "price_data_intraday.json"
 RESULTS_SWING = HERE / "strategy_results_swing.json"
 RESULTS_DAY   = HERE / "strategy_results_day.json"
+ARTIFACTS_DIR = HERE / "phase_artifacts"
 
 MIN_TRADES    = 30
 BARS_PER_YEAR = 1500   # 1h bars/year (US+JP平均)
@@ -101,6 +102,9 @@ SWING_SELL_RULES: dict[str, dict] = {
     "target15_stop7":  {"type": "target_stop", "target": 15, "stop": 7},
     "trail_5pct":      {"type": "trailing",    "trail": 5},
     "trail_10pct":     {"type": "trailing",    "trail": 10},
+    "trail_15pct":     {"type": "trailing",    "trail": 15},
+    "target25_stop10": {"type": "target_stop", "target": 25, "stop": 10},
+    "hold_200b":       {"type": "hold",        "bars": 200},
 }
 
 DAY_SELL_RULES: dict[str, dict] = {
@@ -114,6 +118,9 @@ DAY_SELL_RULES: dict[str, dict] = {
     "target10_stop5": {"type": "target_stop", "target": 10, "stop": 5},
     "trail_2pct":     {"type": "trailing",    "trail": 2},
     "trail_3pct":     {"type": "trailing",    "trail": 3},
+    "hold_1b":        {"type": "hold",        "bars": 1},
+    "target2_stop1":  {"type": "target_stop", "target": 2,  "stop": 1},
+    "trail_1pct":     {"type": "trailing",    "trail": 1},
 }
 
 SWING_SELL_HOLD = {
@@ -121,6 +128,7 @@ SWING_SELL_HOLD = {
     "target5_stop3": 35,  "target10_stop5": 50, "target15_stop5": 70,
     "target20_stop7": 80, "target15_stop7": 70,
     "trail_5pct": 50,     "trail_10pct": 70,
+    "trail_15pct": 90, "target25_stop10": 100, "hold_200b": 200,
 }
 
 DAY_SELL_HOLD = {
@@ -128,6 +136,7 @@ DAY_SELL_HOLD = {
     "target3_stop2": 4,  "target5_stop3": 6,
     "target7_stop4": 8,  "target10_stop5": 10,
     "trail_2pct": 4,     "trail_3pct": 6,
+    "hold_1b": 1, "target2_stop1": 2, "trail_1pct": 3,
 }
 
 SWING_SELL_JA = {
@@ -143,6 +152,9 @@ SWING_SELL_JA = {
     "target15_stop7": "利確+15% / ストップ-7%",
     "trail_5pct":     "トレーリングストップ 5%",
     "trail_10pct":    "トレーリングストップ 10%",
+    "trail_15pct":     "トレーリングストップ 15%",
+    "target25_stop10": "利確+25% / ストップ-10%",
+    "hold_200b":       "固定保有 200h(≈28日)",
 }
 
 DAY_SELL_JA = {
@@ -156,12 +168,15 @@ DAY_SELL_JA = {
     "target10_stop5": "利確+10% / ストップ-5%",
     "trail_2pct":     "トレーリングストップ 2%",
     "trail_3pct":     "トレーリングストップ 3%",
+    "hold_1b":       "固定保有 1h",
+    "target2_stop1": "利確+2% / ストップ-1%",
+    "trail_1pct":    "トレーリングストップ 1%",
 }
 
 IND_NAMES_SWING = ["RSI", "MACD", "BB", "MA", "Aroon", "Stoch", "CCI", "ROC"]
 IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "Stoch", "ROC", "CCI", "VWAP"]
 
-BUY_THRESHOLDS = [55, 60, 65, 70]
+BUY_THRESHOLDS = [50, 55, 60, 65, 70, 75]
 
 MAX_HOLD_BARS_SWING = 200
 MAX_HOLD_BARS_DAY   = 20
@@ -191,6 +206,50 @@ def load_data(mode: str) -> dict[str, dict]:
             "cost":    cost_rate(ticker),
         }
     return result
+
+def _load_ticker_data(mode: str) -> tuple[dict, int, int]:
+    """Load raw data, compute indicators & sell outcomes. Returns (ticker_data, T_min, t_holdout)."""
+    sell_rules = SWING_SELL_RULES if mode == "swing" else DAY_SELL_RULES
+    max_hold   = MAX_HOLD_BARS_SWING if mode == "swing" else MAX_HOLD_BARS_DAY
+
+    raw = load_data(mode)
+    ticker_data: dict = {}
+    for tkr, td in raw.items():
+        c, o   = td["closes"], td["opens"]
+        h, lo  = td["highs"],  td["lows"]
+        cr     = td["cost"]
+
+        ind_scores = compute_ind_scores(td, mode)
+        vol_ok     = vol_ok_mask(td["volumes"])
+
+        print(f"  {tkr}: 売りルール計算中 ({len(sell_rules)}件)...", end="", flush=True)
+        sell_out = precompute_sell_outcomes(c, o, h, lo, cr, sell_rules, max_hold)
+        print(" done")
+
+        entry_dict: dict = {
+            "ind_scores":    ind_scores,
+            "sell_outcomes": sell_out,
+            "vol_ok":        vol_ok,
+        }
+        if mode == "day":
+            entry_dict["edge_bar"] = edge_bar_mask(td["dates"], len(c))
+
+        ticker_data[tkr] = entry_dict
+
+    T_min     = min(len(td["ind_scores"][0]) for td in ticker_data.values())
+    t_holdout = int(T_min * 0.80)
+    return ticker_data, T_min, t_holdout
+
+
+def _wf_splits(T_min: int, t_holdout: int) -> list[tuple[int, int]]:
+    """4-fold expanding WF splits within training data [0, t_holdout]."""
+    return [
+        (int(T_min * 0.30), int(T_min * 0.43)),
+        (int(T_min * 0.43), int(T_min * 0.56)),
+        (int(T_min * 0.56), int(T_min * 0.69)),
+        (int(T_min * 0.69), t_holdout),
+    ]
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 2. フィルターマスク
