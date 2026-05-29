@@ -236,9 +236,9 @@ type StrategyData = {
   n_evaluated?: number;
   top100: StrategyResult[];
   sell_rule_ranking: SellRuleStat[];
-  indicator_weight_corr_with_sharpe: Record<string, number>;
-  top100_median_weights: Record<string, number>;
-  top100_weight_ranking: string[];
+  indicator_weight_corr_with_sharpe?: Record<string, number>;
+  top100_median_weights?: Record<string, number>;
+  top100_weight_ranking?: string[];
   summary: {
     best_sharpe: number;
     best_sell_rule: string;
@@ -633,8 +633,8 @@ function SellRuleRankingSection({ stats }: { stats: SellRuleStat[] }) {
                   <span className="text-gray-200 text-sm font-medium">{sr.sell_rule_ja}</span>
                   <div className="flex items-center gap-3 text-xs">
                     <span className="text-emerald-400 font-bold">シャープ {sr.best_sharpe.toFixed(3)}</span>
-                    <span className="text-gray-400">勝率 {(sr.best_win_rate * 100).toFixed(1)}%</span>
-                    <span className="text-gray-400">平均 {sr.best_avg_return > 0 ? "+" : ""}{sr.best_avg_return.toFixed(2)}%</span>
+                    {sr.best_win_rate != null && <span className="text-gray-400">勝率 {(sr.best_win_rate * 100).toFixed(1)}%</span>}
+                    {sr.best_avg_return != null && <span className="text-gray-400">平均 {sr.best_avg_return > 0 ? "+" : ""}{sr.best_avg_return.toFixed(2)}%</span>}
                   </div>
                 </div>
                 <div className="relative h-2 bg-gray-700 rounded-full">
@@ -645,22 +645,24 @@ function SellRuleRankingSection({ stats }: { stats: SellRuleStat[] }) {
                 </div>
               </div>
             </div>
-            <div className="ml-8">
-              <p className="text-gray-600 text-xs mb-1">最適買いシグナル重み</p>
-              <div className="flex items-center gap-3">
-                <WeightBar weights={sr.best_weights} />
-                <div className="flex gap-2 flex-shrink-0 text-xs">
-                  {Object.entries(sr.best_weights)
-                    .sort(([, a], [, b]) => b - a)
-                    .map(([name, w]) => (
-                      <span key={name} className={IND_TEXT_CLS[name] ?? "text-gray-400"}>
-                        {name}×{w.toFixed(2)}
-                      </span>
-                    ))}
+            {sr.best_weights && (
+              <div className="ml-8">
+                <p className="text-gray-600 text-xs mb-1">最適買いシグナル重み</p>
+                <div className="flex items-center gap-3">
+                  <WeightBar weights={sr.best_weights} />
+                  <div className="flex gap-2 flex-shrink-0 text-xs">
+                    {Object.entries(sr.best_weights)
+                      .sort(([, a], [, b]) => b - a)
+                      .map(([name, w]) => (
+                        <span key={name} className={IND_TEXT_CLS[name] ?? "text-gray-400"}>
+                          {name}×{w.toFixed(2)}
+                        </span>
+                      ))}
+                  </div>
+                  <span className="text-gray-600 text-xs flex-shrink-0">≥{sr.best_threshold ?? "—"}点</span>
                 </div>
-                <span className="text-gray-600 text-xs flex-shrink-0">≥{sr.best_threshold}点</span>
               </div>
-            </div>
+            )}
           </div>
         );
       })}
@@ -683,10 +685,10 @@ function TopStrategiesSection({ strategies }: { strategies: StrategyResult[] }) 
               <div className="flex-1 space-y-1.5">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                   <span className="text-emerald-400 font-bold">シャープ {s.sharpe.toFixed(3)}</span>
-                  <span className="text-gray-300">勝率 {(s.win_rate * 100).toFixed(1)}%</span>
-                  <span className="text-gray-300">平均 {s.avg_return > 0 ? "+" : ""}{s.avg_return.toFixed(2)}%</span>
-                  <span className="text-gray-500">{s.n_trades}件</span>
-                  <span className="text-red-400/70">最大損失 {s.max_dd.toFixed(1)}%</span>
+                  {s.win_rate != null && <span className="text-gray-300">勝率 {(s.win_rate * 100).toFixed(1)}%</span>}
+                  {s.avg_return != null && <span className="text-gray-300">平均 {s.avg_return > 0 ? "+" : ""}{s.avg_return.toFixed(2)}%</span>}
+                  {s.n_trades != null && <span className="text-gray-500">{s.n_trades}件</span>}
+                  {s.max_dd != null && <span className="text-red-400/70">最大損失 {s.max_dd.toFixed(1)}%</span>}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-gray-500">買い:</span>
@@ -966,16 +968,20 @@ export default function BacktestPage({
           </div>
 
           {/* Indicator importance */}
-          <div>
-            <h3 className="text-gray-300 text-sm font-semibold mb-3">
-              買い指標 重要度ランキング — どの指標を重視すべきか
-            </h3>
-            <IndicatorImportanceSection
-              corr={strategyData.indicator_weight_corr_with_sharpe}
-              medWeights={strategyData.top100_median_weights}
-              ranking={strategyData.top100_weight_ranking}
-            />
-          </div>
+          {strategyData.indicator_weight_corr_with_sharpe &&
+           strategyData.top100_median_weights &&
+           strategyData.top100_weight_ranking && (
+            <div>
+              <h3 className="text-gray-300 text-sm font-semibold mb-3">
+                買い指標 重要度ランキング — どの指標を重視すべきか
+              </h3>
+              <IndicatorImportanceSection
+                corr={strategyData.indicator_weight_corr_with_sharpe}
+                medWeights={strategyData.top100_median_weights}
+                ranking={strategyData.top100_weight_ranking}
+              />
+            </div>
+          )}
 
           {/* Top strategies */}
           <div>

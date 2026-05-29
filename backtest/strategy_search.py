@@ -544,6 +544,43 @@ def batch_sharpe(ticker_data: dict, wm: np.ndarray, sell_name: str,
 
     return shp
 
+def detailed_eval_single(ticker_data: dict, w: np.ndarray, sell_name: str,
+                          threshold: int, hold_bars: int,
+                          t_start: int, t_end: int) -> dict:
+    """単一重みベクトルの詳細評価 (n_trades / win_rate / avg_return / max_dd)"""
+    n = 0; s = 0.; sq = 0.; wins = 0; min_ret = np.inf
+    wm = w.reshape(1, 8).astype(np.float32)
+    for td in ticker_data.values():
+        ind   = td["ind_scores"][:, t_start:t_end].astype(np.float32)
+        sout  = td["sell_outcomes"][sell_name][t_start:t_end].astype(np.float32)
+        vmask = td["vol_ok"][t_start:t_end]
+        if "edge_bar" in td:
+            vmask = vmask & ~td["edge_bar"][t_start:t_end]
+        valid = ~np.isnan(sout) & vmask
+        comp  = (wm @ ind)[0]
+        mask  = (comp >= threshold) & valid
+        tr    = sout[mask]
+        if len(tr) == 0: continue
+        n    += len(tr)
+        s    += float(tr.sum())
+        sq   += float((tr**2).sum())
+        wins += int((tr > 0).sum())
+        min_ret = min(min_ret, float(tr.min()))
+    if n == 0:
+        return {"sharpe": 0., "n_trades": 0, "win_rate": 0., "avg_return": 0., "max_dd": 0.}
+    avg = s / n
+    var = sq / n - avg**2
+    std = np.sqrt(max(var, 0.))
+    factor = np.sqrt(BARS_PER_YEAR / max(hold_bars, 1))
+    sharpe = (avg / std * factor) if std > 1e-10 else 0.
+    return {
+        "sharpe":      round(float(sharpe), 4),
+        "n_trades":    n,
+        "win_rate":    round(wins / n, 4),
+        "avg_return":  round(avg * 100, 3),
+        "max_dd":      round((min_ret if min_ret < np.inf else 0.) * 100, 3),
+    }
+
 # ══════════════════════════════════════════════════════════════════════════════
 # 8. DOE 主効果分析 (Taguchi L18)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -726,6 +763,26 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
     all_results.sort(key=lambda x: x["shp"], reverse=True)
     top100 = all_results[:100]
 
+    # 指標重み相関 (MC 上位 2000 件)
+    if len(all_results) >= 10:
+        mc_slice     = all_results[:min(2000, len(all_results))]
+        weights_arr  = np.array([r["weights"] for r in mc_slice])
+        sharpes_arr  = np.array([r["shp"]     for r in mc_slice])
+        ind_corr: dict[str, float] = {}
+        for i, nm in enumerate(ind_names):
+            cv = float(np.corrcoef(weights_arr[:, i], sharpes_arr)[0, 1])
+            ind_corr[nm] = round(cv if np.isfinite(cv) else 0., 4)
+    else:
+        ind_corr = {nm: 0. for nm in ind_names}
+
+    # top100 中央値重みと重要度ランキング
+    if top100:
+        tw_arr = np.array([r["weights"] for r in top100])
+        med_w  = {nm: round(float(np.median(tw_arr[:, i])), 3) for i, nm in enumerate(ind_names)}
+    else:
+        med_w = {nm: round(float(best_w[i]), 3) for i, nm in enumerate(ind_names)}
+    weight_ranking = sorted(ind_names, key=lambda n: med_w[n], reverse=True)
+
     # ── Step 5: Walk-Forward テスト ──────────────────────────────────────────
     print("\n  ===== STEP 5: Walk-Forward テスト =====")
     wm_best = best_w.reshape(1, 8)
@@ -763,26 +820,52 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
     print(f"  テスト: N={test_n}  シャープ={test_shp:.4f}  "
           f"勝率={test_win_rate*100:.1f}%  avg={test_avg_ret:+.2f}%")
 
-    # ── 売りルールランキング (訓練データ) ────────────────────────────────────
+    # ── 売りルールランキング (訓練データ、GA最良重みで評価) ─────────────────
+    print("  売りルールランキング評価中...")
     sell_stats = []
     for sname in sell_rules:
         hb_ = sell_hold[sname]
-        sm = batch_sharpe(ticker_data, wm_best, sname, BUY_THRESHOLDS, hb_, 0, t_train_end)
-        best_shp_s = float(np.nanmax(sm)) if not np.all(np.isnan(sm)) else 0.
+        sm  = batch_sharpe(ticker_data, wm_best, sname, BUY_THRESHOLDS, hb_, 0, t_train_end)
+        if not np.all(np.isnan(sm)):
+            best_ti    = int(np.nanargmax(sm[0]))
+            best_thr_s = BUY_THRESHOLDS[best_ti]
+            best_shp_s = float(sm[0, best_ti])
+            avg_shp    = float(np.nanmean(sm[0]))
+            dstats     = detailed_eval_single(ticker_data, best_w, sname,
+                                               best_thr_s, hb_, 0, t_train_end)
+        else:
+            best_thr_s = BUY_THRESHOLDS[0]; best_shp_s = 0.; avg_shp = 0.
+            dstats = {"win_rate": 0., "n_trades": 0, "avg_return": 0., "max_dd": 0.}
         sell_stats.append({
-            "sell_rule":    sname,
-            "sell_rule_ja": sell_ja[sname],
-            "best_sharpe":  round(best_shp_s, 4),
+            "sell_rule":       sname,
+            "sell_rule_ja":    sell_ja[sname],
+            "best_sharpe":     round(best_shp_s, 4),
+            "avg_sharpe":      round(avg_shp, 4),
+            "best_win_rate":   dstats["win_rate"],
+            "best_n_trades":   dstats["n_trades"],
+            "best_avg_return": dstats["avg_return"],
+            "best_weights":    best_weights,
+            "best_threshold":  best_thr_s,
         })
     sell_stats.sort(key=lambda x: x["best_sharpe"], reverse=True)
 
-    # ── 出力 JSON 組み立て ────────────────────────────────────────────────────
-    top100_out = [{
-        "buy_weights":  {nm: round(float(r["weights"][i]), 3) for i, nm in enumerate(ind_names)},
-        "buy_threshold": r["thr"],
-        "sell_rule":     best_sell,
-        "sharpe":        round(r["shp"], 4),
-    } for r in top100]
+    # ── top100 詳細評価 ───────────────────────────────────────────────────────
+    print("  top100 詳細評価中...")
+    hb = sell_hold[best_sell]
+    top100_out = []
+    for r in top100:
+        ds = detailed_eval_single(ticker_data, r["weights"], best_sell,
+                                   r["thr"], hb, 0, t_train_end)
+        top100_out.append({
+            "buy_weights":   {nm: round(float(r["weights"][i]), 3) for i, nm in enumerate(ind_names)},
+            "buy_threshold": r["thr"],
+            "sell_rule":     best_sell,
+            "sharpe":        ds["sharpe"],
+            "n_trades":      ds["n_trades"],
+            "win_rate":      ds["win_rate"],
+            "avg_return":    ds["avg_return"],
+            "max_dd":        ds["max_dd"],
+        })
 
     return {
         "version":       5,
@@ -792,12 +875,16 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
         "n_tickers":     len(ticker_data),
         "tickers":       list(ticker_data.keys()),
         "n_evaluated":   len(all_results),
-        "transaction_costs": {"US": f"{US_COST*100:.2f}%", "JP": f"{JP_COST*100:.2f}%"},
+        "transaction_costs": {"US_pct": round(US_COST * 100, 2), "JP_pct": round(JP_COST * 100, 2)},
         "lookahead_bias_fixed": True,
         "entry_price":   "open of bar t+1 (signal at close of bar t)",
         "top100":        top100_out,
         "sell_rule_ranking": sell_stats,
+        "indicator_weight_corr_with_sharpe": ind_corr,
+        "top100_median_weights":   med_w,
+        "top100_weight_ranking":   weight_ranking,
         "summary": {
+            "best_sharpe":       round(train_shp, 4),
             "best_sharpe_train": round(train_shp, 4),
             "best_sell_rule":    best_sell,
             "best_weights":      best_weights,
