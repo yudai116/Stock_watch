@@ -1,0 +1,54 @@
+name: バックテスト実行（実データ）
+
+on:
+  workflow_dispatch:        # iPhone / GitHub から手動起動
+  schedule:
+    - cron: '0 1 * * 0'    # 毎週日曜 AM10:00 JST に自動実行
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # 結果ファイルをコミットするため
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: claude/stock-price-dashboard-QrhiS
+
+      # ── Step 1: 実株価データ取得 (Node.js + yahoo-finance2) ───────────────
+      - name: Node.js セットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: npm install
+        run: npm ci
+
+      - name: 実株価データ取得 (2015-2025, 15銘柄)
+        run: node backtest/fetch_data.mjs
+
+      # ── Step 2: 戦略最適化 (Python + numpy) ──────────────────────────────
+      - name: Python セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: numpy インストール
+        run: pip install numpy --quiet
+
+      - name: 戦略最適化実行 (~560,000 通りの組み合わせ検証)
+        run: python3 backtest/strategy_search.py
+
+      # ── Step 3: 結果をリポジトリにコミット ────────────────────────────────
+      - name: 結果コミット & プッシュ
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add backtest/price_data.json backtest/strategy_results.json
+          git diff --staged --quiet && echo "変更なし" || (
+            git commit -m "chore: 実データバックテスト結果を更新 [skip ci]" &&
+            git push origin claude/stock-price-dashboard-QrhiS
+          )
