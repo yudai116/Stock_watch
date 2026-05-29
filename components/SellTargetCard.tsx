@@ -30,6 +30,14 @@ export default function SellTargetCard({ sellSignals, currency, currentPrice }: 
     ? Math.round(((bb_target_2_5sigma - currentPrice) / currentPrice) * 1000) / 10
     : null;
 
+  // ATR-based position sizing: リスク1%なら capital × 1% ÷ ATR 株
+  const atrPct = (atr_14d && currentPrice > 0)
+    ? Math.round((atr_14d / currentPrice) * 1000) / 10  // ATR as % of price
+    : null;
+  const posSizePct = atrPct && atrPct > 0
+    ? Math.round((1 / atrPct) * 1000) / 10  // % of capital for 1% risk
+    : null;
+
   return (
     <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
       <div className="flex items-center gap-2 mb-3">
@@ -58,7 +66,11 @@ export default function SellTargetCard({ sellSignals, currency, currentPrice }: 
         <Row
           label="ATR 14日 (ボラティリティ)"
           value={atr_14d ? formatPrice(atr_14d, currency) : "N/A"}
-          sub="ポジションサイジングの参考"
+          sub={
+            atrPct && posSizePct
+              ? `価格の${atrPct}% — リスク1%なら資金の${posSizePct}%まで`
+              : "ポジションサイジングの参考"
+          }
           highlight="yellow"
         />
         <Row
@@ -68,7 +80,10 @@ export default function SellTargetCard({ sellSignals, currency, currentPrice }: 
         />
       </div>
       <p className="text-gray-600 text-xs mt-3">
-        ① BB上限2σ = 主要利確目標 / ② BB上限2.5σ = 強トレンド時の延長目標 / ATRはポジションサイズ計算に使用
+        ① BB上限2σ = 主要利確目標 / ② BB上限2.5σ = 強トレンド時の延長目標
+        {atrPct && posSizePct && (
+          <> / ATRポジションサイズ式: 資金 × 1% ÷ ATR({atrPct}%) = 資金の{posSizePct}%</>
+        )}
       </p>
     </div>
   );
