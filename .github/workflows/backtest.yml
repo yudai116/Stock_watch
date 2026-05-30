@@ -32,7 +32,6 @@ jobs:
       - name: リポジトリをチェックアウト
         uses: actions/checkout@v4
         with:
-          ref: claude/stock-price-dashboard-QrhiS
       - name: Node.js セットアップ
         uses: actions/setup-node@v4
         with:
@@ -58,7 +57,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: claude/stock-price-dashboard-QrhiS
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -85,7 +83,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: claude/stock-price-dashboard-QrhiS
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -112,7 +109,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: claude/stock-price-dashboard-QrhiS
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -160,7 +156,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: claude/stock-price-dashboard-QrhiS
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -208,7 +203,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: claude/stock-price-dashboard-QrhiS
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -256,7 +250,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: claude/stock-price-dashboard-QrhiS
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -304,7 +297,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: claude/stock-price-dashboard-QrhiS
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -352,7 +344,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: claude/stock-price-dashboard-QrhiS
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -400,7 +391,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: claude/stock-price-dashboard-QrhiS
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -448,7 +438,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: claude/stock-price-dashboard-QrhiS
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -496,7 +485,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: claude/stock-price-dashboard-QrhiS
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -544,7 +532,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: claude/stock-price-dashboard-QrhiS
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -592,7 +579,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: claude/stock-price-dashboard-QrhiS
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -643,7 +629,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: claude/stock-price-dashboard-QrhiS
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -699,7 +684,6 @@ jobs:
       - name: リポジトリをチェックアウト
         uses: actions/checkout@v4
         with:
-          ref: claude/stock-price-dashboard-QrhiS
       - name: スイング結果を取得
         uses: actions/download-artifact@v4
         with:
@@ -720,5 +704,5 @@ jobs:
                   backtest/strategy_results_day.json 2>/dev/null || true
           git diff --staged --quiet && echo "変更なし" || (
             git commit -m "chore: バックテスト結果を更新 [skip ci]" &&
-            git push origin claude/stock-price-dashboard-QrhiS
+            git push origin main
           )
