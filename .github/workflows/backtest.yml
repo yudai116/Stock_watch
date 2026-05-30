@@ -16,7 +16,10 @@ on:
     - cron: '0 1 * * 0'
 
 # ── チェックポイント/再開の仕組み ────────────────────────────────────────────
-# WF fold / final ジョブがタイムリミット (310分) を超えた場合:
+# 全体の目標実行時間: 5〜6時間未満 (--both モード)
+#   fetch(~20分) + DOE(~10分) + WF/Final並列(230分) + Assemble(~10分) + commit(~5分) ≈ 5.5h
+#
+# WF fold / final ジョブがタイムリミット (230分) を超えた場合:
 #   - チェックポイントをアーティファクトに保存して exit 1 (= ジョブ失敗)
 #   - GitHub Actions の "Re-run failed jobs" を実行すると続きから再開
 #   - チェックポイントには完了した売りルールのGA結果が保存されており、
@@ -102,7 +105,7 @@ jobs:
     needs: [fetch-data, swing-doe]
     if: ${{ github.event.inputs.mode != 'day' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 255
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -126,7 +129,7 @@ jobs:
       - run: pip install numpy --quiet
       - name: スイング WF Fold 0 実行
         id: run_fold
-        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 0 --time-limit 310
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 0 --time-limit 230
       - name: チェックポイント保存 (常に実行)
         if: always()
         uses: actions/upload-artifact@v4
@@ -148,7 +151,7 @@ jobs:
     needs: [fetch-data, swing-doe]
     if: ${{ github.event.inputs.mode != 'day' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 255
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -172,7 +175,7 @@ jobs:
       - run: pip install numpy --quiet
       - name: スイング WF Fold 1 実行
         id: run_fold
-        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 1 --time-limit 310
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 1 --time-limit 230
       - name: チェックポイント保存 (常に実行)
         if: always()
         uses: actions/upload-artifact@v4
@@ -194,7 +197,7 @@ jobs:
     needs: [fetch-data, swing-doe]
     if: ${{ github.event.inputs.mode != 'day' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 255
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -218,7 +221,7 @@ jobs:
       - run: pip install numpy --quiet
       - name: スイング WF Fold 2 実行
         id: run_fold
-        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 2 --time-limit 310
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 2 --time-limit 230
       - name: チェックポイント保存 (常に実行)
         if: always()
         uses: actions/upload-artifact@v4
@@ -240,7 +243,7 @@ jobs:
     needs: [fetch-data, swing-doe]
     if: ${{ github.event.inputs.mode != 'day' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 255
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -264,7 +267,7 @@ jobs:
       - run: pip install numpy --quiet
       - name: スイング WF Fold 3 実行
         id: run_fold
-        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 3 --time-limit 310
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 3 --time-limit 230
       - name: チェックポイント保存 (常に実行)
         if: always()
         uses: actions/upload-artifact@v4
@@ -286,7 +289,7 @@ jobs:
     needs: [fetch-data, swing-doe]
     if: ${{ github.event.inputs.mode != 'day' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 255
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -310,7 +313,7 @@ jobs:
       - run: pip install numpy --quiet
       - name: スイング 最終GA 実行
         id: run_final
-        run: python3 backtest/strategy_search.py --phase final --mode swing --time-limit 310
+        run: python3 backtest/strategy_search.py --phase final --mode swing --time-limit 230
       - name: チェックポイント保存 (常に実行)
         if: always()
         uses: actions/upload-artifact@v4
@@ -332,7 +335,7 @@ jobs:
     needs: [fetch-data, day-doe]
     if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 255
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -356,7 +359,7 @@ jobs:
       - run: pip install numpy --quiet
       - name: デイトレ WF Fold 0 実行
         id: run_fold
-        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 0 --time-limit 310
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 0 --time-limit 230
       - name: チェックポイント保存 (常に実行)
         if: always()
         uses: actions/upload-artifact@v4
@@ -378,7 +381,7 @@ jobs:
     needs: [fetch-data, day-doe]
     if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 255
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -402,7 +405,7 @@ jobs:
       - run: pip install numpy --quiet
       - name: デイトレ WF Fold 1 実行
         id: run_fold
-        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 1 --time-limit 310
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 1 --time-limit 230
       - name: チェックポイント保存 (常に実行)
         if: always()
         uses: actions/upload-artifact@v4
@@ -424,7 +427,7 @@ jobs:
     needs: [fetch-data, day-doe]
     if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 255
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -448,7 +451,7 @@ jobs:
       - run: pip install numpy --quiet
       - name: デイトレ WF Fold 2 実行
         id: run_fold
-        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 2 --time-limit 310
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 2 --time-limit 230
       - name: チェックポイント保存 (常に実行)
         if: always()
         uses: actions/upload-artifact@v4
@@ -470,7 +473,7 @@ jobs:
     needs: [fetch-data, day-doe]
     if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 255
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -494,7 +497,7 @@ jobs:
       - run: pip install numpy --quiet
       - name: デイトレ WF Fold 3 実行
         id: run_fold
-        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 3 --time-limit 310
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 3 --time-limit 230
       - name: チェックポイント保存 (常に実行)
         if: always()
         uses: actions/upload-artifact@v4
@@ -516,7 +519,7 @@ jobs:
     needs: [fetch-data, day-doe]
     if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 255
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -540,7 +543,7 @@ jobs:
       - run: pip install numpy --quiet
       - name: デイトレ 最終GA 実行
         id: run_final
-        run: python3 backtest/strategy_search.py --phase final --mode day --time-limit 310
+        run: python3 backtest/strategy_search.py --phase final --mode day --time-limit 230
       - name: チェックポイント保存 (常に実行)
         if: always()
         uses: actions/upload-artifact@v4
