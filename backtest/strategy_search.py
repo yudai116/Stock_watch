@@ -41,6 +41,10 @@ MIN_TRADES     = 30   # 訓練期間の最小取引数
 MIN_TRADES_OOS = 5    # OOS/ホールドアウト評価の最小取引数（短い窓でも記録する）
 BARS_PER_YEAR  = 1500  # 1h bars/year (US+JP平均)
 
+# スイング専用パラメータ（過学習対策）
+SWING_MIN_TRADES      = 50   # 30→50: ホールドアウト期間の取引数を増やす
+SWING_BUY_THRESHOLDS  = [40, 45, 50, 55, 60, 65, 70, 75]  # 閾値範囲を拡大（40,45を追加）
+
 # GA ハイパーパラメータ
 GA_POP   = 2000   # 個体数
 GA_GENS  = 500    # 世代数
@@ -48,6 +52,7 @@ GA_ELITE = 40     # エリート保存数
 GA_TOURN = 7      # トーナメントサイズ
 GA_SIGMA = 0.10   # Gaussian突然変異σ
 GA_MPROB = 0.25   # 突然変異確率
+GA_L2_LAMBDA = 0.5  # L2正則化強度: 1指標への過度な集中を抑制しOOS汎化性を向上
 
 # ── 取引コスト (往復) ────────────────────────────────────────────────────────
 JP_COST = 0.0030   # 東証: 0.30%
@@ -723,8 +728,13 @@ def run_ga(ticker_data: dict, mode: str, doe_effects: dict,
     thresholds_single = [best_thresh]
 
     def fitness_batch(wm_: np.ndarray) -> np.ndarray:
-        shp = batch_sharpe(ticker_data, wm_, best_sell, thresholds_single, hb, 0, t_train_end)
-        return np.where(np.isnan(shp[:, 0]), -np.inf, shp[:, 0])
+        min_t = SWING_MIN_TRADES if mode == "swing" else MIN_TRADES
+        shp = batch_sharpe(ticker_data, wm_, best_sell, thresholds_single, hb, 0, t_train_end,
+                           min_trades=min_t)
+        fit = np.where(np.isnan(shp[:, 0]), -np.inf, shp[:, 0])
+        # L2正則化: 重みの集中を抑制しOOS汎化性を向上（指標数で正規化）
+        n_ind = wm_.shape[1]
+        return fit - GA_L2_LAMBDA * np.sum(wm_**2, axis=1) / n_ind
 
     convergence = []
     no_improve = 0
@@ -827,15 +837,18 @@ def run_ga_all_sells(ticker_data: dict, mode: str, doe_effects: dict,
             print(f"  チェックポイント復元: {len(completed_sells)}/{len(sell_rules)} 売りルール完了")
 
     # MC probe (300サンプル) で各売りルールの best_thresh を事前決定
+    thresholds = SWING_BUY_THRESHOLDS if mode == "swing" else BUY_THRESHOLDS
+    min_t_train = SWING_MIN_TRADES if mode == "swing" else MIN_TRADES
     np.random.seed(0)
     probe_w = np.random.dirichlet(alpha, 300) * 4.0
     best_thresh_per_sell: dict[str, int] = {}
     for sname in sell_rules:
         hb = sell_hold[sname]
-        shp_mat = batch_sharpe(ticker_data, probe_w, sname, BUY_THRESHOLDS, hb, 0, t_train_end)
+        shp_mat = batch_sharpe(ticker_data, probe_w, sname, thresholds, hb, 0, t_train_end,
+                               min_trades=min_t_train)
         col_means = np.nanmean(shp_mat, axis=0)
         best_ti = int(np.nanargmax(col_means)) if not np.all(np.isnan(col_means)) else 0
-        best_thresh_per_sell[sname] = BUY_THRESHOLDS[best_ti]
+        best_thresh_per_sell[sname] = thresholds[best_ti]
 
     # 全売りルールでGA
     n_rules = len(sell_rules)
@@ -1152,10 +1165,11 @@ def run_phase_assemble(mode: str) -> None:
     mc_w  = np.random.dirichlet(alpha, 5000) * 4.0
     mc_w  = np.vstack([mc_w, best_w.reshape(1, 8)])
 
+    assemble_thresholds = SWING_BUY_THRESHOLDS if mode == "swing" else BUY_THRESHOLDS
     all_results: list[dict] = []
-    shp_mat = batch_sharpe(ticker_data, mc_w, best_sell, BUY_THRESHOLDS, hb, 0, t_holdout)
+    shp_mat = batch_sharpe(ticker_data, mc_w, best_sell, assemble_thresholds, hb, 0, t_holdout)
     for wi in range(len(mc_w)):
-        for ti, thr in enumerate(BUY_THRESHOLDS):
+        for ti, thr in enumerate(assemble_thresholds):
             sv = shp_mat[wi, ti]
             if np.isnan(sv): continue
             all_results.append({"weights": mc_w[wi], "thr": thr, "shp": float(sv)})
@@ -1190,15 +1204,15 @@ def run_phase_assemble(mode: str) -> None:
     sell_stats: list[dict] = []
     for sname in sell_rules:
         hb_ = sell_hold[sname]
-        sm  = batch_sharpe(ticker_data, wm_best, sname, BUY_THRESHOLDS, hb_, 0, t_holdout)
+        sm  = batch_sharpe(ticker_data, wm_best, sname, assemble_thresholds, hb_, 0, t_holdout)
         if not np.all(np.isnan(sm)):
             best_ti    = int(np.nanargmax(sm[0]))
-            best_thr_s = BUY_THRESHOLDS[best_ti]
+            best_thr_s = assemble_thresholds[best_ti]
             best_shp_s = float(sm[0, best_ti])
             avg_shp    = float(np.nanmean(sm[0]))
             dstats     = detailed_eval_single(ticker_data, best_w, sname, best_thr_s, hb_, 0, t_holdout)
         else:
-            best_thr_s = BUY_THRESHOLDS[0]; best_shp_s = 0.; avg_shp = 0.
+            best_thr_s = assemble_thresholds[0]; best_shp_s = 0.; avg_shp = 0.
             dstats = {"win_rate": 0., "n_trades": 0, "avg_return": 0., "max_dd": 0.}
         sell_stats.append({
             "sell_rule": sname, "sell_rule_ja": sell_ja[sname],
@@ -1390,11 +1404,12 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
     mc_w = np.random.dirichlet(np.ones(8), 5000) * 4.0
     mc_w = np.vstack([mc_w, best_w.reshape(1, 8)])
 
+    fe_thresholds = SWING_BUY_THRESHOLDS if mode == "swing" else BUY_THRESHOLDS
     all_results = []
     hb = sell_hold[best_sell]
-    shp_mat = batch_sharpe(ticker_data, mc_w, best_sell, BUY_THRESHOLDS, hb, 0, t_holdout)
+    shp_mat = batch_sharpe(ticker_data, mc_w, best_sell, fe_thresholds, hb, 0, t_holdout)
     for wi in range(len(mc_w)):
-        for ti, thr in enumerate(BUY_THRESHOLDS):
+        for ti, thr in enumerate(fe_thresholds):
             sv = shp_mat[wi, ti]
             if np.isnan(sv): continue
             all_results.append({"weights": mc_w[wi], "thr": thr, "shp": float(sv)})
@@ -1440,16 +1455,16 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
     sell_stats = []
     for sname in sell_rules:
         hb_ = sell_hold[sname]
-        sm  = batch_sharpe(ticker_data, wm_best, sname, BUY_THRESHOLDS, hb_, 0, t_holdout)
+        sm  = batch_sharpe(ticker_data, wm_best, sname, fe_thresholds, hb_, 0, t_holdout)
         if not np.all(np.isnan(sm)):
             best_ti    = int(np.nanargmax(sm[0]))
-            best_thr_s = BUY_THRESHOLDS[best_ti]
+            best_thr_s = fe_thresholds[best_ti]
             best_shp_s = float(sm[0, best_ti])
             avg_shp    = float(np.nanmean(sm[0]))
             dstats     = detailed_eval_single(ticker_data, best_w, sname,
                                                best_thr_s, hb_, 0, t_holdout)
         else:
-            best_thr_s = BUY_THRESHOLDS[0]; best_shp_s = 0.; avg_shp = 0.
+            best_thr_s = fe_thresholds[0]; best_shp_s = 0.; avg_shp = 0.
             dstats = {"win_rate": 0., "n_trades": 0, "avg_return": 0., "max_dd": 0.}
         sell_stats.append({
             "sell_rule":       sname,
