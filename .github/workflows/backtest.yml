@@ -15,6 +15,13 @@ on:
   schedule:
     - cron: '0 1 * * 0'
 
+# ── チェックポイント/再開の仕組み ────────────────────────────────────────────
+# WF fold / final ジョブがタイムリミット (310分) を超えた場合:
+#   - チェックポイントをアーティファクトに保存して exit 1 (= ジョブ失敗)
+#   - GitHub Actions の "Re-run failed jobs" を実行すると続きから再開
+#   - チェックポイントには完了した売りルールのGA結果が保存されており、
+#     再実行時はスキップして残りから処理を開始する
+
 jobs:
 
   # ── Job 1: 価格データ取得 ──────────────────────────────────────────────────
@@ -101,7 +108,7 @@ jobs:
     needs: [fetch-data, swing-doe]
     if: ${{ github.event.inputs.mode != 'day' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
         with:
@@ -110,18 +117,35 @@ jobs:
         with:
           name: price-data
           path: backtest/
-      - run: mkdir -p backtest/phase_artifacts
+      - run: mkdir -p backtest/phase_artifacts/checkpoint_swing_fold_0
       - uses: actions/download-artifact@v4
         with:
           name: doe-swing
           path: backtest/phase_artifacts/
+      - name: チェックポイント取得 (前回の続きがあれば)
+        uses: actions/download-artifact@v4
+        with:
+          name: checkpoint-swing-fold-0
+          path: backtest/phase_artifacts/checkpoint_swing_fold_0/
+        continue-on-error: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: pip install numpy --quiet
       - name: スイング WF Fold 0 実行
-        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 0
-      - uses: actions/upload-artifact@v4
+        id: run_fold
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 0 --time-limit 310
+      - name: チェックポイント保存 (常に実行)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkpoint-swing-fold-0
+          path: backtest/phase_artifacts/checkpoint_swing_fold_0/
+          retention-days: 7
+          overwrite: true
+      - name: 完了時フォールド結果を保存
+        if: steps.run_fold.outcome == 'success'
+        uses: actions/upload-artifact@v4
         with:
           name: wf-swing-fold-0
           path: backtest/phase_artifacts/wf_swing_fold_0.json
@@ -132,7 +156,7 @@ jobs:
     needs: [fetch-data, swing-doe]
     if: ${{ github.event.inputs.mode != 'day' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
         with:
@@ -141,18 +165,35 @@ jobs:
         with:
           name: price-data
           path: backtest/
-      - run: mkdir -p backtest/phase_artifacts
+      - run: mkdir -p backtest/phase_artifacts/checkpoint_swing_fold_1
       - uses: actions/download-artifact@v4
         with:
           name: doe-swing
           path: backtest/phase_artifacts/
+      - name: チェックポイント取得 (前回の続きがあれば)
+        uses: actions/download-artifact@v4
+        with:
+          name: checkpoint-swing-fold-1
+          path: backtest/phase_artifacts/checkpoint_swing_fold_1/
+        continue-on-error: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: pip install numpy --quiet
       - name: スイング WF Fold 1 実行
-        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 1
-      - uses: actions/upload-artifact@v4
+        id: run_fold
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 1 --time-limit 310
+      - name: チェックポイント保存 (常に実行)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkpoint-swing-fold-1
+          path: backtest/phase_artifacts/checkpoint_swing_fold_1/
+          retention-days: 7
+          overwrite: true
+      - name: 完了時フォールド結果を保存
+        if: steps.run_fold.outcome == 'success'
+        uses: actions/upload-artifact@v4
         with:
           name: wf-swing-fold-1
           path: backtest/phase_artifacts/wf_swing_fold_1.json
@@ -163,7 +204,7 @@ jobs:
     needs: [fetch-data, swing-doe]
     if: ${{ github.event.inputs.mode != 'day' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
         with:
@@ -172,18 +213,35 @@ jobs:
         with:
           name: price-data
           path: backtest/
-      - run: mkdir -p backtest/phase_artifacts
+      - run: mkdir -p backtest/phase_artifacts/checkpoint_swing_fold_2
       - uses: actions/download-artifact@v4
         with:
           name: doe-swing
           path: backtest/phase_artifacts/
+      - name: チェックポイント取得 (前回の続きがあれば)
+        uses: actions/download-artifact@v4
+        with:
+          name: checkpoint-swing-fold-2
+          path: backtest/phase_artifacts/checkpoint_swing_fold_2/
+        continue-on-error: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: pip install numpy --quiet
       - name: スイング WF Fold 2 実行
-        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 2
-      - uses: actions/upload-artifact@v4
+        id: run_fold
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 2 --time-limit 310
+      - name: チェックポイント保存 (常に実行)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkpoint-swing-fold-2
+          path: backtest/phase_artifacts/checkpoint_swing_fold_2/
+          retention-days: 7
+          overwrite: true
+      - name: 完了時フォールド結果を保存
+        if: steps.run_fold.outcome == 'success'
+        uses: actions/upload-artifact@v4
         with:
           name: wf-swing-fold-2
           path: backtest/phase_artifacts/wf_swing_fold_2.json
@@ -194,7 +252,7 @@ jobs:
     needs: [fetch-data, swing-doe]
     if: ${{ github.event.inputs.mode != 'day' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
         with:
@@ -203,18 +261,35 @@ jobs:
         with:
           name: price-data
           path: backtest/
-      - run: mkdir -p backtest/phase_artifacts
+      - run: mkdir -p backtest/phase_artifacts/checkpoint_swing_fold_3
       - uses: actions/download-artifact@v4
         with:
           name: doe-swing
           path: backtest/phase_artifacts/
+      - name: チェックポイント取得 (前回の続きがあれば)
+        uses: actions/download-artifact@v4
+        with:
+          name: checkpoint-swing-fold-3
+          path: backtest/phase_artifacts/checkpoint_swing_fold_3/
+        continue-on-error: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: pip install numpy --quiet
       - name: スイング WF Fold 3 実行
-        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 3
-      - uses: actions/upload-artifact@v4
+        id: run_fold
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 3 --time-limit 310
+      - name: チェックポイント保存 (常に実行)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkpoint-swing-fold-3
+          path: backtest/phase_artifacts/checkpoint_swing_fold_3/
+          retention-days: 7
+          overwrite: true
+      - name: 完了時フォールド結果を保存
+        if: steps.run_fold.outcome == 'success'
+        uses: actions/upload-artifact@v4
         with:
           name: wf-swing-fold-3
           path: backtest/phase_artifacts/wf_swing_fold_3.json
@@ -225,7 +300,7 @@ jobs:
     needs: [fetch-data, swing-doe]
     if: ${{ github.event.inputs.mode != 'day' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
         with:
@@ -234,18 +309,35 @@ jobs:
         with:
           name: price-data
           path: backtest/
-      - run: mkdir -p backtest/phase_artifacts
+      - run: mkdir -p backtest/phase_artifacts/checkpoint_swing_final
       - uses: actions/download-artifact@v4
         with:
           name: doe-swing
           path: backtest/phase_artifacts/
+      - name: チェックポイント取得 (前回の続きがあれば)
+        uses: actions/download-artifact@v4
+        with:
+          name: checkpoint-swing-final
+          path: backtest/phase_artifacts/checkpoint_swing_final/
+        continue-on-error: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: pip install numpy --quiet
       - name: スイング 最終GA 実行
-        run: python3 backtest/strategy_search.py --phase final --mode swing
-      - uses: actions/upload-artifact@v4
+        id: run_final
+        run: python3 backtest/strategy_search.py --phase final --mode swing --time-limit 310
+      - name: チェックポイント保存 (常に実行)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkpoint-swing-final
+          path: backtest/phase_artifacts/checkpoint_swing_final/
+          retention-days: 7
+          overwrite: true
+      - name: 完了時 最終GA結果を保存
+        if: steps.run_final.outcome == 'success'
+        uses: actions/upload-artifact@v4
         with:
           name: final-swing
           path: backtest/phase_artifacts/final_swing.json
@@ -256,7 +348,7 @@ jobs:
     needs: [fetch-data, day-doe]
     if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
         with:
@@ -265,18 +357,35 @@ jobs:
         with:
           name: price-data
           path: backtest/
-      - run: mkdir -p backtest/phase_artifacts
+      - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_0
       - uses: actions/download-artifact@v4
         with:
           name: doe-day
           path: backtest/phase_artifacts/
+      - name: チェックポイント取得 (前回の続きがあれば)
+        uses: actions/download-artifact@v4
+        with:
+          name: checkpoint-day-fold-0
+          path: backtest/phase_artifacts/checkpoint_day_fold_0/
+        continue-on-error: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: pip install numpy --quiet
       - name: デイトレ WF Fold 0 実行
-        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 0
-      - uses: actions/upload-artifact@v4
+        id: run_fold
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 0 --time-limit 310
+      - name: チェックポイント保存 (常に実行)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkpoint-day-fold-0
+          path: backtest/phase_artifacts/checkpoint_day_fold_0/
+          retention-days: 7
+          overwrite: true
+      - name: 完了時フォールド結果を保存
+        if: steps.run_fold.outcome == 'success'
+        uses: actions/upload-artifact@v4
         with:
           name: wf-day-fold-0
           path: backtest/phase_artifacts/wf_day_fold_0.json
@@ -287,7 +396,7 @@ jobs:
     needs: [fetch-data, day-doe]
     if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
         with:
@@ -296,18 +405,35 @@ jobs:
         with:
           name: price-data
           path: backtest/
-      - run: mkdir -p backtest/phase_artifacts
+      - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_1
       - uses: actions/download-artifact@v4
         with:
           name: doe-day
           path: backtest/phase_artifacts/
+      - name: チェックポイント取得 (前回の続きがあれば)
+        uses: actions/download-artifact@v4
+        with:
+          name: checkpoint-day-fold-1
+          path: backtest/phase_artifacts/checkpoint_day_fold_1/
+        continue-on-error: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: pip install numpy --quiet
       - name: デイトレ WF Fold 1 実行
-        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 1
-      - uses: actions/upload-artifact@v4
+        id: run_fold
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 1 --time-limit 310
+      - name: チェックポイント保存 (常に実行)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkpoint-day-fold-1
+          path: backtest/phase_artifacts/checkpoint_day_fold_1/
+          retention-days: 7
+          overwrite: true
+      - name: 完了時フォールド結果を保存
+        if: steps.run_fold.outcome == 'success'
+        uses: actions/upload-artifact@v4
         with:
           name: wf-day-fold-1
           path: backtest/phase_artifacts/wf_day_fold_1.json
@@ -318,7 +444,7 @@ jobs:
     needs: [fetch-data, day-doe]
     if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
         with:
@@ -327,18 +453,35 @@ jobs:
         with:
           name: price-data
           path: backtest/
-      - run: mkdir -p backtest/phase_artifacts
+      - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_2
       - uses: actions/download-artifact@v4
         with:
           name: doe-day
           path: backtest/phase_artifacts/
+      - name: チェックポイント取得 (前回の続きがあれば)
+        uses: actions/download-artifact@v4
+        with:
+          name: checkpoint-day-fold-2
+          path: backtest/phase_artifacts/checkpoint_day_fold_2/
+        continue-on-error: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: pip install numpy --quiet
       - name: デイトレ WF Fold 2 実行
-        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 2
-      - uses: actions/upload-artifact@v4
+        id: run_fold
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 2 --time-limit 310
+      - name: チェックポイント保存 (常に実行)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkpoint-day-fold-2
+          path: backtest/phase_artifacts/checkpoint_day_fold_2/
+          retention-days: 7
+          overwrite: true
+      - name: 完了時フォールド結果を保存
+        if: steps.run_fold.outcome == 'success'
+        uses: actions/upload-artifact@v4
         with:
           name: wf-day-fold-2
           path: backtest/phase_artifacts/wf_day_fold_2.json
@@ -349,7 +492,7 @@ jobs:
     needs: [fetch-data, day-doe]
     if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
         with:
@@ -358,18 +501,35 @@ jobs:
         with:
           name: price-data
           path: backtest/
-      - run: mkdir -p backtest/phase_artifacts
+      - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_3
       - uses: actions/download-artifact@v4
         with:
           name: doe-day
           path: backtest/phase_artifacts/
+      - name: チェックポイント取得 (前回の続きがあれば)
+        uses: actions/download-artifact@v4
+        with:
+          name: checkpoint-day-fold-3
+          path: backtest/phase_artifacts/checkpoint_day_fold_3/
+        continue-on-error: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: pip install numpy --quiet
       - name: デイトレ WF Fold 3 実行
-        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 3
-      - uses: actions/upload-artifact@v4
+        id: run_fold
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode day --fold 3 --time-limit 310
+      - name: チェックポイント保存 (常に実行)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkpoint-day-fold-3
+          path: backtest/phase_artifacts/checkpoint_day_fold_3/
+          retention-days: 7
+          overwrite: true
+      - name: 完了時フォールド結果を保存
+        if: steps.run_fold.outcome == 'success'
+        uses: actions/upload-artifact@v4
         with:
           name: wf-day-fold-3
           path: backtest/phase_artifacts/wf_day_fold_3.json
@@ -380,7 +540,7 @@ jobs:
     needs: [fetch-data, day-doe]
     if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
         with:
@@ -389,18 +549,35 @@ jobs:
         with:
           name: price-data
           path: backtest/
-      - run: mkdir -p backtest/phase_artifacts
+      - run: mkdir -p backtest/phase_artifacts/checkpoint_day_final
       - uses: actions/download-artifact@v4
         with:
           name: doe-day
           path: backtest/phase_artifacts/
+      - name: チェックポイント取得 (前回の続きがあれば)
+        uses: actions/download-artifact@v4
+        with:
+          name: checkpoint-day-final
+          path: backtest/phase_artifacts/checkpoint_day_final/
+        continue-on-error: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: pip install numpy --quiet
       - name: デイトレ 最終GA 実行
-        run: python3 backtest/strategy_search.py --phase final --mode day
-      - uses: actions/upload-artifact@v4
+        id: run_final
+        run: python3 backtest/strategy_search.py --phase final --mode day --time-limit 310
+      - name: チェックポイント保存 (常に実行)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkpoint-day-final
+          path: backtest/phase_artifacts/checkpoint_day_final/
+          retention-days: 7
+          overwrite: true
+      - name: 完了時 最終GA結果を保存
+        if: steps.run_final.outcome == 'success'
+        uses: actions/upload-artifact@v4
         with:
           name: final-day
           path: backtest/phase_artifacts/final_day.json

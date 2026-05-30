@@ -771,13 +771,41 @@ def run_ga(ticker_data: dict, mode: str, doe_effects: dict,
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_ga_all_sells(ticker_data: dict, mode: str, doe_effects: dict,
-                     t_train_end: int) -> tuple[dict, dict]:
-    """全売りルールそれぞれでGAを走らせ、最良の (sell, weights) を返す"""
+                     t_train_end: int,
+                     checkpoint_dir: "Path | None" = None,
+                     time_limit_s: "float | None" = None,
+                     ) -> "tuple[dict | None, dict, bool]":
+    """
+    全売りルールそれぞれでGAを走らせ、最良の (sell, weights) を返す。
+
+    checkpoint_dir: 指定時、売りルール完了ごとにJSONを保存し、再実行時に再開する。
+    time_limit_s:   指定秒数を超えたら残りをスキップし、all_completed=False で返る。
+    戻り値: (best_overall, all_ga_results, all_completed)
+    """
     sell_rules = SWING_SELL_RULES if mode == "swing" else DAY_SELL_RULES
     sell_hold  = SWING_SELL_HOLD  if mode == "swing" else DAY_SELL_HOLD
     ind_names  = IND_NAMES_SWING  if mode == "swing" else IND_NAMES_DAY
 
     alpha = _make_alpha(doe_effects, ind_names)
+
+    # ── チェックポイント読み込み ──────────────────────────────────────────────
+    completed_sells: set[str] = set()
+    all_ga_results: dict = {}
+    if checkpoint_dir is not None:
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        prog_file = checkpoint_dir / "progress.json"
+        if prog_file.exists():
+            prog = json.loads(prog_file.read_text())
+            completed_sells = set(prog.get("completed_sells", []))
+            for sname in list(completed_sells):
+                rf = checkpoint_dir / f"ga_{sname}.json"
+                if rf.exists():
+                    gr = json.loads(rf.read_text())
+                    gr["weights"] = np.array(gr["weights_list"])
+                    all_ga_results[sname] = gr
+                else:
+                    completed_sells.discard(sname)
+            print(f"  チェックポイント復元: {len(completed_sells)}/{len(sell_rules)} 売りルール完了")
 
     # MC probe (300サンプル) で各売りルールの best_thresh を事前決定
     np.random.seed(0)
@@ -787,39 +815,76 @@ def run_ga_all_sells(ticker_data: dict, mode: str, doe_effects: dict,
         hb = sell_hold[sname]
         shp_mat = batch_sharpe(ticker_data, probe_w, sname, BUY_THRESHOLDS, hb, 0, t_train_end)
         col_means = np.nanmean(shp_mat, axis=0)
-        if not np.all(np.isnan(col_means)):
-            best_ti = int(np.nanargmax(col_means))
-        else:
-            best_ti = 0
+        best_ti = int(np.nanargmax(col_means)) if not np.all(np.isnan(col_means)) else 0
         best_thresh_per_sell[sname] = BUY_THRESHOLDS[best_ti]
 
     # 全売りルールでGA
-    best_overall: dict | None = None
-    all_ga_results: dict = {}
     n_rules = len(sell_rules)
+    start_time = time.time()
+    time_over = False
+
     for rule_i, sname in enumerate(sell_rules, 1):
-        print(f"  [{rule_i}/{n_rules}] 売りルール: {sname} (thresh={best_thresh_per_sell[sname]})")
+        if sname in completed_sells:
+            print(f"  [{rule_i}/{n_rules}] {sname}: スキップ (チェックポイント済み)")
+            continue
+
+        # タイムバジェットチェック
+        if time_limit_s is not None and (time.time() - start_time) > time_limit_s:
+            print(f"  [{rule_i}/{n_rules}] タイムバジェット超過 — {sname} 以降をスキップ")
+            time_over = True
+            break
+
         thresh = best_thresh_per_sell[sname]
+        print(f"  [{rule_i}/{n_rules}] 売りルール: {sname} (thresh={thresh})")
         best_w, train_shp, convergence = run_ga(
             ticker_data, mode, doe_effects, sname, thresh, t_train_end)
-        all_ga_results[sname] = {
-            "weights":    best_w,
-            "sharpe":     train_shp,
-            "threshold":  thresh,
-            "convergence": convergence,
+
+        ga_result: dict = {
+            "weights":      best_w,
+            "weights_list": best_w.tolist(),
+            "sharpe":       train_shp,
+            "threshold":    thresh,
+            "convergence":  [round(v, 4) for v in convergence],
         }
+        all_ga_results[sname] = ga_result
+
+        # 売りルール完了ごとにチェックポイント保存
+        if checkpoint_dir is not None:
+            (checkpoint_dir / f"ga_{sname}.json").write_text(json.dumps({
+                "weights_list": best_w.tolist(),
+                "sharpe":       train_shp,
+                "threshold":    thresh,
+                "convergence":  [round(v, 4) for v in convergence],
+            }))
+            completed_sells.add(sname)
+            (checkpoint_dir / "progress.json").write_text(json.dumps({
+                "completed_sells": list(completed_sells),
+                "last_updated":    time.strftime("%Y-%m-%d %H:%M"),
+            }))
+
+        best_shp_now = max(gr["sharpe"] for gr in all_ga_results.values())
+        print(f"    → train_sharpe={train_shp:.4f}  (current best: {best_shp_now:.4f})")
+
+    all_completed = (not time_over) and (len(all_ga_results) >= n_rules)
+
+    if not all_ga_results:
+        return None, {}, False
+
+    # ベスト選択
+    best_overall: dict | None = None
+    for sname, gr in all_ga_results.items():
+        w = gr["weights"] if isinstance(gr["weights"], np.ndarray) else np.array(gr["weights_list"])
+        train_shp = gr["sharpe"]
         if best_overall is None or train_shp > best_overall["sharpe"]:
             best_overall = {
-                "sell":       sname,
-                "weights":    best_w,
-                "sharpe":     train_shp,
-                "threshold":  thresh,
-                "convergence": convergence,
+                "sell":        sname,
+                "weights":     w,
+                "sharpe":      train_shp,
+                "threshold":   gr["threshold"],
+                "convergence": gr["convergence"],
             }
-        print(f"    → train_sharpe={train_shp:.4f}  (current best: {best_overall['sharpe']:.4f})")
 
-    assert best_overall is not None
-    return best_overall, all_ga_results
+    return best_overall, all_ga_results, all_completed
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 11. フェーズ実行 (16ジョブ並列用)
@@ -845,8 +910,11 @@ def run_phase_doe(mode: str) -> None:
     print(f"[PHASE: DOE] 保存: {out_path}")
 
 
-def run_phase_wf_fold(mode: str, fold_i: int) -> None:
-    """Phase WF-Fold: 1fold分の全売りルール×GA → phase_artifacts/wf_{mode}_fold_{fold_i}.json"""
+def run_phase_wf_fold(mode: str, fold_i: int,
+                      time_limit_s: "float | None" = None) -> None:
+    """Phase WF-Fold: 1fold分の全売りルール×GA → phase_artifacts/wf_{mode}_fold_{fold_i}.json
+    time_limit_s: 指定秒数を超えたらチェックポイント保存して exit(1)。
+    """
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
     doe_path = ARTIFACTS_DIR / f"doe_{mode}.json"
@@ -863,12 +931,23 @@ def run_phase_wf_fold(mode: str, fold_i: int) -> None:
 
     t_train_f, t_oos_end_f = splits[fold_i]
     print(f"[PHASE: WF Fold {fold_i}] mode={mode}  train=[0,{t_train_f}] oos=[{t_train_f},{t_oos_end_f}]")
+    if time_limit_s:
+        print(f"  タイムリミット: {time_limit_s/60:.0f}分")
 
     ticker_data, _, _ = _load_ticker_data(mode)
     sell_hold = SWING_SELL_HOLD if mode == "swing" else DAY_SELL_HOLD
     ind_names = IND_NAMES_SWING if mode == "swing" else IND_NAMES_DAY
 
-    best_fold, all_ga_results = run_ga_all_sells(ticker_data, mode, doe_effects, t_train_f)
+    checkpoint_dir = ARTIFACTS_DIR / f"checkpoint_{mode}_fold_{fold_i}"
+    best_fold, all_ga_results, all_completed = run_ga_all_sells(
+        ticker_data, mode, doe_effects, t_train_f,
+        checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s)
+
+    if not all_completed:
+        print(f"[PHASE: WF Fold {fold_i}] 未完了: タイムバジェット超過。"
+              f"チェックポイントは {checkpoint_dir} に保存済み。")
+        print("  → GitHub Actions で 'Re-run failed jobs' を実行すると続きから再開します。")
+        sys.exit(1)
 
     hb_f     = sell_hold[best_fold["sell"]]
     oos_stats = detailed_eval_single(ticker_data, best_fold["weights"],
@@ -916,8 +995,10 @@ def run_phase_wf_fold(mode: str, fold_i: int) -> None:
           f"train={best_fold['sharpe']:.4f}  oos={oos_shp_f:.4f}  N={oos_stats['n_trades']}")
 
 
-def run_phase_final(mode: str) -> None:
-    """Phase Final: 訓練全体で全売りルール×GA → phase_artifacts/final_{mode}.json"""
+def run_phase_final(mode: str, time_limit_s: "float | None" = None) -> None:
+    """Phase Final: 訓練全体で全売りルール×GA → phase_artifacts/final_{mode}.json
+    time_limit_s: 指定秒数を超えたらチェックポイント保存して exit(1)。
+    """
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
     doe_path = ARTIFACTS_DIR / f"doe_{mode}.json"
@@ -928,9 +1009,20 @@ def run_phase_final(mode: str) -> None:
     doe_effects = doe_art["doe_effects"]
 
     print(f"[PHASE: FINAL] mode={mode}  t_holdout={t_holdout}")
+    if time_limit_s:
+        print(f"  タイムリミット: {time_limit_s/60:.0f}分")
     ticker_data, _, _ = _load_ticker_data(mode)
 
-    best_overall, all_ga_results = run_ga_all_sells(ticker_data, mode, doe_effects, t_holdout)
+    checkpoint_dir = ARTIFACTS_DIR / f"checkpoint_{mode}_final"
+    best_overall, all_ga_results, all_completed = run_ga_all_sells(
+        ticker_data, mode, doe_effects, t_holdout,
+        checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s)
+
+    if not all_completed:
+        print(f"[PHASE: FINAL] 未完了: タイムバジェット超過。"
+              f"チェックポイントは {checkpoint_dir} に保存済み。")
+        print("  → GitHub Actions で 'Re-run failed jobs' を実行すると続きから再開します。")
+        sys.exit(1)
 
     artifact = {
         "mode":           mode,
@@ -1222,7 +1314,7 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
         print(f"\n  --- WF Fold {fold_i+1}/{n_wf_folds}: train=[0,{t_train_f}] oos=[{t_train_f},{t_oos_end_f}] ---")
 
         # 全売りルールでGA → 最良を選択
-        best_fold_overall, _ = run_ga_all_sells(ticker_data, mode, doe_effects, t_train_f)
+        best_fold_overall, _, _ = run_ga_all_sells(ticker_data, mode, doe_effects, t_train_f)
 
         # OOS評価
         hb_f = sell_hold[best_fold_overall["sell"]]
@@ -1257,7 +1349,7 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
 
     # ── Step 3: 最終最適化 (全売りルール × GA, 訓練データ 0〜t_holdout) ───────
     print("\n  ===== STEP 3: 最終GA最適化 (全売りルール × GA) =====")
-    best_overall, all_ga_results = run_ga_all_sells(ticker_data, mode, doe_effects, t_holdout)
+    best_overall, all_ga_results, _ = run_ga_all_sells(ticker_data, mode, doe_effects, t_holdout)
 
     best_sell   = best_overall["sell"]
     best_thresh = best_overall["threshold"]
@@ -1526,7 +1618,11 @@ def main():
                         help="トレードモード (--phase と一緒に使用)")
     parser.add_argument("--fold",  type=int, default=0,
                         help="WF Fold番号 0〜3 (--phase wf-fold と一緒に使用)")
+    parser.add_argument("--time-limit", type=int, default=0, metavar="MINUTES",
+                        help="GA実行タイムリミット (分, 0=無制限)。超過時はチェックポイント保存して終了 (exit 1)。")
     args = parser.parse_args()
+
+    time_limit_s = args.time_limit * 60 if args.time_limit > 0 else None
 
     if args.phase:
         if not args.mode:
@@ -1534,9 +1630,9 @@ def main():
         if args.phase == "doe":
             run_phase_doe(args.mode)
         elif args.phase == "wf-fold":
-            run_phase_wf_fold(args.mode, args.fold)
+            run_phase_wf_fold(args.mode, args.fold, time_limit_s=time_limit_s)
         elif args.phase == "final":
-            run_phase_final(args.mode)
+            run_phase_final(args.mode, time_limit_s=time_limit_s)
         elif args.phase == "assemble":
             run_phase_assemble(args.mode)
     elif args.both:
