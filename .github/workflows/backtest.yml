@@ -31,7 +31,6 @@ jobs:
     steps:
       - name: リポジトリをチェックアウト
         uses: actions/checkout@v4
-        with:
       - name: Node.js セットアップ
         uses: actions/setup-node@v4
         with:
@@ -56,7 +55,6 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with:
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -82,7 +80,6 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with:
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -108,7 +105,6 @@ jobs:
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
-        with:
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -155,7 +151,6 @@ jobs:
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
-        with:
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -202,7 +197,6 @@ jobs:
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
-        with:
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -249,7 +243,6 @@ jobs:
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
-        with:
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -296,7 +289,6 @@ jobs:
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
-        with:
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -343,7 +335,6 @@ jobs:
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
-        with:
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -390,7 +381,6 @@ jobs:
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
-        with:
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -437,7 +427,6 @@ jobs:
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
-        with:
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -484,7 +473,6 @@ jobs:
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
-        with:
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -531,7 +519,6 @@ jobs:
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
-        with:
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -578,7 +565,6 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with:
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -628,7 +614,6 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with:
       - uses: actions/download-artifact@v4
         with:
           name: price-data
@@ -683,7 +668,6 @@ jobs:
     steps:
       - name: リポジトリをチェックアウト
         uses: actions/checkout@v4
-        with:
       - name: スイング結果を取得
         uses: actions/download-artifact@v4
         with:
