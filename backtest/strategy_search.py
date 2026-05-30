@@ -37,8 +37,9 @@ RESULTS_SWING = HERE / "strategy_results_swing.json"
 RESULTS_DAY   = HERE / "strategy_results_day.json"
 ARTIFACTS_DIR = HERE / "phase_artifacts"
 
-MIN_TRADES    = 30
-BARS_PER_YEAR = 1500   # 1h bars/year (US+JP平均)
+MIN_TRADES     = 30   # 訓練期間の最小取引数
+MIN_TRADES_OOS = 5    # OOS/ホールドアウト評価の最小取引数（短い窓でも記録する）
+BARS_PER_YEAR  = 1500  # 1h bars/year (US+JP平均)
 
 # GA ハイパーパラメータ
 GA_POP   = 2000   # 個体数
@@ -571,10 +572,12 @@ def precompute_sell_outcomes(closes, opens, highs, lows, cr: float,
 
 def batch_sharpe(ticker_data: dict, wm: np.ndarray, sell_name: str,
                  thresholds: list, hold_bars: int,
-                 t_start: int, t_end: int) -> np.ndarray:
+                 t_start: int, t_end: int,
+                 min_trades: int = MIN_TRADES) -> np.ndarray:
     """
     wm: (N, 8) 重み行列
     返り値: (N, len(thresholds)) Sharpe
+    min_trades: Sharpe計算に必要な最小取引数 (OOS評価ではMIN_TRADES_OOSを指定)
     """
     N = len(wm); n_thr = len(thresholds)
     acc_n   = np.zeros((N, n_thr), dtype=np.float64)
@@ -605,7 +608,7 @@ def batch_sharpe(ticker_data: dict, wm: np.ndarray, sell_name: str,
     shp = np.full((N, n_thr), np.nan)
     for ti in range(n_thr):
         n = acc_n[:, ti]; s = acc_sum[:, ti]; sq = acc_sq[:, ti]
-        ok  = n >= MIN_TRADES
+        ok  = n >= min_trades
         avg = np.where(ok, s / np.where(n > 0, n, 1.), np.nan)
         var = np.where(ok & (n > 1), sq / np.where(n > 0, n, 1.) - avg**2, np.nan)
         std = np.sqrt(np.maximum(var, 0.))
@@ -955,14 +958,16 @@ def run_phase_wf_fold(mode: str, fold_i: int,
                                      hb_f, t_train_f, t_oos_end_f)
     wm_f      = best_fold["weights"].reshape(1, 8)
     oos_shp_m = batch_sharpe(ticker_data, wm_f, best_fold["sell"],
-                              [best_fold["threshold"]], hb_f, t_train_f, t_oos_end_f)
+                              [best_fold["threshold"]], hb_f, t_train_f, t_oos_end_f,
+                              min_trades=MIN_TRADES_OOS)
     oos_shp_f = float(oos_shp_m[0, 0]) if not np.isnan(oos_shp_m[0, 0]) else 0.
 
     all_sell_oos: dict = {}
     for sname, gr in all_ga_results.items():
         hb_ = sell_hold[sname]
         wm_ = gr["weights"].reshape(1, 8)
-        sm  = batch_sharpe(ticker_data, wm_, sname, [gr["threshold"]], hb_, t_train_f, t_oos_end_f)
+        sm  = batch_sharpe(ticker_data, wm_, sname, [gr["threshold"]], hb_, t_train_f, t_oos_end_f,
+                           min_trades=MIN_TRADES_OOS)
         os_ = float(sm[0, 0]) if not np.isnan(sm[0, 0]) else 0.
         ds  = detailed_eval_single(ticker_data, gr["weights"], sname, gr["threshold"],
                                     hb_, t_train_f, t_oos_end_f)
@@ -1159,7 +1164,8 @@ def run_phase_assemble(mode: str) -> None:
     weight_ranking = sorted(ind_names, key=lambda n: med_w[n], reverse=True)
 
     print("  ホールドアウト評価...")
-    test_shp_m = batch_sharpe(ticker_data, wm_best, best_sell, [best_thresh], hb, t_holdout, T_min)
+    test_shp_m = batch_sharpe(ticker_data, wm_best, best_sell, [best_thresh], hb, t_holdout, T_min,
+                              min_trades=MIN_TRADES_OOS)
     test_shp   = float(test_shp_m[0, 0]) if not np.isnan(test_shp_m[0, 0]) else 0.
     test_stats = detailed_eval_single(ticker_data, best_w, best_sell, best_thresh, hb, t_holdout, T_min)
     overfit_ratio = round(test_shp / train_shp, 4) if abs(train_shp) > 1e-6 else 0.
@@ -1320,7 +1326,8 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
         hb_f = sell_hold[best_fold_overall["sell"]]
         wm_f = best_fold_overall["weights"].reshape(1, 8)
         oos_shp_mat = batch_sharpe(ticker_data, wm_f, best_fold_overall["sell"],
-                                    [best_fold_overall["threshold"]], hb_f, t_train_f, t_oos_end_f)
+                                    [best_fold_overall["threshold"]], hb_f, t_train_f, t_oos_end_f,
+                                    min_trades=MIN_TRADES_OOS)
         oos_shp_f = float(oos_shp_mat[0, 0]) if not np.isnan(oos_shp_mat[0, 0]) else 0.
 
         oos_stats = detailed_eval_single(ticker_data, best_fold_overall["weights"],
@@ -1402,7 +1409,8 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
     print("\n  ===== STEP 5: ホールドアウト評価 (80〜100%) =====")
     wm_best = best_w.reshape(1, 8)
     test_shp_mat = batch_sharpe(ticker_data, wm_best, best_sell,
-                                [best_thresh], hb, t_holdout, T_min)
+                                [best_thresh], hb, t_holdout, T_min,
+                                min_trades=MIN_TRADES_OOS)
     test_shp = float(test_shp_mat[0, 0]) if not np.isnan(test_shp_mat[0, 0]) else 0.
 
     test_stats = detailed_eval_single(ticker_data, best_w, best_sell,
