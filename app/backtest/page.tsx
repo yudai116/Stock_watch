@@ -16,11 +16,13 @@ type DoeResults = {
 type GaResults = {
   population: number;
   generations: number;
+  n_sell_rules_optimized?: number;
   best_weights: Record<string, number>;
   best_sharpe_train: number;
   best_sell_rule: string;
   best_threshold: number;
   convergence: number[];
+  all_sell_rules?: Record<string, { sharpe: number; threshold: number; weights: Record<string, number> }>;
 };
 
 type WalkForwardFold = {
@@ -604,12 +606,24 @@ function TradeCard({ tr, mode }: { tr: TradeRecord; mode: "swing" | "day" }) {
 // ─── Real-data strategy result components ─────────────────────────────────────
 
 const SELL_RULE_SHORT: Record<string, string> = {
+  // legacy day names
   hold_3d: "固定3日", hold_5d: "固定5日", hold_7d: "固定7日",
   hold_10d: "固定10日", hold_15d: "固定15日", hold_20d: "固定20日",
-  "target5_stop3":  "+5%/−3%", "target10_stop5": "+10%/−5%",
-  "target15_stop5": "+15%/−5%", "target20_stop5": "+20%/−5%",
+  // swing hold (bars)
+  hold_21b: "固定21h", hold_35b: "固定35h", hold_70b: "固定70h",
+  hold_105b: "固定105h", hold_140b: "固定140h", hold_200b: "固定200h",
+  // day hold (bars)
+  hold_1b: "固定1h", hold_2b: "固定2h", hold_4b: "固定4h",
+  hold_6b: "固定6h", hold_8b: "固定8h",
+  // target_stop
+  "target2_stop1":  "+2%/−1%",  "target3_stop2":  "+3%/−2%",
+  "target5_stop3":  "+5%/−3%",  "target7_stop4":  "+7%/−4%",
+  "target10_stop5": "+10%/−5%", "target15_stop5": "+15%/−5%",
   "target15_stop7": "+15%/−7%", "target20_stop7": "+20%/−7%",
-  trail_5pct: "Trail5%", trail_10pct: "Trail10%",
+  "target20_stop5": "+20%/−5%", "target25_stop10": "+25%/−10%",
+  // trailing
+  trail_1pct: "Trail1%", trail_2pct: "Trail2%", trail_3pct: "Trail3%",
+  trail_5pct: "Trail5%", trail_10pct: "Trail10%", trail_15pct: "Trail15%",
 };
 
 const IND_COLORS_CLS: Record<string, string> = {
@@ -1023,7 +1037,10 @@ export default function BacktestPage({
               <div className="bg-gray-800/50 rounded-xl p-4 space-y-3">
                 <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
                   <span className="text-gray-500">集団サイズ: <span className="text-gray-300">{(strategyData.ga_results as GaResults).population}</span></span>
-                  <span className="text-gray-500">世代数: <span className="text-gray-300">{(strategyData.ga_results as GaResults).generations}</span></span>
+                  <span className="text-gray-500">世代数(上限): <span className="text-gray-300">{(strategyData.ga_results as GaResults).generations}</span></span>
+                  {(strategyData.ga_results as GaResults).n_sell_rules_optimized != null && (
+                    <span className="text-gray-500">最適化売りルール: <span className="text-gray-300">{(strategyData.ga_results as GaResults).n_sell_rules_optimized}本</span></span>
+                  )}
                   <span className="text-gray-500">最良Sharpe: <span className="text-emerald-400 font-bold">{(strategyData.ga_results as GaResults).best_sharpe_train?.toFixed(2)}</span></span>
                   <span className="text-gray-500">売りルール: <span className="text-yellow-300">{SELL_RULE_SHORT[(strategyData.ga_results as GaResults).best_sell_rule] ?? (strategyData.ga_results as GaResults).best_sell_rule}</span></span>
                   <span className="text-gray-500">閾値: <span className="text-gray-300">≥{(strategyData.ga_results as GaResults).best_threshold}点</span></span>
@@ -1040,6 +1057,86 @@ export default function BacktestPage({
                         </span>
                       ))}
                   </div>
+                </div>
+
+                {/* All sell rules comparison table */}
+                {(strategyData.ga_results as GaResults).all_sell_rules && (
+                  <div>
+                    <p className="text-gray-600 text-xs font-medium mb-2">全売りルール GA結果 (学習Sharpe降順)</p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-gray-600 border-b border-gray-800">
+                            <th className="text-left py-1 pr-3">売りルール</th>
+                            <th className="text-right py-1 px-2">閾値</th>
+                            <th className="text-right py-1 px-2">学習Sharpe</th>
+                            <th className="text-left py-1 pl-3">重み (上位3指標)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries((strategyData.ga_results as GaResults).all_sell_rules!)
+                            .sort(([, a], [, b]) => b.sharpe - a.sharpe)
+                            .map(([sname, v], i) => {
+                              const isBest = sname === (strategyData.ga_results as GaResults).best_sell_rule;
+                              const top3 = Object.entries(v.weights).sort(([, a], [, b]) => b - a).slice(0, 3);
+                              return (
+                                <tr key={sname} className={`border-b border-gray-800/40 ${isBest ? "bg-emerald-950/30" : ""}`}>
+                                  <td className={`py-1 pr-3 ${isBest ? "text-emerald-400 font-semibold" : "text-yellow-400/80"}`}>
+                                    {isBest && <span className="text-emerald-500 mr-1">★</span>}
+                                    {SELL_RULE_SHORT[sname] ?? sname}
+                                  </td>
+                                  <td className="py-1 px-2 text-right text-gray-500 font-mono">≥{v.threshold}</td>
+                                  <td className={`py-1 px-2 text-right font-mono font-bold ${i === 0 ? "text-emerald-400" : "text-gray-300"}`}>
+                                    {v.sharpe.toFixed(3)}
+                                  </td>
+                                  <td className="py-1 pl-3 text-gray-500">
+                                    {top3.map(([n, w]) => (
+                                      <span key={n} className={`${IND_TEXT_CLS[n] ?? "text-gray-400"} mr-2`}>
+                                        {n}×{w.toFixed(2)}
+                                      </span>
+                                    ))}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Weight confidence intervals (v7) */}
+          {strategyData.weight_confidence_intervals && (
+            <div>
+              <h3 className="text-gray-300 text-sm font-semibold mb-3">
+                指標重み 信頼区間 — Walk-Forward全フォールド間の安定性
+              </h3>
+              <div className="bg-gray-800/50 rounded-xl p-4">
+                <p className="text-gray-600 text-xs mb-3">
+                  WF 4フォールド＋最終GAの計5回で得られた最良重みの統計。CV(変動係数)が低いほど安定した指標。
+                </p>
+                <div className="space-y-2">
+                  {Object.entries(strategyData.weight_confidence_intervals)
+                    .sort(([, a], [, b]) => b.mean - a.mean)
+                    .map(([name, v]) => {
+                      const cvColor = v.cv < 0.5 ? "text-emerald-400" : v.cv < 1.0 ? "text-yellow-400" : "text-red-400";
+                      const barW = Math.min(Math.round((v.mean / 1.5) * 100), 100);
+                      return (
+                        <div key={name} className="flex items-center gap-2">
+                          <span className={`${IND_TEXT_CLS[name] ?? "text-gray-400"} font-medium w-12 text-xs flex-shrink-0`}>{name}</span>
+                          <div className="flex-1 relative h-2.5 bg-gray-700 rounded-full overflow-hidden">
+                            <div className={`absolute left-0 top-0 h-2.5 rounded-full ${IND_COLORS_CLS[name] ?? "bg-gray-500"} opacity-70`}
+                              style={{ width: `${barW}%` }} />
+                          </div>
+                          <span className="text-gray-300 font-mono text-xs w-12 text-right">{v.mean.toFixed(3)}</span>
+                          <span className="text-gray-500 font-mono text-xs w-12 text-right">±{v.std.toFixed(3)}</span>
+                          <span className={`${cvColor} font-mono text-xs w-14 text-right`}>CV {v.cv.toFixed(2)}</span>
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             </div>
