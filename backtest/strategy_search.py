@@ -727,6 +727,11 @@ def run_ga(ticker_data: dict, mode: str, doe_effects: dict,
         return np.where(np.isnan(shp[:, 0]), -np.inf, shp[:, 0])
 
     convergence = []
+    no_improve = 0
+    prev_best  = -np.inf
+    GA_PATIENCE = 60  # この世代数改善がなければ早期停止
+    GA_MIN_GENS = 80  # 最低保証世代数
+
     for gen in range(GENS):
         fit = fitness_batch(pop)
         elite_idx = np.argsort(fit)[::-1][:ELITE]
@@ -736,6 +741,17 @@ def run_ga(ticker_data: dict, mode: str, doe_effects: dict,
 
         if gen % 50 == 0 or gen == GENS - 1:
             print(f"    [GA] gen {gen+1:3d}/{GENS}  best_sharpe={best_fit:.4f}")
+
+        # 早期停止: GA_MIN_GENS世代以降、GA_PATIENCE世代連続で0.01%未満の改善なら終了
+        cur = float(best_fit) if np.isfinite(best_fit) else 0.
+        if cur > prev_best * 1.0001:
+            no_improve = 0
+            prev_best  = cur
+        else:
+            no_improve += 1
+        if gen >= GA_MIN_GENS and no_improve >= GA_PATIENCE:
+            print(f"    [GA] 早期停止: gen {gen+1} (改善停滞 {GA_PATIENCE}世代)")
+            break
 
         # トーナメント選択
         parents = []
