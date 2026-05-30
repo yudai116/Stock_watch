@@ -1,6 +1,7 @@
 "use client";
 import type { StockScore } from "@/types";
 import { signalToJa, analystSignalToJa } from "@/lib/formatters";
+import { SWING_WEIGHTS, DAY_WEIGHTS } from "@/lib/backtestWeights";
 
 interface Props {
   stock: StockScore;
@@ -8,17 +9,24 @@ interface Props {
 }
 
 const SWING_INDICATORS = [
-  { key: "rsi" as const,        label: "RSI",           description: "相対力指数(14) — 逆張り" },
-  { key: "macd" as const,       label: "MACD",          description: "移動平均収束拡散" },
-  { key: "bollinger" as const,  label: "ボリンジャーバンド", description: "価格帯位置(%B)" },
-  { key: "moving_avg" as const, label: "移動平均線",    description: "EMA20/50" },
+  { key: "rsi" as const,        label: "RSI",               description: "相対力指数(14) — 逆張り" },
+  { key: "macd" as const,       label: "MACD",              description: "移動平均収束拡散" },
+  { key: "bollinger" as const,  label: "ボリンジャーバンド",   description: "価格帯位置(%B)" },
+  { key: "moving_avg" as const, label: "移動平均線",          description: "EMA20/50" },
+  { key: "aroon" as const,      label: "Aroon",             description: "トレンド方向と強度(25期)" },
+  { key: "stoch" as const,      label: "ストキャスティクス",   description: "K/D ライン(14/3)" },
+  { key: "cci" as const,        label: "CCI",               description: "商品チャンネル指数(20)" },
+  { key: "roc" as const,        label: "ROC",               description: "変化率(10日)" },
 ];
 
 const DAY_INDICATORS = [
-  { key: "rsi" as const,        label: "RSI (デイ)",    description: "V字型 — 逆張り+モメンタム" },
-  { key: "macd" as const,       label: "MACD",          description: "移動平均収束拡散" },
-  { key: "bollinger" as const,  label: "ボリンジャーバンド", description: "%B + 方向ボーナス" },
-  { key: "moving_avg" as const, label: "移動平均線 (デイ)", description: "EMA5/10" },
+  { key: "rsi" as const,        label: "RSI (デイ)",         description: "V字型 — 逆張り+モメンタム" },
+  { key: "macd" as const,       label: "MACD",              description: "移動平均収束拡散" },
+  { key: "bollinger" as const,  label: "ボリンジャーバンド",   description: "%B + 方向ボーナス" },
+  { key: "moving_avg" as const, label: "移動平均線 (デイ)",   description: "EMA5/10" },
+  { key: "stoch" as const,      label: "ストキャスティクス",   description: "K/D ライン(14/3)" },
+  { key: "cci" as const,        label: "CCI",               description: "商品チャンネル指数(20)" },
+  { key: "roc" as const,        label: "ROC",               description: "変化率(10日)" },
 ];
 
 export default function IndicatorBreakdown({ stock, mode = "swing" }: Props) {
@@ -30,6 +38,7 @@ export default function IndicatorBreakdown({ stock, mode = "swing" }: Props) {
     <div className="space-y-3">
       {technicalIndicators.map(({ key, label, description }) => {
         const comp = stock.score_components[key];
+        if (!comp) return null;
         const pct = (comp.score / comp.max) * 100;
         const barColor =
           pct >= 70 ? "bg-emerald-500" :
@@ -59,6 +68,10 @@ export default function IndicatorBreakdown({ stock, mode = "swing" }: Props) {
                   {key === "rsi" ? `RSI: ${comp.value}` :
                    key === "bollinger" ? `%B: ${comp.value}` :
                    key === "moving_avg" ? `比率: ${comp.value}` :
+                   key === "aroon" ? `Up-Down: ${comp.value}` :
+                   key === "stoch" ? `%K: ${comp.value}` :
+                   key === "cci" ? `CCI: ${comp.value}` :
+                   key === "roc" ? `ROC: ${comp.value}%` :
                    `値: ${comp.value}`}
                 </span>
               )}
@@ -66,6 +79,28 @@ export default function IndicatorBreakdown({ stock, mode = "swing" }: Props) {
           </div>
         );
       })}
+
+      {/* Day mode: Aroon shown as informational only (not in day GA scoring) */}
+      {mode === "day" && stock.score_components.aroon && (
+        <div className="bg-gray-800 rounded-lg p-3 opacity-60">
+          <div className="flex justify-between items-center mb-2">
+            <div>
+              <span className="text-gray-400 font-medium text-sm">参考: アルーン</span>
+              <span className="text-gray-600 text-xs ml-2">デイトレスコア対象外</span>
+            </div>
+            <div className="text-right">
+              <span className="text-gray-400 font-semibold">{stock.score_components.aroon.score}</span>
+              <span className="text-gray-600 text-xs">/25</span>
+            </div>
+          </div>
+          <div className="w-full bg-gray-700 rounded-full h-2 mb-2">
+            <div className="bg-gray-500 h-2 rounded-full transition-all" style={{ width: `${(stock.score_components.aroon.score / 25) * 100}%` }} />
+          </div>
+          <div className="text-xs text-gray-500">
+            {signalToJa(stock.score_components.aroon.signal)}
+          </div>
+        </div>
+      )}
 
       {/* Analyst recommendation */}
       {hasAnalyst && (
@@ -134,42 +169,12 @@ export default function IndicatorBreakdown({ stock, mode = "swing" }: Props) {
         </>
       )}
 
-      {/* Aroon bonus: large cap (swing) or all sizes (day trade) */}
-      {(stock.size === "large" || mode === "day") && stock.score_components.aroon && stock.score_components.aroon.score > 0 && (
-        <div className="bg-gray-800 rounded-lg p-3">
-          <div className="flex justify-between items-center mb-2">
-            <div>
-              <span className="text-white font-medium text-sm">Aroon (トレンド方向)</span>
-              <span className="text-gray-500 text-xs ml-2">{mode === "day" ? "デイトレボーナス" : "大型株ボーナス"}</span>
-            </div>
-            <div className="text-right">
-              <span className="text-white font-semibold">{stock.score_components.aroon.score}</span>
-              <span className="text-gray-500 text-xs">/10</span>
-            </div>
-          </div>
-          <div className="w-full bg-gray-700 rounded-full h-2 mb-2">
-            <div className="bg-indigo-500 h-2 rounded-full transition-all" style={{ width: `${(stock.score_components.aroon.score / 10) * 100}%` }} />
-          </div>
-          <div className="text-xs text-gray-400">
-            {signalToJa(stock.score_components.aroon.signal)}
-          </div>
-        </div>
-      )}
-
       {/* Score breakdown note */}
       <div className="text-xs text-gray-600 px-1 space-y-0.5">
         {mode === "swing" ? (
-          <>
-            {stock.size === "large" && <p>大型株 (MACD/MA重視): MACD×1.283 + MA×1.222 + RSI×0.776 + BB×0.719</p>}
-            {stock.size === "mid"   && <p>中型株 (MA重視): MA×1.204 + MACD×1.057 + BB×0.858 + RSI×0.881</p>}
-            {stock.size === "small" && <p>小型株 (RSI/BB重視): RSI×1.122 + BB×1.001 + MA×1.021 + MACD×0.856</p>}
-          </>
+          <p>スイングGA最適化 (v7): ROC×{SWING_WEIGHTS.ROC} + Aroon×{SWING_WEIGHTS.Aroon} + RSI×{SWING_WEIGHTS.RSI} + MACD×{SWING_WEIGHTS.MACD} + BB×{SWING_WEIGHTS.BB} + CCI×{SWING_WEIGHTS.CCI} + Stoch×{SWING_WEIGHTS.Stoch} + MA×{SWING_WEIGHTS.MA}</p>
         ) : (
-          <>
-            {stock.size === "large" && <p>大型株デイトレ (MA最強): MA×1.303 + MACD×1.100 + RSI×0.897 + BB×0.700</p>}
-            {stock.size === "mid"   && <p>中型株デイトレ (MA突出): MA×1.418 + RSI×1.104 + MACD×1.041 + BB×0.437</p>}
-            {stock.size === "small" && <p>小型株デイトレ (バランス型): MA×1.072 + MACD×1.026 + BB×0.986 + RSI×0.917</p>}
-          </>
+          <p>デイトレGA最適化 (v7): BB×{DAY_WEIGHTS.BB} + Stoch×{DAY_WEIGHTS.Stoch} + RSI×{DAY_WEIGHTS.RSI} + MACD×{DAY_WEIGHTS.MACD} + MA×{DAY_WEIGHTS.MA} + ROC×{DAY_WEIGHTS.ROC} + CCI×{DAY_WEIGHTS.CCI}</p>
         )}
         <p>{hasAnalyst ? "合計 = テクニカル×70% + アナリスト評価×30%" : "合計 = テクニカルスコア (アナリストデータなし)"}</p>
       </div>

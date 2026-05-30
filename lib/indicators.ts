@@ -127,6 +127,53 @@ export function calcAroon(highs: number[], lows: number[], period = 25): { up: n
   return { up, down };
 }
 
+export function calcStoch(
+  closes: number[], highs: number[], lows: number[],
+  kPeriod = 14, dPeriod = 3
+): { k: number[]; d: number[] } {
+  const n = closes.length;
+  const k: number[] = new Array(n).fill(NaN);
+  for (let i = kPeriod - 1; i < n; i++) {
+    let hi = -Infinity, lo = Infinity;
+    for (let j = i - kPeriod + 1; j <= i; j++) {
+      if (highs[j] > hi) hi = highs[j];
+      if (lows[j] < lo) lo = lows[j];
+    }
+    k[i] = (hi - lo) > 1e-10 ? ((closes[i] - lo) / (hi - lo)) * 100 : 50;
+  }
+  const d: number[] = new Array(n).fill(NaN);
+  for (let i = kPeriod + dPeriod - 2; i < n; i++) {
+    let sum = 0, cnt = 0;
+    for (let j = i - dPeriod + 1; j <= i; j++) {
+      if (!isNaN(k[j])) { sum += k[j]; cnt++; }
+    }
+    if (cnt === dPeriod) d[i] = sum / cnt;
+  }
+  return { k, d };
+}
+
+export function calcCCI(closes: number[], highs: number[], lows: number[], period = 20): number[] {
+  const n = closes.length;
+  const out: number[] = new Array(n).fill(NaN);
+  for (let i = period - 1; i < n; i++) {
+    const tps: number[] = [];
+    for (let j = i - period + 1; j <= i; j++) tps.push((closes[j] + highs[j] + lows[j]) / 3);
+    const mean = tps.reduce((a, b) => a + b, 0) / period;
+    const md = tps.reduce((a, b) => a + Math.abs(b - mean), 0) / period;
+    out[i] = md > 1e-10 ? (tps[period - 1] - mean) / (0.015 * md) : 0;
+  }
+  return out;
+}
+
+export function calcROC(closes: number[], period = 10): number[] {
+  const n = closes.length;
+  const out: number[] = new Array(n).fill(NaN);
+  for (let i = period; i < n; i++) {
+    if (closes[i - period] > 0) out[i] = (closes[i] / closes[i - period] - 1) * 100;
+  }
+  return out;
+}
+
 // OBV (On-Balance Volume) — cumulative signed volume
 export function calcOBV(closes: number[], volumes: number[]): number[] {
   const n = closes.length;

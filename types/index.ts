@@ -31,7 +31,10 @@ export interface StockScore {
     analyst: ScoreComponent;
     high52w: { score: number; dist_pct: number | null };
     obv:    { score: number; signal: string };
-    aroon:  { score: number; signal: string };
+    aroon:  ScoreComponent;          // was { score; signal }, now full ScoreComponent (0-25)
+    stoch?: ScoreComponent;          // new
+    cci?:   ScoreComponent;          // new
+    roc?:   ScoreComponent;          // new
   };
   trailing_pe: number | null;
   forward_pe: number | null;

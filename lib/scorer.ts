@@ -1,4 +1,5 @@
-import { calcRSI, calcMACD, calcBollinger, calcEMA, calcOBV, calcAroon } from "./indicators";
+import { calcRSI, calcMACD, calcBollinger, calcEMA, calcOBV, calcAroon, calcStoch, calcCCI, calcROC } from "./indicators";
+import { SWING_WEIGHTS, DAY_WEIGHTS } from "./backtestWeights";
 
 function interp(value: number, bp: [number, number][]): number {
   if (value <= bp[0][0]) return bp[0][1];
@@ -233,33 +234,29 @@ export function scoreAnalyst(trend: AnalystTrend | null): { score: number; signa
   return { score, signal, count: total };
 }
 
-// ── Additional confirmation indicators (additive bonus, not in MULTS system) ──
+// ── Additional confirmation indicators (additive bonus, not in GA weights system) ──
 // Backtest result: far_from_52w_high ΔSharpe +5.98, OBV_rising ΔSharpe +2.77
 // These are scored separately and added as bonus points (max 12 + max 8 = 20).
 
-// Aroon (25-period): trend direction and strength.
-// Backtest ΔSharpe: swing +0.61 (large cap), day trade +5.80 (all sizes).
-// Max 10 pts for day trade (all sizes), max 10 pts for swing (large cap only).
-export function scoreAroon(highs: number[], lows: number[]): { score: number; signal: string } {
-  if (highs.length < 27 || lows.length < 27) return { score: 5, signal: "insufficient_data" };
+// Aroon (25-period): trend direction and strength — now a main indicator (0-25 scale)
+export function scoreAroon(highs: number[], lows: number[]): ScoreResult {
+  if (highs.length < 27 || lows.length < 27) return { score: 12, max: 25, value: null, signal: "insufficient_data" };
   const { up, down } = calcAroon(highs, lows);
   const n = up.length;
-  let aroonUp = NaN, aroonDown = NaN, prevUp = NaN;
+  let aroonUp = NaN, aroonDown = NaN;
   for (let i = n - 1; i >= 0; i--) {
-    if (!isNaN(up[i])) {
-      if (isNaN(aroonUp)) { aroonUp = up[i]; aroonDown = down[i]; }
-      else if (isNaN(prevUp)) { prevUp = up[i]; break; }
-    }
+    if (!isNaN(up[i])) { aroonUp = up[i]; aroonDown = down[i]; break; }
   }
-  if (isNaN(aroonUp)) return { score: 5, signal: "insufficient_data" };
-  const risingUp = !isNaN(prevUp) && aroonUp > prevUp;
-
-  if (aroonUp > 70 && aroonDown < 30)              return { score: 10, signal: "aroon_strong_up" };
-  if (aroonUp > aroonDown && aroonUp > 50 && risingUp) return { score: 8, signal: "aroon_uptrend_building" };
-  if (aroonUp > aroonDown)                          return { score: 6, signal: "aroon_uptrend" };
-  if (Math.abs(aroonUp - aroonDown) <= 10)          return { score: 4, signal: "aroon_sideways" };
-  if (aroonDown > 70 && aroonUp < 30)              return { score: 0, signal: "aroon_strong_down" };
-  return { score: 2, signal: "aroon_downtrend" };
+  if (isNaN(aroonUp)) return { score: 12, max: 25, value: null, signal: "insufficient_data" };
+  const diff = aroonUp - aroonDown;
+  let score: number; let signal: string;
+  if (diff > 70)       { score = 20 + (diff - 70) / 30 * 5; signal = "aroon_strong_up"; }
+  else if (diff > 30)  { score = 13 + (diff - 30) / 40 * 7; signal = "aroon_uptrend_building"; }
+  else if (diff > 0)   { score = 8  + diff / 30 * 5;         signal = "aroon_uptrend"; }
+  else if (diff > -30) { score = 4  + (diff + 30) / 30 * 4;  signal = "aroon_sideways"; }
+  else if (diff > -70) { score = 2  + (diff + 70) / 40 * 2;  signal = "aroon_downtrend"; }
+  else                 { score = 0;                           signal = "aroon_strong_down"; }
+  return { score: Math.round(Math.min(Math.max(score, 0), 25)), max: 25, value: Math.round(diff * 10) / 10, signal };
 }
 
 // Distance below 52-week high: sweet spot is 5-15% below (room to recover, not broken)
@@ -304,43 +301,90 @@ export function scoreOBV(closes: number[], volumes: number[]): { score: number; 
   return { score, signal };
 }
 
+export function scoreStoch(closes: number[], highs: number[], lows: number[]): ScoreResult {
+  const { k, d } = calcStoch(closes, highs, lows);
+  const n = k.length;
+  let kCurr = NaN, dCurr = NaN, kPrev = NaN, dPrev = NaN;
+  for (let i = n - 1; i >= 0; i--) {
+    if (!isNaN(k[i])) {
+      if (isNaN(kCurr)) { kCurr = k[i]; dCurr = d[i]; }
+      else if (isNaN(kPrev)) { kPrev = k[i]; dPrev = d[i]; break; }
+    }
+  }
+  if (isNaN(kCurr)) return { score: 12, max: 25, value: null, signal: "insufficient_data" };
+  let raw: number; let signal: string;
+  if (kCurr < 20)      { raw = 20 + (20 - kCurr) / 20 * 5; signal = "oversold"; }
+  else if (kCurr < 35) { raw = 13 + (35 - kCurr) / 15 * 7; signal = "near_oversold"; }
+  else if (kCurr < 50) { raw = 7  + (50 - kCurr) / 15 * 6; signal = "neutral_low"; }
+  else if (kCurr < 70) { raw = 3  + (70 - kCurr) / 20 * 4; signal = "neutral"; }
+  else if (kCurr < 85) { raw = 1  + (85 - kCurr) / 15 * 2; signal = "near_overbought"; }
+  else                 { raw = 0;                            signal = "overbought"; }
+  if (!isNaN(kPrev) && !isNaN(dCurr) && !isNaN(dPrev) && kCurr > dCurr && kPrev <= dPrev) {
+    raw += 3; signal = "bullish_crossover";
+  }
+  return { score: Math.round(Math.min(Math.max(raw, 0), 25)), max: 25, value: Math.round(kCurr * 10) / 10, signal };
+}
+
+export function scoreCCI(closes: number[], highs: number[], lows: number[]): ScoreResult {
+  const cci = calcCCI(closes, highs, lows);
+  const valid = cci.filter(v => !isNaN(v));
+  if (valid.length < 1) return { score: 12, max: 25, value: null, signal: "insufficient_data" };
+  const curr = valid[valid.length - 1];
+  let score: number; let signal: string;
+  if (curr < -200)      { score = 22 + Math.min((curr + 300) / 100, 1) * 3; signal = "extreme_oversold"; }
+  else if (curr < -100) { score = 14 + (curr + 200) / 100 * 8;             signal = "oversold"; }
+  else if (curr < 0)    { score = 8  + (curr + 100) / 100 * 6;             signal = "near_oversold"; }
+  else if (curr < 100)  { score = 3  + (100 - curr) / 100 * 5;             signal = "neutral"; }
+  else if (curr < 200)  { score = 1  + (200 - curr) / 100 * 2;             signal = "overbought"; }
+  else                  { score = 0;                                          signal = "extreme_overbought"; }
+  return { score: Math.round(Math.min(Math.max(score, 0), 25)), max: 25, value: Math.round(curr), signal };
+}
+
+export function scoreROC(closes: number[]): ScoreResult {
+  const roc = calcROC(closes);
+  const valid = roc.filter(v => !isNaN(v));
+  if (valid.length < 1) return { score: 12, max: 25, value: null, signal: "insufficient_data" };
+  const curr = valid[valid.length - 1];
+  let score: number; let signal: string;
+  if (curr > 30)       { score = 18 + Math.min((curr - 30) / 20, 1) * 7; signal = "strong_momentum"; }
+  else if (curr > 15)  { score = 12 + (curr - 15) / 15 * 6;             signal = "momentum"; }
+  else if (curr > 5)   { score = 7  + (curr - 5)  / 10 * 5;             signal = "mild_momentum"; }
+  else if (curr > 0)   { score = 4  + curr / 5 * 3;                      signal = "slight_momentum"; }
+  else if (curr > -10) { score = 1  + (curr + 10) / 10 * 3;             signal = "slight_weakness"; }
+  else                 { score = 0;                                        signal = "weakness"; }
+  return { score: Math.round(Math.min(Math.max(score, 0), 25)), max: 25, value: Math.round(curr * 100) / 100, signal };
+}
+
 export function computeScore(closes: number[], size: "large" | "mid" | "small" = "mid", extras?: { volumes?: number[]; high52w?: number | null; highs?: number[]; lows?: number[] }) {
-  const rsi = scoreRSI(closes);
-  const macd = scoreMACD(closes);
+  const rsi       = scoreRSI(closes);
+  const macd      = scoreMACD(closes);
   const bollinger = scoreBollinger(closes);
   const movingAvg = scoreMovingAverage(closes);
-  // Size-stratified weights from group-specific Monte Carlo walk-forward backtests.
-  // Multipliers are Sharpe-proportional per group, sum=4.0 (preserves 0-100 scale).
-  // Re-derived after fixing BB scoring to match TypeScript (old Python used wrong breakpoints).
-  // Swing: thr=65, hold=5d, 50 stocks × 15 paths × 2520 days, 5 folds:
-  //   large: MACD(0.537)>MA(0.509)>RSI(0.304)>BB(0.302) → trend-following
-  //   mid:   MA(0.498)>MACD(0.430)>BB(0.399)>RSI(0.355) → MA dominant
-  //   small: RSI(0.565)>BB(0.546)>MA(0.520)>MACD(0.475) → mean-reversion
-  const MULTS: Record<"large" | "mid" | "small", [number, number, number, number]> = {
-    //          [RSI,   MACD,   BB,    MA  ]
-    large: [0.776, 1.283, 0.719, 1.222],  // MACD/MA dominate (persistent trends)
-    mid:   [0.881, 1.057, 0.858, 1.204],  // MA dominant, balanced otherwise
-    small: [1.122, 0.856, 1.001, 1.021],  // RSI/BB effective (high-vol mean-reversion)
-  };
-  const [mRsi, mMacd, mBb, mMa] = MULTS[size];
+  const highs = extras?.highs ?? closes.map(() => NaN);
+  const lows  = extras?.lows  ?? closes.map(() => NaN);
+  const aroon = scoreAroon(highs, lows);
+  const stoch = scoreStoch(closes, highs, lows);
+  const cci   = scoreCCI(closes, highs, lows);
+  const roc   = scoreROC(closes);
+
+  const w = SWING_WEIGHTS;
   const base = Math.round(
-    rsi.score       * mRsi  +
-    macd.score      * mMacd +
-    bollinger.score * mBb   +
-    movingAvg.score * mMa
+    rsi.score       * w.RSI   +
+    macd.score      * w.MACD  +
+    bollinger.score * w.BB    +
+    movingAvg.score * w.MA    +
+    aroon.score     * w.Aroon +
+    stoch.score     * w.Stoch +
+    cci.score       * w.CCI   +
+    roc.score       * w.ROC
   );
 
-  // Additive confirmation bonuses: only large cap benefits (backtest ΔSharpe).
   const isLarge = size === "large";
-  const highResult  = isLarge ? score52wHigh(closes[closes.length - 1], extras?.high52w ?? null) : { score: 0, dist_pct: null as null };
-  const obvResult   = isLarge ? scoreOBV(closes, extras?.volumes ?? []) : { score: 0, signal: "n/a" };
-  // Aroon swing ΔSharpe +0.61 — large cap only (consistent with 52w/OBV policy)
-  const aroonResult = isLarge && extras?.highs && extras?.lows
-    ? scoreAroon(extras.highs, extras.lows)
-    : { score: 0, signal: "n/a" };
+  const highResult = isLarge ? score52wHigh(closes[closes.length - 1], extras?.high52w ?? null) : { score: 0, dist_pct: null as null };
+  const obvResult  = isLarge ? scoreOBV(closes, extras?.volumes ?? []) : { score: 0, signal: "n/a" };
 
-  const total = Math.min(100, base + highResult.score + obvResult.score + aroonResult.score);
-  return { total, rsi, macd, bollinger, moving_avg: movingAvg, high52w: highResult, obv: obvResult, aroon: aroonResult };
+  const total = Math.min(100, base + highResult.score + obvResult.score);
+  return { total, rsi, macd, bollinger, moving_avg: movingAvg, aroon, stoch, cci, roc, high52w: highResult, obv: obvResult };
 }
 
 // ── Day trade scoring functions ───────────────────────────────────────────────
@@ -443,34 +487,31 @@ export function computeScoreDay(closes: number[], size: "large" | "mid" | "small
   const macd      = scoreMACD(closes);
   const bollinger = scoreBollinger(closes);
   const movingAvg = scoreMADay(closes);
-  // Day trade multipliers re-derived after fixing BB scoring to match TypeScript.
-  // hold=1d, thr=65, 50 stocks × 15 paths × 2520 days, 5 folds:
-  //   large: MA(0.603)>MACD(0.529)>RSI(0.422)>BB(0.345) → MA/MACD dominant
-  //   mid:   MA(0.480)>MACD(0.442)>RSI(0.391)>BB(0.227) → BB weak for day-trade mid
-  //   small: MA(0.597)>MACD(0.548)>BB(0.515)>RSI(0.492) → more balanced
-  const MULTS_DAY: Record<"large" | "mid" | "small", [number, number, number, number]> = {
-    //          [RSI,   MACD,   BB,    MA  ]
-    large: [0.897, 1.100, 0.700, 1.303],  // MA strongest, BB weakest
-    mid:   [1.104, 1.041, 0.437, 1.418],  // BB dramatically weak for day-trade mid; MA dominant
-    small: [0.917, 1.026, 0.986, 1.072],  // more balanced, MA still leads
-  };
-  const [mRsi, mMacd, mBb, mMa] = MULTS_DAY[size];
-  const base = Math.round(
-    rsi.score       * mRsi  +
-    macd.score      * mMacd +
-    bollinger.score * mBb   +
-    movingAvg.score * mMa
-  );
-  const isLarge = size === "large";
-  const highResult  = isLarge ? score52wHigh(closes[closes.length - 1], extras?.high52w ?? null) : { score: 0, dist_pct: null as null };
-  const obvResult   = isLarge ? scoreOBV(closes, extras?.volumes ?? []) : { score: 0, signal: "n/a" };
-  // Aroon day trade ΔSharpe +5.80 — all sizes benefit
-  const aroonResult = extras?.highs && extras?.lows
-    ? scoreAroon(extras.highs, extras.lows)
-    : { score: 0, signal: "n/a" };
+  const highs = extras?.highs ?? closes.map(() => NaN);
+  const lows  = extras?.lows  ?? closes.map(() => NaN);
+  const stoch = scoreStoch(closes, highs, lows);
+  const cci   = scoreCCI(closes, highs, lows);
+  const roc   = scoreROC(closes);
+  // Aroon computed for display but not in day score (not in day GA indicators)
+  const aroon = scoreAroon(highs, lows);
 
-  const total = Math.min(100, base + highResult.score + obvResult.score + aroonResult.score);
-  return { total, rsi, macd, bollinger, moving_avg: movingAvg, high52w: highResult, obv: obvResult, aroon: aroonResult };
+  const w = DAY_WEIGHTS;
+  const base = Math.round(
+    rsi.score       * w.RSI   +
+    macd.score      * w.MACD  +
+    bollinger.score * w.BB    +
+    movingAvg.score * w.MA    +
+    stoch.score     * w.Stoch +
+    roc.score       * w.ROC   +
+    cci.score       * w.CCI
+  );
+
+  const isLarge = size === "large";
+  const highResult = isLarge ? score52wHigh(closes[closes.length - 1], extras?.high52w ?? null) : { score: 0, dist_pct: null as null };
+  const obvResult  = isLarge ? scoreOBV(closes, extras?.volumes ?? []) : { score: 0, signal: "n/a" };
+
+  const total = Math.min(100, base + highResult.score + obvResult.score);
+  return { total, rsi, macd, bollinger, moving_avg: movingAvg, aroon, stoch, cci, roc, high52w: highResult, obv: obvResult };
 }
 
 export function getPeLabel(pe: number | null | undefined, market: string): string | null {
