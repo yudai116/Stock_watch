@@ -3,7 +3,11 @@
  *
  * Usage:
  *   node backtest/fetch_data.mjs              # daily (2015-2025) → price_data.json
- *   node backtest/fetch_data.mjs --intraday   # 1h bars (2 years) → price_data_intraday.json
+ *   node backtest/fetch_data.mjs --intraday   # 1h bars → price_data_intraday.json
+ *
+ * Intraday data source priority:
+ *   1. Alpaca Markets (env: ALPACA_API_KEY + ALPACA_API_SECRET) — US株のみ, 最大10年
+ *   2. Yahoo Finance フォールバック — 全銘柄(日本株含む), 最大730日
  */
 import { createRequire } from "module";
 import { writeFileSync } from "fs";
@@ -15,6 +19,14 @@ const YFClass = require("yahoo-finance2").default;
 const yf = new YFClass();
 
 const INTRADAY = process.argv.includes("--intraday");
+
+// Alpaca credentials (GitHub Secrets 経由で設定)
+const ALPACA_KEY    = process.env.ALPACA_API_KEY    ?? "";
+const ALPACA_SECRET = process.env.ALPACA_API_SECRET ?? "";
+const USE_ALPACA    = INTRADAY && !!ALPACA_KEY && !!ALPACA_SECRET;
+
+// Alpaca で取得できる最古の日付 (IEX feed)
+const ALPACA_START = "2016-01-01";
 
 // 25 tickers — semiconductor / AI / cloud tech focus
 const TICKERS = [
@@ -124,21 +136,106 @@ async function fetchTickerIntraday(ticker, start, end) {
   }
 }
 
+// ── Alpaca Markets API (US株のみ, 1h足, 最大10年) ─────────────────────────────
+async function fetchAlpacaIntraday(ticker) {
+  const end = new Date().toISOString().split("T")[0];
+  console.log(`  Fetching ${ticker} (Alpaca 1h, ${ALPACA_START} → ${end}) ...`);
+
+  const allBars = [];
+  let pageToken = null;
+
+  do {
+    const params = new URLSearchParams({
+      timeframe: "1Hour",
+      start:     ALPACA_START,
+      end,
+      feed:      "iex",   // 無料プラン (IEX Realtime Feed)
+      limit:     "10000", // 1リクエスト最大10,000本
+    });
+    if (pageToken) params.set("page_token", pageToken);
+
+    let res;
+    try {
+      res = await fetch(
+        `https://data.alpaca.markets/v2/stocks/${ticker}/bars?${params}`,
+        { headers: {
+            "APCA-API-KEY-ID":     ALPACA_KEY,
+            "APCA-API-SECRET-KEY": ALPACA_SECRET,
+        }},
+      );
+    } catch (e) {
+      console.error(`    ${ticker}: network error — ${e.message}`);
+      return null;
+    }
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`    ${ticker}: Alpaca ${res.status} — ${text.slice(0, 120)}`);
+      return null;
+    }
+
+    const json = await res.json();
+    allBars.push(...(json.bars ?? []));
+    pageToken = json.next_page_token ?? null;
+
+    // レート制限 (無料プラン ~200 req/min) を考慮して少し待つ
+    if (pageToken) await new Promise(r => setTimeout(r, 300));
+  } while (pageToken);
+
+  if (allBars.length === 0) {
+    console.log(`    ${ticker}: no data returned`);
+    return null;
+  }
+
+  const rows = allBars.map(b => ({
+    date:   b.t,                               // ISO 8601 UTC タイムスタンプ
+    close:  Math.round(b.c * 10000) / 10000,
+    open:   Math.round(b.o * 10000) / 10000,
+    high:   Math.round(b.h * 10000) / 10000,
+    low:    Math.round(b.l * 10000) / 10000,
+    volume: b.v ?? 0,
+  }));
+
+  console.log(`    ${ticker}: ${rows.length} 1h bars (${rows[0]?.date?.slice(0,10)} → ${rows[rows.length-1]?.date?.slice(0,10)})`);
+  return rows;
+}
+
 async function main() {
   const dir = path.dirname(fileURLToPath(import.meta.url));
 
   if (INTRADAY) {
-    const { start, end } = getIntradayRange();
-    console.log(`Fetching ${TICKERS.length} tickers — 1h bars (${start} → ${end}) ...`);
     const result = {};
-    for (const ticker of TICKERS) {
-      const data = await fetchTickerIntraday(ticker, start, end);
-      if (data && data.length >= 100) {
-        result[ticker] = data;
-      } else {
-        console.log(`    ${ticker}: skipped (${data?.length ?? 0} bars < 100)`);
+
+    if (USE_ALPACA) {
+      // ── Alpaca: US株のみ (日本株は Alpaca 非対応なので除外) ──────────────
+      const usTickers = TICKERS.filter(t => !t.endsWith(".T"));
+      console.log(`Alpaca 1h足取得 (US株 ${usTickers.length}銘柄, ${ALPACA_START}〜) ...`);
+      console.log(`※ 日本株 (.T) はAlpaca非対応のため今回スキップ\n`);
+
+      for (const ticker of usTickers) {
+        const data = await fetchAlpacaIntraday(ticker);
+        if (data && data.length >= 300) {
+          result[ticker] = data;
+        } else {
+          console.log(`    ${ticker}: skipped (${data?.length ?? 0} bars < 300)`);
+        }
+      }
+    } else {
+      // ── Yahoo Finance フォールバック (全銘柄, 730日) ──────────────────────
+      const { start, end } = getIntradayRange();
+      console.log(`ALPACA_API_KEY 未設定 → Yahoo Finance フォールバック (${start} → ${end})`);
+      console.log(`Fetching ${TICKERS.length} tickers — 1h bars ...\n`);
+
+      for (const ticker of TICKERS) {
+        const data = await fetchTickerIntraday(ticker, start, end);
+        if (data && data.length >= 100) {
+          result[ticker] = data;
+        } else {
+          console.log(`    ${ticker}: skipped (${data?.length ?? 0} bars < 100)`);
+        }
       }
     }
+
     const out = path.join(dir, "price_data_intraday.json");
     writeFileSync(out, JSON.stringify(result, null, 0));
     console.log(`\nSaved ${Object.keys(result).length} tickers → price_data_intraday.json`);

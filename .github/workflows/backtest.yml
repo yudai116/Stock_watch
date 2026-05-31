@@ -41,8 +41,11 @@ jobs:
           cache: 'npm'
       - name: npm install
         run: npm ci
-      - name: 1時間足データ取得 (直近730日, 25銘柄) — デイトレ用
+      - name: 1時間足データ取得 (Alpaca優先/最大10年, フォールバックYahoo730日) — デイトレ用
         run: node backtest/fetch_data.mjs --intraday
+        env:
+          ALPACA_API_KEY:    ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
       - name: 日足データ取得 (10年, 25銘柄) — スイング用
         run: node backtest/fetch_data.mjs
       - name: デイトレ用データをアーティファクトとして保存
