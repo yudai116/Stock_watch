@@ -54,6 +54,8 @@ SWING_LIFT_TARGET   = 0.005       # Lift計算ターゲットリターン (0.5%)
 SWING_LIFT_MIN      = 1.02        # 最小Lift比率
 SWING_IC_MIN_VALID  = 4           # 有効指標の最低採用数
 SWING_IC_TREND_INDS = {"MA", "Aroon", "MACD"}  # トレンド系指標: 必ず1件以上採用
+# チェックポイントバージョン: アルゴリズムやパラメータ変更時にインクリメント→旧キャッシュ無効化
+SWING_IC_CKPT_VER   = 3
 # 注: per-sell-rule IC+Lift — 各売りルールの実現損益でICを計算するため
 # SWING_FORWARD_KEY は廃止 (run_ic_lift_sell_probe 内で sell_outcomes[sname] を直接使用)
 
@@ -1107,15 +1109,18 @@ def run_ic_lift_sell_probe(ticker_data: dict, t_train_end: int,
         prog_file = checkpoint_dir / "progress.json"
         if prog_file.exists():
             prog = json.loads(prog_file.read_text())
-            completed_sells = set(prog.get("completed_sells", []))
-            for sname in list(completed_sells):
-                rf = checkpoint_dir / f"sell_{sname}.json"
-                if rf.exists():
-                    sell_results[sname] = json.loads(rf.read_text())
-                else:
-                    completed_sells.discard(sname)
-            if completed_sells:
-                print(f"  チェックポイント復元: {len(completed_sells)}/{n_rules} 売りルール完了")
+            if prog.get("ckpt_ver") != SWING_IC_CKPT_VER:
+                print(f"  チェックポイントv{prog.get('ckpt_ver')} → 現在v{SWING_IC_CKPT_VER}: 旧キャッシュを無視して再計算")
+            else:
+                completed_sells = set(prog.get("completed_sells", []))
+                for sname in list(completed_sells):
+                    rf = checkpoint_dir / f"sell_{sname}.json"
+                    if rf.exists():
+                        sell_results[sname] = json.loads(rf.read_text())
+                    else:
+                        completed_sells.discard(sname)
+                if completed_sells:
+                    print(f"  チェックポイント復元: {len(completed_sells)}/{n_rules} 売りルール完了")
 
     wm_fixed   = weights.reshape(1, 8)
     start_time = time.time()
@@ -1164,6 +1169,7 @@ def run_ic_lift_sell_probe(ticker_data: dict, t_train_end: int,
             (checkpoint_dir / f"sell_{sname}.json").write_text(json.dumps(result))
             completed_sells.add(sname)
             (checkpoint_dir / "progress.json").write_text(json.dumps({
+                "ckpt_ver":        SWING_IC_CKPT_VER,
                 "completed_sells": list(completed_sells),
                 "last_updated":    time.strftime("%Y-%m-%d %H:%M"),
             }))
