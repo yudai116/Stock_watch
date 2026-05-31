@@ -1,6 +1,6 @@
 {
   "version": 7,
-  "generated_at": "2026-05-31 01:36",
+  "generated_at": "2026-05-31 02:59",
   "mode": "day",
   "data_source": "price_data_intraday.json (1h bars)",
   "n_tickers": 25,
@@ -2319,6 +2319,7 @@
   "ga_results": {
     "population": 2000,
     "generations": 500,
+    "method": "ga",
     "n_sell_rules_optimized": 13,
     "all_sell_rules": {
       "hold_2b": {
@@ -2725,6 +2726,7 @@
       30.8007
     ]
   },
+  "ic_lift_results": null,
   "walk_forward": {
     "n_folds": 4,
     "folds": [
