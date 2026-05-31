@@ -627,12 +627,20 @@ const SELL_RULE_SHORT: Record<string, string> = {
 };
 
 const IND_COLORS_CLS: Record<string, string> = {
-  RSI:   "bg-emerald-500", MACD:  "bg-blue-500",   BB:    "bg-purple-500", MA:    "bg-orange-500",
-  Aroon: "bg-cyan-500",    Stoch: "bg-pink-500",    CCI:   "bg-yellow-500", ROC:   "bg-red-500",
+  RSI:    "bg-emerald-500", MACD:   "bg-blue-500",    BB:    "bg-purple-500",
+  EMA200: "bg-orange-500",  MOM3M:  "bg-cyan-500",    Stoch: "bg-pink-500",
+  CCI:    "bg-yellow-500",  "52WK": "bg-red-500",
+  // day mode indicators
+  MA:    "bg-orange-500",   Aroon:  "bg-cyan-500",    ROC:   "bg-red-500",
+  VWAP:  "bg-indigo-500",
 };
 const IND_TEXT_CLS: Record<string, string> = {
-  RSI:   "text-emerald-400", MACD:  "text-blue-400",   BB:    "text-purple-400", MA:    "text-orange-400",
-  Aroon: "text-cyan-400",    Stoch: "text-pink-400",   CCI:   "text-yellow-400", ROC:   "text-red-400",
+  RSI:    "text-emerald-400", MACD:   "text-blue-400",    BB:    "text-purple-400",
+  EMA200: "text-orange-400",  MOM3M:  "text-cyan-400",    Stoch: "text-pink-400",
+  CCI:    "text-yellow-400",  "52WK": "text-red-400",
+  // day mode indicators
+  MA:    "text-orange-400",   Aroon:  "text-cyan-400",    ROC:   "text-red-400",
+  VWAP:  "text-indigo-400",
 };
 const RANK_TEXT = ["text-yellow-400", "text-gray-300", "text-orange-500", "text-gray-600"];
 

@@ -3,7 +3,7 @@
 strategy_search.py v3 — DOE (Taguchi L18) → GA × 全売りルール → Walk-Forward 3折
 
 【モード】
-  --swing : スイング (1h足, RSI14/MACD12-26/BB20/EMA20-50/Aroon25/Stoch14/CCI20/ROC10)
+  --swing : スイング (日足10年, RSI14/MACD12-26/BB20/EMA200/MOM3M(63日)/Stoch14/CCI20/52WK)
   --day   : デイトレ (1h足, RSI9/MACD5-13/BB10/EMA9-21/Stoch5/ROC5/CCI14/VWAP偏差)
   --both  : 両方順番に実行
 
@@ -55,9 +55,9 @@ SWING_LIFT_SIGNAL   = 12.0        # シグナルゾーン下限
 SWING_LIFT_TARGET   = 0.02        # Lift対象リターン: 0.5%→2%（スイング水準に合わせる）
 SWING_LIFT_MIN      = 1.05        # 最小Lift比率: 1.02→1.05（品質優先）
 SWING_IC_MIN_VALID  = 3           # 有効指標の最低採用数（厳格化のため4→3）
-SWING_IC_TREND_INDS = {"MA", "Aroon", "MACD"}  # トレンド系指標: 必ず1件以上採用
+SWING_IC_TREND_INDS = {"MACD", "EMA200", "MOM3M"}  # トレンド系指標: 必ず1件以上採用
 # チェックポイントバージョン: アルゴリズムやパラメータ変更時にインクリメント→旧キャッシュ無効化
-SWING_IC_CKPT_VER   = 6     # 5→6: 日足10年データへ変更
+SWING_IC_CKPT_VER   = 7     # 6→7: EMA200/MOM3M/52WK導入 (MA/Aroon/ROC置換)
 # 注: per-sell-rule IC+Lift — 各売りルールの実現損益でICを計算するため
 # SWING_FORWARD_KEY は廃止 (run_ic_lift_sell_probe 内で sell_outcomes[sname] を直接使用)
 
@@ -180,7 +180,7 @@ DAY_SELL_JA = {
     "trail_1pct":    "トレーリングストップ 1%",
 }
 
-IND_NAMES_SWING = ["RSI", "MACD", "BB", "MA", "Aroon", "Stoch", "CCI", "ROC"]
+IND_NAMES_SWING = ["RSI", "MACD", "BB", "EMA200", "MOM3M", "Stoch", "CCI", "52WK"]
 IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "Stoch", "ROC", "CCI", "VWAP"]
 
 BUY_THRESHOLDS = [50, 55, 60, 65, 70, 75]
@@ -465,6 +465,52 @@ def score_roc(roc: np.ndarray) -> np.ndarray:
         np.where(roc > -10,  1 + (roc+10)/10*3, 0.)))))
     return np.clip(np.where(np.isnan(roc), 0., s), 0., 25.)
 
+def score_ema200(c: np.ndarray, ema200: np.ndarray) -> np.ndarray:
+    """200EMA乖離: 適度に下方乖離（健全な押し目）= 高スコア。200EMA上昇傾向なら品質ボーナス加算。"""
+    v = ~np.isnan(ema200) & (ema200 > 0)
+    dist = np.where(v, (c / np.where(ema200 > 0, ema200, 1.) - 1.) * 100., 0.)
+    s = np.where(dist < -25,  5.,                                    # 急落=落下ナイフリスク
+        np.where(dist < -15, 16 + (-dist - 15) / 10. * 5.,          # 深い押し目=絶好の買い
+        np.where(dist < -5,  12 + (-dist - 5)  / 10. * 4.,          # 中程度の押し目
+        np.where(dist < 0,    7 + (-dist)       / 5.  * 5.,          # 小幅下方=緩やかなシグナル
+        np.where(dist < 5,    5.,                                     # 直近200EMA付近=中立
+        np.where(dist < 15,   3 - (dist - 5) / 10. * 3., 0.))))))   # 大幅上方=割高
+    pema10 = np.roll(ema200, 10); pema10[:10] = ema200[min(10, len(ema200)-1)]
+    slope_pct = np.where(v & (pema10 > 0), (ema200 - pema10) / pema10 * 100., 0.)
+    slope_bonus = np.clip(slope_pct * 5., 0., 5.)  # 200EMA上昇=健全なトレンド (最大+5点)
+    return np.clip(np.where(v, s + slope_bonus, 0.), 0., 25.)
+
+def score_52wk(c: np.ndarray, h: np.ndarray, lo: np.ndarray, period: int = 252) -> np.ndarray:
+    """52週レンジ内ポジション: 年間安値付近（0〜20%）= 逆張り買いシグナル。"""
+    T = len(c)
+    pos = np.full(T, np.nan)
+    for i in range(period - 1, T):
+        hi52 = h[i - period + 1:i + 1].max()
+        lo52 = lo[i - period + 1:i + 1].min()
+        rng  = hi52 - lo52
+        pos[i] = (c[i] - lo52) / rng if rng > 1e-10 else 0.5
+    s = np.where(pos < 0.10, 23.,
+        np.where(pos < 0.20, 16 + (0.20 - pos) / 0.10 * 7.,
+        np.where(pos < 0.35, 10 + (0.35 - pos) / 0.15 * 6.,
+        np.where(pos < 0.50,  5 + (0.50 - pos) / 0.15 * 5.,
+        np.where(pos < 0.70,  2 + (0.70 - pos) / 0.20 * 3.,
+        np.where(pos < 0.85,  1 + (0.85 - pos) / 0.15, 0.))))))
+    return np.clip(np.where(np.isnan(pos), 0., s), 0., 25.)
+
+def score_mom3m(c: np.ndarray, period: int = 63) -> np.ndarray:
+    """3ヶ月モメンタム(63日ROC): 中程度の下落（健全な押し目）= 高スコア。急落は落下ナイフ扱い。"""
+    T = len(c)
+    roc = np.full(T, np.nan)
+    prev = c[:T - period]
+    roc[period:] = np.where(prev > 0, (c[period:] / prev - 1.) * 100., np.nan)
+    s = np.where(roc < -30,  4.,                                    # 急落=ファンダ問題の可能性
+        np.where(roc < -15, 14 + (-roc - 15) / 15. * 6.,           # 深い調整=逆張り絶好機
+        np.where(roc < -5,  10 + (-roc - 5)  / 10. * 4.,           # 中程度の調整
+        np.where(roc < 0,    6 + (-roc)       / 5.  * 4.,           # 小幅下落=軽微なシグナル
+        np.where(roc < 10,   4 - roc / 10. * 2.,                    # 小幅上昇=やや割高
+        np.where(roc < 30,   2 - (roc - 10) / 20. * 2., 0.))))))   # 強い上昇=過熱
+    return np.clip(np.where(np.isnan(roc), 0., s), 0., 25.)
+
 def score_vwap(vwap_dev: np.ndarray) -> np.ndarray:
     """VWAP偏差: 負 (VWAP以下) ほど買いシグナル"""
     dev_pct = vwap_dev * 100
@@ -485,19 +531,18 @@ def compute_ind_scores(td: dict, mode: str) -> np.ndarray:
     dates     = td["dates"]
 
     if mode == "swing":
-        rsi_v            = calc_rsi(c, 14)
-        ml, sl, hl       = calc_macd(c, 12, 26, 9)
-        pb               = calc_bb(c, 20)
-        ef               = _ema(c, 20); es = _ema(c, 50)
-        aup, adn         = calc_aroon(h, lo, 25)
-        sk, sd           = calc_stoch(c, h, lo, 14, 3)
-        cci              = calc_cci(c, h, lo, 20)
-        roc              = calc_roc(c, 10)
+        rsi_v      = calc_rsi(c, 14)
+        ml, sl, hl = calc_macd(c, 12, 26, 9)
+        pb         = calc_bb(c, 20)
+        ema200     = _ema(c, 200)
+        sk, sd     = calc_stoch(c, h, lo, 14, 3)
+        cci        = calc_cci(c, h, lo, 20)
+        # 中長期指標: EMA200乖離, 3ヶ月モメンタム, 52週レンジポジション
         return np.stack([
-            score_rsi(rsi_v), score_macd(ml, sl, hl),
-            score_bb(pb),     score_ma(c, ef, es),
-            score_aroon(aup, adn), score_stoch(sk, sd),
-            score_cci(cci),   score_roc(roc),
+            score_rsi(rsi_v),    score_macd(ml, sl, hl),
+            score_bb(pb),        score_ema200(c, ema200),
+            score_mom3m(c, 63),  score_stoch(sk, sd),
+            score_cci(cci),      score_52wk(c, h, lo, 252),
         ], axis=0)
     else:  # day
         rsi_v            = calc_rsi(c, 9)
