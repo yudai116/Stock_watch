@@ -42,20 +42,20 @@ MIN_TRADES_OOS = 5    # OOS/ホールドアウト評価の最小取引数（短�
 BARS_PER_YEAR  = 1500  # 1h bars/year (US+JP平均)
 
 # スイング専用パラメータ
-SWING_MIN_TRADES      = 20   # OOS最小トレード数（閾値引き上げで取引数が減るため緩和）
-SWING_BUY_THRESHOLDS  = [60, 65, 70, 75, 80]  # 高閾値のみ: 厳選シグナルで勝率向上
+SWING_MIN_TRADES      = 10   # OOS最小トレード数（高閾値でトレード数減少に対応）
+SWING_BUY_THRESHOLDS  = [70, 75, 80]  # さらに高閾値: 最高品質シグナルのみ
 
 # IC+Lift スイング専用パラメータ (GAの代替)
 SWING_IC_WIN        = 400         # ローリングIC窓サイズ
 SWING_IC_STEP       = 100         # ローリングICスライドステップ
-SWING_IC_MIN_ICIR   = 0.03        # 最小IC情報比 (mean/std)
-SWING_LIFT_SIGNAL   = 12.0        # シグナルゾーン下限 (0-25スコア中12以上)
-SWING_LIFT_TARGET   = 0.005       # Lift計算ターゲットリターン (0.5%)
-SWING_LIFT_MIN      = 1.02        # 最小Lift比率
-SWING_IC_MIN_VALID  = 4           # 有効指標の最低採用数
+SWING_IC_MIN_ICIR   = 0.05        # 最小IC情報比: 0.03→0.05に戻す（品質優先）
+SWING_LIFT_SIGNAL   = 12.0        # シグナルゾーン下限
+SWING_LIFT_TARGET   = 0.02        # Lift対象リターン: 0.5%→2%（スイング水準に合わせる）
+SWING_LIFT_MIN      = 1.05        # 最小Lift比率: 1.02→1.05（品質優先）
+SWING_IC_MIN_VALID  = 3           # 有効指標の最低採用数（厳格化のため4→3）
 SWING_IC_TREND_INDS = {"MA", "Aroon", "MACD"}  # トレンド系指標: 必ず1件以上採用
 # チェックポイントバージョン: アルゴリズムやパラメータ変更時にインクリメント→旧キャッシュ無効化
-SWING_IC_CKPT_VER   = 3
+SWING_IC_CKPT_VER   = 4
 # 注: per-sell-rule IC+Lift — 各売りルールの実現損益でICを計算するため
 # SWING_FORWARD_KEY は廃止 (run_ic_lift_sell_probe 内で sell_outcomes[sname] を直接使用)
 
