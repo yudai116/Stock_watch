@@ -49,10 +49,11 @@ SWING_BUY_THRESHOLDS  = [40, 45, 50, 55, 60, 65, 70, 75]  # 閾値範囲を拡�
 SWING_FORWARD_KEY  = "hold_35b"  # IC計算用フォワードリターン基準売りルール
 SWING_IC_WIN       = 400         # ローリングIC窓サイズ
 SWING_IC_STEP      = 100         # ローリングICスライドステップ
-SWING_IC_MIN_ICIR  = 0.05        # 最小IC情報比 (mean/std): これ未満を除外
-SWING_LIFT_SIGNAL  = 14.0        # シグナルゾーン下限 (0-25スコール中14以上)
+SWING_IC_MIN_ICIR  = 0.03        # 最小IC情報比 (mean/std): 0.05→0.03に緩和
+SWING_LIFT_SIGNAL  = 12.0        # シグナルゾーン下限: 14→12に緩和 (シグナル数増加)
 SWING_LIFT_TARGET  = 0.01        # Lift計算ターゲットリターン (1%)
-SWING_LIFT_MIN     = 1.05        # 最小Lift比率 (ベースラインより5%以上)
+SWING_LIFT_MIN     = 1.02        # 最小Lift比率: 1.05→1.02に緩和
+SWING_IC_MIN_VALID = 4           # 有効指標の最低採用数 (不足時は上位ICIRで補充)
 
 # GA ハイパーパラメータ
 GA_POP   = 2000   # 個体数
@@ -1039,13 +1040,19 @@ def compute_swing_ic_lift(ticker_data: dict, t_train_end: int) -> dict:
         if passes_ic and passes_lift:
             valid_names.append(name)
 
-    if not valid_names:
-        print("  警告: 有効指標0件 → 正ICIRトップ3にフォールバック")
-        top3 = sorted(
-            [i for i in range(n_ind) if icir_vals[i] > 0],
+    # 有効指標がMIN_VALID件未満の場合、正ICIRの上位指標で補充
+    if len(valid_names) < SWING_IC_MIN_VALID:
+        candidates = sorted(
+            [i for i in range(n_ind) if icir_vals[i] > 0 and IND_NAMES_SWING[i] not in valid_names],
             key=lambda i: icir_vals[i], reverse=True
-        )[:3]
-        valid_names = [IND_NAMES_SWING[i] for i in top3] if top3 else IND_NAMES_SWING
+        )
+        needed = SWING_IC_MIN_VALID - len(valid_names)
+        added = [IND_NAMES_SWING[i] for i in candidates[:needed]]
+        if added:
+            print(f"  補充: {added} (有効指標{len(valid_names)}件 → {SWING_IC_MIN_VALID}件確保)")
+            valid_names = valid_names + added
+        if not valid_names:
+            valid_names = list(IND_NAMES_SWING)
 
     # ── 重み: ICIR比例 (sum=4.0) ─────────────────────────────────────────
     raw_w = np.zeros(n_ind)
