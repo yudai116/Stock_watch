@@ -1,6 +1,6 @@
 {
   "version": 7,
-  "generated_at": "2026-05-31 08:55",
+  "generated_at": "2026-05-31 10:16",
   "mode": "day",
   "data_source": "price_data_intraday.json (1h bars)",
   "n_tickers": 25,
