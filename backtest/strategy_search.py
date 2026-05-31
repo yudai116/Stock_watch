@@ -1122,7 +1122,6 @@ def run_ic_lift_sell_probe(ticker_data: dict, t_train_end: int,
                 if completed_sells:
                     print(f"  チェックポイント復元: {len(completed_sells)}/{n_rules} 売りルール完了")
 
-    wm_fixed   = weights.reshape(1, 8)
     start_time = time.time()
     time_over  = False
 
