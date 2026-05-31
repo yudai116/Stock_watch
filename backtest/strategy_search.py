@@ -41,18 +41,19 @@ MIN_TRADES     = 30   # 訓練期間の最小取引数
 MIN_TRADES_OOS = 5    # OOS/ホールドアウト評価の最小取引数（短い窓でも記録する）
 BARS_PER_YEAR  = 1500  # 1h bars/year (US+JP平均)
 
-# スイング専用パラメータ（過学習対策）
-SWING_MIN_TRADES      = 50   # 30→50: ホールドアウト期間の取引数を増やす
-SWING_BUY_THRESHOLDS  = [40, 45, 50, 55, 60, 65, 70, 75]  # 閾値範囲を拡大（40,45を追加）
+# スイング専用パラメータ
+SWING_MIN_TRADES      = 20   # OOS最小トレード数（閾値引き上げで取引数が減るため緩和）
+SWING_BUY_THRESHOLDS  = [60, 65, 70, 75, 80]  # 高閾値のみ: 厳選シグナルで勝率向上
 
 # IC+Lift スイング専用パラメータ (GAの代替)
-SWING_IC_WIN       = 400         # ローリングIC窓サイズ
-SWING_IC_STEP      = 100         # ローリングICスライドステップ
-SWING_IC_MIN_ICIR  = 0.03        # 最小IC情報比 (mean/std)
-SWING_LIFT_SIGNAL  = 12.0        # シグナルゾーン下限 (0-25スコア中12以上)
-SWING_LIFT_TARGET  = 0.005       # Lift計算ターゲットリターン (0.5%: 感度向上)
-SWING_LIFT_MIN     = 1.02        # 最小Lift比率
-SWING_IC_MIN_VALID = 4           # 有効指標の最低採用数 (不足時は上位ICIRで補充)
+SWING_IC_WIN        = 400         # ローリングIC窓サイズ
+SWING_IC_STEP       = 100         # ローリングICスライドステップ
+SWING_IC_MIN_ICIR   = 0.03        # 最小IC情報比 (mean/std)
+SWING_LIFT_SIGNAL   = 12.0        # シグナルゾーン下限 (0-25スコア中12以上)
+SWING_LIFT_TARGET   = 0.005       # Lift計算ターゲットリターン (0.5%)
+SWING_LIFT_MIN      = 1.02        # 最小Lift比率
+SWING_IC_MIN_VALID  = 4           # 有効指標の最低採用数
+SWING_IC_TREND_INDS = {"MA", "Aroon", "MACD"}  # トレンド系指標: 必ず1件以上採用
 # 注: per-sell-rule IC+Lift — 各売りルールの実現損益でICを計算するため
 # SWING_FORWARD_KEY は廃止 (run_ic_lift_sell_probe 内で sell_outcomes[sname] を直接使用)
 
@@ -107,21 +108,17 @@ def doe_weight_row(row: np.ndarray) -> np.ndarray:
 
 # ── 売りルール定義 ────────────────────────────────────────────────────────────
 SWING_SELL_RULES: dict[str, dict] = {
-    "hold_21b":        {"type": "hold",        "bars": 21},
-    "hold_35b":        {"type": "hold",        "bars": 35},
-    "hold_70b":        {"type": "hold",        "bars": 70},
-    "hold_105b":       {"type": "hold",        "bars": 105},
-    "hold_140b":       {"type": "hold",        "bars": 140},
+    # 時間固定保有は除外（方向性がなくシグナルと無関係に終了するため）
+    # ストップ/トレール付きルールのみ残す → リスク管理が明確
     "target5_stop3":   {"type": "target_stop", "target": 5,  "stop": 3},
     "target10_stop5":  {"type": "target_stop", "target": 10, "stop": 5},
     "target15_stop5":  {"type": "target_stop", "target": 15, "stop": 5},
     "target20_stop7":  {"type": "target_stop", "target": 20, "stop": 7},
     "target15_stop7":  {"type": "target_stop", "target": 15, "stop": 7},
+    "target25_stop10": {"type": "target_stop", "target": 25, "stop": 10},
     "trail_5pct":      {"type": "trailing",    "trail": 5},
     "trail_10pct":     {"type": "trailing",    "trail": 10},
     "trail_15pct":     {"type": "trailing",    "trail": 15},
-    "target25_stop10": {"type": "target_stop", "target": 25, "stop": 10},
-    "hold_200b":       {"type": "hold",        "bars": 200},
 }
 
 DAY_SELL_RULES: dict[str, dict] = {
@@ -141,11 +138,9 @@ DAY_SELL_RULES: dict[str, dict] = {
 }
 
 SWING_SELL_HOLD = {
-    "hold_21b": 21, "hold_35b": 35, "hold_70b": 70, "hold_105b": 105, "hold_140b": 140,
     "target5_stop3": 35,  "target10_stop5": 50, "target15_stop5": 70,
-    "target20_stop7": 80, "target15_stop7": 70,
-    "trail_5pct": 50,     "trail_10pct": 70,
-    "trail_15pct": 90, "target25_stop10": 100, "hold_200b": 200,
+    "target20_stop7": 80, "target15_stop7": 70, "target25_stop10": 100,
+    "trail_5pct": 50,     "trail_10pct": 70,    "trail_15pct": 90,
 }
 
 DAY_SELL_HOLD = {
@@ -157,21 +152,15 @@ DAY_SELL_HOLD = {
 }
 
 SWING_SELL_JA = {
-    "hold_21b":       "固定保有 21h(≈3日)",
-    "hold_35b":       "固定保有 35h(≈5日)",
-    "hold_70b":       "固定保有 70h(≈10日)",
-    "hold_105b":      "固定保有 105h(≈15日)",
-    "hold_140b":      "固定保有 140h(≈20日)",
-    "target5_stop3":  "利確+5% / ストップ-3%",
-    "target10_stop5": "利確+10% / ストップ-5%",
-    "target15_stop5": "利確+15% / ストップ-5%",
-    "target20_stop7": "利確+20% / ストップ-7%",
-    "target15_stop7": "利確+15% / ストップ-7%",
-    "trail_5pct":     "トレーリングストップ 5%",
-    "trail_10pct":    "トレーリングストップ 10%",
-    "trail_15pct":     "トレーリングストップ 15%",
+    "target5_stop3":   "利確+5% / ストップ-3%",
+    "target10_stop5":  "利確+10% / ストップ-5%",
+    "target15_stop5":  "利確+15% / ストップ-5%",
+    "target20_stop7":  "利確+20% / ストップ-7%",
+    "target15_stop7":  "利確+15% / ストップ-7%",
     "target25_stop10": "利確+25% / ストップ-10%",
-    "hold_200b":       "固定保有 200h(≈28日)",
+    "trail_5pct":      "トレーリングストップ 5%",
+    "trail_10pct":     "トレーリングストップ 10%",
+    "trail_15pct":     "トレーリングストップ 15%",
 }
 
 DAY_SELL_JA = {
@@ -1058,6 +1047,20 @@ def compute_swing_ic_lift(ticker_data: dict, t_train_end: int,
             valid_names = valid_names + added
         if not valid_names:
             valid_names = list(IND_NAMES_SWING)
+
+    # ── トレンド指標を必ず1件以上含める ──────────────────────────────────
+    # 下落トレンド中の逆張り連発を防ぐためMA/Aroon/MACDを最低1件確保
+    has_trend = any(n in SWING_IC_TREND_INDS for n in valid_names)
+    if not has_trend:
+        trend_candidates = sorted(
+            [i for i, n in enumerate(IND_NAMES_SWING)
+             if n in SWING_IC_TREND_INDS and n not in valid_names],
+            key=lambda i: icir_vals[i], reverse=True
+        )
+        if trend_candidates:
+            added = IND_NAMES_SWING[trend_candidates[0]]
+            valid_names.append(added)
+            print(f"  トレンドフィルタ補充: {added} (ICIR={icir_vals[trend_candidates[0]]:.3f})")
 
     # ── 重み: ICIR比例 (sum=4.0) ─────────────────────────────────────────
     raw_w = np.zeros(n_ind)
