@@ -46,14 +46,15 @@ SWING_MIN_TRADES      = 50   # 30→50: ホールドアウト期間の取引数�
 SWING_BUY_THRESHOLDS  = [40, 45, 50, 55, 60, 65, 70, 75]  # 閾値範囲を拡大（40,45を追加）
 
 # IC+Lift スイング専用パラメータ (GAの代替)
-SWING_FORWARD_KEY  = "hold_35b"  # IC計算用フォワードリターン基準売りルール
 SWING_IC_WIN       = 400         # ローリングIC窓サイズ
 SWING_IC_STEP      = 100         # ローリングICスライドステップ
-SWING_IC_MIN_ICIR  = 0.03        # 最小IC情報比 (mean/std): 0.05→0.03に緩和
-SWING_LIFT_SIGNAL  = 12.0        # シグナルゾーン下限: 14→12に緩和 (シグナル数増加)
-SWING_LIFT_TARGET  = 0.01        # Lift計算ターゲットリターン (1%)
-SWING_LIFT_MIN     = 1.02        # 最小Lift比率: 1.05→1.02に緩和
+SWING_IC_MIN_ICIR  = 0.03        # 最小IC情報比 (mean/std)
+SWING_LIFT_SIGNAL  = 12.0        # シグナルゾーン下限 (0-25スコア中12以上)
+SWING_LIFT_TARGET  = 0.005       # Lift計算ターゲットリターン (0.5%: 感度向上)
+SWING_LIFT_MIN     = 1.02        # 最小Lift比率
 SWING_IC_MIN_VALID = 4           # 有効指標の最低採用数 (不足時は上位ICIRで補充)
+# 注: per-sell-rule IC+Lift — 各売りルールの実現損益でICを計算するため
+# SWING_FORWARD_KEY は廃止 (run_ic_lift_sell_probe 内で sell_outcomes[sname] を直接使用)
 
 # GA ハイパーパラメータ
 GA_POP   = 2000   # 個体数
@@ -944,13 +945,17 @@ def pearson_ic(x: np.ndarray, y: np.ndarray) -> float:
     return float(np.dot(xc, yc) / denom) if denom > 1e-10 else 0.0
 
 
-def compute_swing_ic_lift(ticker_data: dict, t_train_end: int) -> dict:
+def compute_swing_ic_lift(ticker_data: dict, t_train_end: int,
+                          fwd_key: str = "hold_35b") -> dict:
     """
     スイング専用: IC情報比(ICIR) + Lift分析で有効指標と重みを決定する。
 
-    IC: 各指標スコア vs hold_35bフォワードリターン のローリングPearson相関
+    fwd_key: sell_outcomes のキー。各売りルールの実現損益を使うことで
+             「その売りルールに対して本当に効く指標」を選択できる。
+
+    IC: 各指標スコア vs fwd_keyフォワードリターン のローリングPearson相関
         ICIR = mean(rolling_ICs) / std(rolling_ICs)
-    Lift: P(ret>1% | score>=14) / P(ret>1%) を銘柄ごとに計算して平均
+    Lift: P(ret>LIFT_TARGET | score>=SIGNAL) / P(ret>LIFT_TARGET) を銘柄ごとに計算
 
     採用条件: ICIR >= SWING_IC_MIN_ICIR AND Lift >= SWING_LIFT_MIN
     重み: 採用指標のICIRに比例 (sum=4.0)、非採用は0
@@ -965,7 +970,7 @@ def compute_swing_ic_lift(ticker_data: dict, t_train_end: int) -> dict:
     n_ind    = len(IND_NAMES_SWING)
     WIN      = SWING_IC_WIN
     STEP     = SWING_IC_STEP
-    FWD_KEY  = SWING_FORWARD_KEY
+    FWD_KEY  = fwd_key
 
     # ── per-ticker ローリングIC収集 ──────────────────────────────────────
     all_ics: dict[int, list[float]] = {i: [] for i in range(n_ind)}
@@ -1071,12 +1076,14 @@ def compute_swing_ic_lift(ticker_data: dict, t_train_end: int) -> dict:
     }
 
 
-def run_ic_lift_sell_probe(ticker_data: dict, weights: np.ndarray, t_train_end: int,
+def run_ic_lift_sell_probe(ticker_data: dict, t_train_end: int,
                             checkpoint_dir: "Path | None" = None,
                             time_limit_s: "float | None" = None,
                             ) -> "tuple[dict | None, dict, bool]":
     """
-    IC+Lift重みで全売りルール×閾値をグリッドサーチし最良の(sell, threshold)を選択する。
+    Per-sell-rule IC+Lift: 各売りルールの実現損益でICを計算し、
+    そのルールに最適な重みを導出してグリッドサーチする。
+
     GAの代替。チェックポイント機能付き。
 
     戻り値: (best_result, all_sell_results_compat, all_completed)
@@ -1121,9 +1128,14 @@ def run_ic_lift_sell_probe(ticker_data: dict, weights: np.ndarray, t_train_end: 
             time_over = True
             break
 
+        # per-sell-rule IC+Lift: このルールの実現損益でICを計算し最適重みを導出
+        ic_lift_rule = compute_swing_ic_lift(ticker_data, t_train_end, fwd_key=sname)
+        w_rule = ic_lift_rule["weights"]
+        wm_rule = w_rule.reshape(1, 8)
+
         hb      = sell_hold[sname]
         shp_row = batch_sharpe(
-            ticker_data, wm_fixed, sname, thresholds, hb, 0, t_train_end,
+            ticker_data, wm_rule, sname, thresholds, hb, 0, t_train_end,
             min_trades=min_t)[0]  # (len(thresholds),)
 
         if np.all(np.isnan(shp_row)):
@@ -1135,7 +1147,13 @@ def run_ic_lift_sell_probe(ticker_data: dict, weights: np.ndarray, t_train_end: 
         result = {
             "sharpe":    round(best_shp, 4),
             "threshold": thresholds[best_ti],
-            "weights":   weights.tolist(),
+            "weights":   w_rule.tolist(),
+            "ic_lift":   {
+                "valid_indicators": ic_lift_rule["valid_indicators"],
+                "ic_scores":        ic_lift_rule["ic_scores"],
+                "lift_scores":      ic_lift_rule["lift_scores"],
+                "n_valid":          ic_lift_rule["n_valid"],
+            },
         }
         sell_results[sname] = result
 
@@ -1154,14 +1172,14 @@ def run_ic_lift_sell_probe(ticker_data: dict, weights: np.ndarray, t_train_end: 
     if not sell_results:
         return None, {}, False
 
-    # ベスト売りルール選択
+    # ベスト売りルール選択 (各ルール固有の重みを使用)
     finite = {s: r for s, r in sell_results.items() if np.isfinite(r["sharpe"])}
     best_sname = max(finite, key=lambda s: finite[s]["sharpe"]) if finite else next(iter(sell_results))
     best_r = sell_results[best_sname]
     best_result = {
         "sell":        best_sname,
         "threshold":   best_r["threshold"],
-        "weights":     weights,
+        "weights":     np.array(best_r["weights"]),
         "sharpe":      best_r["sharpe"],
         "convergence": [],
     }
@@ -1171,12 +1189,16 @@ def run_ic_lift_sell_probe(ticker_data: dict, weights: np.ndarray, t_train_end: 
         sname: {
             "sharpe":     r["sharpe"],
             "threshold":  r["threshold"],
-            "weights":    weights,
+            "weights":    np.array(r["weights"]),
             "convergence": [],
         }
         for sname, r in sell_results.items()
     }
-    return best_result, compat, all_completed
+
+    # ベスト売りルールのIC+Lift詳細
+    best_ic_lift = best_r.get("ic_lift")
+
+    return best_result, compat, all_completed, best_ic_lift
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1234,19 +1256,10 @@ def run_phase_wf_fold(mode: str, fold_i: int,
     checkpoint_dir = ARTIFACTS_DIR / f"checkpoint_{mode}_fold_{fold_i}"
 
     if mode == "swing":
-        print(f"  [IC+Lift] 指標検証中 (訓練 0〜{t_train_f} バー) ...")
-        ic_lift = compute_swing_ic_lift(ticker_data, t_train_f)
-        print(f"  [IC+Lift] 採用: {ic_lift['valid_indicators']} "
-              f"({ic_lift['n_valid']}件 / {len(IND_NAMES_SWING)}件)")
-        best_fold, all_ga_results, all_completed = run_ic_lift_sell_probe(
-            ticker_data, ic_lift["weights"], t_train_f,
+        print(f"  [per-sell-rule IC+Lift] 全売りルールを検証中 (訓練 0〜{t_train_f} バー) ...")
+        best_fold, all_ga_results, all_completed, ic_lift_details = run_ic_lift_sell_probe(
+            ticker_data, t_train_f,
             checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s)
-        ic_lift_details = {
-            "valid_indicators": ic_lift["valid_indicators"],
-            "ic_scores":        ic_lift["ic_scores"],
-            "lift_scores":      ic_lift["lift_scores"],
-            "n_valid":          ic_lift["n_valid"],
-        }
     else:
         best_fold, all_ga_results, all_completed = run_ga_all_sells(
             ticker_data, mode, doe_effects, t_train_f,
@@ -1329,19 +1342,10 @@ def run_phase_final(mode: str, time_limit_s: "float | None" = None) -> None:
     checkpoint_dir = ARTIFACTS_DIR / f"checkpoint_{mode}_final"
 
     if mode == "swing":
-        print(f"  [IC+Lift] 指標検証中 (訓練 0〜{t_holdout} バー) ...")
-        ic_lift = compute_swing_ic_lift(ticker_data, t_holdout)
-        print(f"  [IC+Lift] 採用: {ic_lift['valid_indicators']} "
-              f"({ic_lift['n_valid']}件 / {len(IND_NAMES_SWING)}件)")
-        best_overall, all_ga_results, all_completed = run_ic_lift_sell_probe(
-            ticker_data, ic_lift["weights"], t_holdout,
+        print(f"  [per-sell-rule IC+Lift] 全売りルールを検証中 (訓練 0〜{t_holdout} バー) ...")
+        best_overall, all_ga_results, all_completed, ic_lift_details = run_ic_lift_sell_probe(
+            ticker_data, t_holdout,
             checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s)
-        ic_lift_details = {
-            "valid_indicators": ic_lift["valid_indicators"],
-            "ic_scores":        ic_lift["ic_scores"],
-            "lift_scores":      ic_lift["lift_scores"],
-            "n_valid":          ic_lift["n_valid"],
-        }
     else:
         best_overall, all_ga_results, all_completed = run_ga_all_sells(
             ticker_data, mode, doe_effects, t_holdout,
