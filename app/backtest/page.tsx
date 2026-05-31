@@ -632,7 +632,7 @@ const IND_COLORS_CLS: Record<string, string> = {
   CCI:    "bg-yellow-500",  "52WK": "bg-red-500",
   // day mode indicators
   MA:    "bg-orange-500",   Aroon:  "bg-cyan-500",    ROC:   "bg-red-500",
-  VWAP:  "bg-indigo-500",
+  RVOL:  "bg-teal-500",     VWAP:   "bg-indigo-500",
 };
 const IND_TEXT_CLS: Record<string, string> = {
   RSI:    "text-emerald-400", MACD:   "text-blue-400",    BB:    "text-purple-400",
@@ -640,7 +640,7 @@ const IND_TEXT_CLS: Record<string, string> = {
   CCI:    "text-yellow-400",  "52WK": "text-red-400",
   // day mode indicators
   MA:    "text-orange-400",   Aroon:  "text-cyan-400",    ROC:   "text-red-400",
-  VWAP:  "text-indigo-400",
+  RVOL:  "text-teal-400",     VWAP:   "text-indigo-400",
 };
 const RANK_TEXT = ["text-yellow-400", "text-gray-300", "text-orange-500", "text-gray-600"];
 

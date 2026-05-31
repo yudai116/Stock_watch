@@ -28,7 +28,7 @@ const USE_ALPACA    = INTRADAY && !!ALPACA_KEY && !!ALPACA_SECRET;
 // Alpaca で取得できる最古の日付 (IEX feed)
 const ALPACA_START = "2016-01-01";
 
-// 25 tickers — semiconductor / AI / cloud tech focus
+// 48 tickers — semiconductor / AI / cloud tech focus
 const TICKERS = [
   // ── US 大型半導体・AI ──────────────────────────────────────────
   "NVDA",    // NVIDIA (GPU/AI)
@@ -40,15 +40,36 @@ const TICKERS = [
   "MU",      // Micron Technology (DRAM/NAND)
   "TSM",     // TSMC ADR (ファウンドリ)
   "ARM",     // Arm Holdings (チップIP, IPO 2023)
+  "INTC",    // Intel Corp
+  "TXN",     // Texas Instruments
   // ── US 製造装置・EDA ─────────────────────────────────────────
   "AMAT",    // Applied Materials
   "LRCX",    // Lam Research
   "KLAC",    // KLA Corp
+  "ENTG",    // Entegris (半導体材料・クリーニング)
+  "ACLS",    // Axcelis Technologies (イオン注入装置)
+  // ── US アナログ・混合信号半導体 ──────────────────────────────
+  "ADI",     // Analog Devices
+  "NXPI",    // NXP Semiconductors (自動車/IoT)
+  "MCHP",    // Microchip Technology (マイコン)
+  "ON",      // ON Semiconductor (パワー半導体)
+  "MPWR",    // Monolithic Power Systems
+  "SWKS",    // Skyworks Solutions (RF半導体)
   // ── US AI・クラウド成長株 ─────────────────────────────────────
   "MRVL",    // Marvell Technology
   "CRWD",    // CrowdStrike (セキュリティ)
   "PLTR",    // Palantir (AI/データ分析)
   "SMCI",    // Super Micro Computer
+  "META",    // Meta Platforms (AI/メタバース)
+  "GOOGL",   // Alphabet (AI/クラウド)
+  "AMZN",    // Amazon (AWS/AI)
+  "ORCL",    // Oracle (クラウドDB/AI)
+  "ANET",    // Arista Networks (データセンターネットワーク)
+  "NOW",     // ServiceNow (AI/エンタープライズSaaS)
+  // ── US セキュリティ・データ ───────────────────────────────────
+  "PANW",    // Palo Alto Networks (AI-SecOps)
+  "DDOG",    // Datadog (可観測性/AI)
+  "ZS",      // Zscaler (ゼロトラスト)
   // ── US 小型・高ボラ ───────────────────────────────────────────
   "SOUN",    // SoundHound AI (SPAC 2022)
   "IONQ",    // IonQ (量子コンピュータ, SPAC 2021)
@@ -60,11 +81,14 @@ const TICKERS = [
   "6963.T",  // ローム
   "6920.T",  // レーザーテック
   "6146.T",  // ディスコ
+  "6981.T",  // 村田製作所 (電子部品)
+  "6762.T",  // TDK (電子部品)
+  "6902.T",  // デンソー (車載半導体)
 ];
 
 // Daily: 10 years of history
 const DAILY_START = "2015-01-01";
-const DAILY_END   = "2025-05-01";
+const DAILY_END   = "2025-12-31";
 
 // Intraday 1h: Yahoo Finance allows up to 730 days back
 // Use 2 years ago from today minus 1 week safety margin
