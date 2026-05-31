@@ -1465,41 +1465,6 @@ def run_phase_assemble(mode: str) -> None:
     convergence = final_art["convergence"]
     all_ga_results_raw = final_art["all_ga_results"]
 
-    # スイングモード: WF OOS実績でより頑健な売りルールを選択 (過学習対策)
-    if mode == "swing" and all_ga_results_raw:
-        rule_oos: dict[str, list[float]] = {}
-        rule_n:   dict[str, list[int]]   = {}
-        for fold in wf_folds:
-            for sname, stats in fold.get("all_sell_oos", {}).items():
-                rule_oos.setdefault(sname, []).append(float(stats.get("oos_sharpe", 0.)))
-                rule_n.setdefault(sname, []).append(int(stats.get("oos_n_trades", 0)))
-
-        # 全折でSWING_MIN_TRADES以上のトレードがあるルールのみ候補
-        eligible = {
-            s: v for s, v in rule_oos.items()
-            if all(n >= SWING_MIN_TRADES for n in rule_n.get(s, [0]))
-            and s in all_ga_results_raw
-        }
-        if eligible:
-            # 頑健性スコア = 平均OOS - 0.5 * 標準偏差 (高平均・低分散のバランス)
-            rule_rob = {
-                s: float(np.mean(v)) - 0.5 * float(np.std(v))
-                for s, v in eligible.items()
-            }
-            wf_best = max(rule_rob, key=lambda s: rule_rob[s])
-            print("  [WF OOS頑健性スコア] avg - 0.5*std:")
-            for s, sc in sorted(rule_rob.items(), key=lambda x: x[1], reverse=True):
-                print(f"    {s}: {sc:.4f}  avg={np.mean(rule_oos[s]):.4f} std={np.std(rule_oos[s]):.4f}")
-            if wf_best != best_sell:
-                gr = all_ga_results_raw[wf_best]
-                w_list = gr["weights"] if isinstance(gr["weights"], list) else gr["weights"].tolist()
-                print(f"  [WF OOS選択] {best_sell}(訓練) → {wf_best}(WF頑健) rob={rule_rob[wf_best]:.4f}")
-                best_sell   = wf_best
-                best_w      = np.array(w_list)
-                best_thresh = gr["threshold"]
-                train_shp   = gr["sharpe"]
-            else:
-                print(f"  [WF OOS選択] {best_sell} を維持 (訓練選択と一致)")
     best_weights = {nm: round(float(best_w[i]), 4) for i, nm in enumerate(ind_names)}
 
     # ウェイト信頼区間 (WF fold 最良重み + final 最良重み)
