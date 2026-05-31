@@ -1,25 +1,27 @@
 #!/usr/bin/env python3
 """
-strategy_search.py v3 — DOE (Taguchi L18) → GA × 全売りルール → Walk-Forward 3折
+strategy_search.py v4 — DOE (Taguchi L18) → GA × 全売りルール → Walk-Forward 6折
 
 【モード】
-  --swing : スイング (日足10年, RSI14/MACD12-26/BB20/EMA200/MOM3M(63日)/Stoch14/CCI20/52WK)
-  --day   : デイトレ (1h足, RSI9/MACD5-13/BB10/EMA9-21/Stoch5/ROC5/CCI14/VWAP偏差)
+  --swing : スイング (日足10年, RSI14/MACD12-26/BB20/EMA200/MOM3M(63日)/Stoch14/CCI20/52WK, 48銘柄)
+  --day   : デイトレ (1h足, RSI9/MACD5-13/BB10/EMA9-21/Stoch5/RVOL20/CCI14/VWAP偏差, 38銘柄US)
   --both  : 両方順番に実行
 
 【パイプライン】
   1. DOE   (Taguchi L18 直交表) → 指標の主効果ランキング
-  2. WF    (4折拡大窓, 訓練データ内) → 各Fold: 全売りルール × GA (pop=2000, gen=500)
+  2. WF    (6折拡大窓, 訓練データ内) → 各Fold: 全売りルール × GA (pop=2000, gen=500)
   3. 最終GA (全売りルール × pop=2000 × gen=500) → best (sell, weights)
   4. MC最終評価 (5000サンプル) → top100
   5. ホールドアウト評価 (後ろ20%)
-  ※ --both で約8時間 (swing/dayそれぞれ約4時間)
+  ※ --both で約8〜10時間 (swing/dayそれぞれ約4〜5時間)
 
 【その他】
   - 取引コスト: US 0.16% / JP 0.30% (往復)
   - ボリュームフィルター: vol >= 0.7 × SMA(vol,20)
   - エッジバーフィルター: 各日の最初・最後の1hバーは除外 (day モードのみ)
   - エントリー価格: シグナルバー翌バーの始値 (先読みバイアスなし)
+  - SWING 閾値: [55,60,65,70,75] (v8: 引き下げによりシグナル数増加)
+  - DAY 閾値: [45,50,55,60,65,70] (v8: 引き下げによりシグナル数増加)
 """
 from __future__ import annotations
 
@@ -45,7 +47,7 @@ BARS_PER_YEAR_SWING = 252   # daily bars/year
 
 # スイング専用パラメータ
 SWING_MIN_TRADES      = 10   # OOS最小トレード数（高閾値でトレード数減少に対応）
-SWING_BUY_THRESHOLDS  = [70, 75, 80]  # さらに高閾値: 最高品質シグナルのみ
+SWING_BUY_THRESHOLDS  = [55, 60, 65, 70, 75]  # 閾値を下げてシグナル数を増やす
 
 # IC+Lift スイング専用パラメータ (GAの代替)
 SWING_IC_WIN        = 120   # ローリングIC窓サイズ (日足: 約6ヶ月)
@@ -57,7 +59,7 @@ SWING_LIFT_MIN      = 1.05        # 最小Lift比率: 1.02→1.05（品質優先
 SWING_IC_MIN_VALID  = 3           # 有効指標の最低採用数（厳格化のため4→3）
 SWING_IC_TREND_INDS = {"MACD", "EMA200", "MOM3M"}  # トレンド系指標: 必ず1件以上採用
 # チェックポイントバージョン: アルゴリズムやパラメータ変更時にインクリメント→旧キャッシュ無効化
-SWING_IC_CKPT_VER   = 7     # 6→7: EMA200/MOM3M/52WK導入 (MA/Aroon/ROC置換)
+SWING_IC_CKPT_VER   = 8     # 7→8: 閾値引下げ(55-75)/RVOL導入/WF6折/銘柄48本
 # 注: per-sell-rule IC+Lift — 各売りルールの実現損益でICを計算するため
 # SWING_FORWARD_KEY は廃止 (run_ic_lift_sell_probe 内で sell_outcomes[sname] を直接使用)
 
@@ -181,9 +183,9 @@ DAY_SELL_JA = {
 }
 
 IND_NAMES_SWING = ["RSI", "MACD", "BB", "EMA200", "MOM3M", "Stoch", "CCI", "52WK"]
-IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "Stoch", "ROC", "CCI", "VWAP"]
+IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "Stoch", "RVOL", "CCI", "VWAP"]
 
-BUY_THRESHOLDS = [50, 55, 60, 65, 70, 75]
+BUY_THRESHOLDS = [45, 50, 55, 60, 65, 70]
 
 MAX_HOLD_BARS_SWING = 60   # 日足: 最大60取引日 (約3ヶ月)
 MAX_HOLD_BARS_DAY   = 20
@@ -251,12 +253,14 @@ def _load_ticker_data(mode: str) -> tuple[dict, int, int]:
 
 
 def _wf_splits(T_min: int, t_holdout: int) -> list[tuple[int, int]]:
-    """4-fold expanding WF splits within training data [0, t_holdout]."""
+    """6-fold expanding WF splits within training data [0, t_holdout]."""
     return [
-        (int(T_min * 0.30), int(T_min * 0.43)),
-        (int(T_min * 0.43), int(T_min * 0.56)),
-        (int(T_min * 0.56), int(T_min * 0.69)),
-        (int(T_min * 0.69), t_holdout),
+        (int(T_min * 0.22), int(T_min * 0.33)),
+        (int(T_min * 0.33), int(T_min * 0.44)),
+        (int(T_min * 0.44), int(T_min * 0.55)),
+        (int(T_min * 0.55), int(T_min * 0.66)),
+        (int(T_min * 0.66), int(T_min * 0.73)),
+        (int(T_min * 0.73), t_holdout),
     ]
 
 
@@ -521,6 +525,19 @@ def score_vwap(vwap_dev: np.ndarray) -> np.ndarray:
         np.where(dev_pct < 3.,    1 + (3.-dev_pct)/1.5*2, 0.)))))
     return np.clip(np.where(np.isnan(vwap_dev), 0., s), 0., 25.)
 
+def score_relvol(volumes: np.ndarray, period: int = 20) -> np.ndarray:
+    """相対出来高 (RVOL): SMA比の出来高。高出来高 = 市場の強い関心・反転確度が高い。"""
+    sma_v = _sma(volumes, period)
+    valid = ~np.isnan(sma_v) & (sma_v > 0)
+    rvol  = np.where(valid, volumes / np.where(sma_v > 0, sma_v, 1.), np.nan)
+    s = np.where(rvol > 3.0, 22.,
+        np.where(rvol > 2.0, 16. + (rvol - 2.0) * 6.,
+        np.where(rvol > 1.5, 11. + (rvol - 1.5) / 0.5 * 5.,
+        np.where(rvol > 1.0,  7. + (rvol - 1.0) / 0.5 * 4.,
+        np.where(rvol > 0.7,  3. + (rvol - 0.7) / 0.3 * 4.,
+        np.where(rvol > 0.5,  1. + (rvol - 0.5) / 0.2 * 2., 0.))))))
+    return np.clip(np.where(np.isnan(rvol), 0., s), 0., 25.)
+
 # ══════════════════════════════════════════════════════════════════════════════
 # 5. 指標スコアをまとめて計算
 # ══════════════════════════════════════════════════════════════════════════════
@@ -550,14 +567,13 @@ def compute_ind_scores(td: dict, mode: str) -> np.ndarray:
         pb               = calc_bb(c, 10)
         ef               = _ema(c, 9); es = _ema(c, 21)
         sk, sd           = calc_stoch(c, h, lo, 5, 3)
-        roc              = calc_roc(c, 5)
         cci              = calc_cci(c, h, lo, 14)
         vwap_dev         = calc_vwap_dev(c, volumes, dates)
         return np.stack([
-            score_rsi(rsi_v), score_macd(ml, sl, hl),
-            score_bb(pb),     score_ma(c, ef, es),
-            score_stoch(sk, sd), score_roc(roc),
-            score_cci(cci),   score_vwap(vwap_dev),
+            score_rsi(rsi_v),    score_macd(ml, sl, hl),
+            score_bb(pb),        score_ma(c, ef, es),
+            score_stoch(sk, sd), score_relvol(volumes, 20),
+            score_cci(cci),      score_vwap(vwap_dev),
         ], axis=0)
 
 # ══════════════════════════════════════════════════════════════════════════════
