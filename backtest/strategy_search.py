@@ -45,6 +45,15 @@ BARS_PER_YEAR  = 1500  # 1h bars/year (US+JP平均)
 SWING_MIN_TRADES      = 50   # 30→50: ホールドアウト期間の取引数を増やす
 SWING_BUY_THRESHOLDS  = [40, 45, 50, 55, 60, 65, 70, 75]  # 閾値範囲を拡大（40,45を追加）
 
+# IC+Lift スイング専用パラメータ (GAの代替)
+SWING_FORWARD_KEY  = "hold_35b"  # IC計算用フォワードリターン基準売りルール
+SWING_IC_WIN       = 400         # ローリングIC窓サイズ
+SWING_IC_STEP      = 100         # ローリングICスライドステップ
+SWING_IC_MIN_ICIR  = 0.05        # 最小IC情報比 (mean/std): これ未満を除外
+SWING_LIFT_SIGNAL  = 14.0        # シグナルゾーン下限 (0-25スコール中14以上)
+SWING_LIFT_TARGET  = 0.01        # Lift計算ターゲットリターン (1%)
+SWING_LIFT_MIN     = 1.05        # 最小Lift比率 (ベースラインより5%以上)
+
 # GA ハイパーパラメータ
 GA_POP   = 2000   # 個体数
 GA_GENS  = 500    # 世代数
@@ -919,6 +928,251 @@ def run_ga_all_sells(ticker_data: dict, mode: str, doe_effects: dict,
     return best_overall, all_ga_results, all_completed
 
 # ══════════════════════════════════════════════════════════════════════════════
+# 9b. IC+Lift分析 (スイング専用, GAの代替)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def pearson_ic(x: np.ndarray, y: np.ndarray) -> float:
+    """Pearson相関係数 (NaN除外)。サンプル不足時は0.0を返す。"""
+    mask = ~np.isnan(x) & ~np.isnan(y)
+    n = int(mask.sum())
+    if n < 20:
+        return 0.0
+    xm = x[mask]; ym = y[mask]
+    xc = xm - xm.mean(); yc = ym - ym.mean()
+    denom = float(np.sqrt((xc ** 2).sum() * (yc ** 2).sum()))
+    return float(np.dot(xc, yc) / denom) if denom > 1e-10 else 0.0
+
+
+def compute_swing_ic_lift(ticker_data: dict, t_train_end: int) -> dict:
+    """
+    スイング専用: IC情報比(ICIR) + Lift分析で有効指標と重みを決定する。
+
+    IC: 各指標スコア vs hold_35bフォワードリターン のローリングPearson相関
+        ICIR = mean(rolling_ICs) / std(rolling_ICs)
+    Lift: P(ret>1% | score>=14) / P(ret>1%) を銘柄ごとに計算して平均
+
+    採用条件: ICIR >= SWING_IC_MIN_ICIR AND Lift >= SWING_LIFT_MIN
+    重み: 採用指標のICIRに比例 (sum=4.0)、非採用は0
+
+    戻り値 dict:
+      "valid_indicators": list[str]
+      "weights":          np.ndarray (8,)
+      "ic_scores":        dict[str, float]   ICIR値
+      "lift_scores":      dict[str, float]   Lift比率
+      "n_valid":          int
+    """
+    n_ind    = len(IND_NAMES_SWING)
+    WIN      = SWING_IC_WIN
+    STEP     = SWING_IC_STEP
+    FWD_KEY  = SWING_FORWARD_KEY
+
+    # ── per-ticker ローリングIC収集 ──────────────────────────────────────
+    all_ics: dict[int, list[float]] = {i: [] for i in range(n_ind)}
+
+    for td in ticker_data.values():
+        ind  = td["ind_scores"][:, :t_train_end]               # (8, T)
+        fret = td["sell_outcomes"][FWD_KEY][:t_train_end]      # (T,)
+        vol  = td["vol_ok"][:t_train_end]
+        mask = ~np.isnan(fret) & vol
+        if mask.sum() < 30:
+            continue
+        ind_f  = ind[:, mask]   # (8, N)
+        fret_f = fret[mask]     # (N,)
+        N = fret_f.shape[0]
+
+        if N < WIN:
+            # 窓が取れないケースは全体でIC1点
+            for i in range(n_ind):
+                ic = pearson_ic(ind_f[i], fret_f)
+                all_ics[i].append(ic)
+        else:
+            for start in range(0, N - WIN + 1, STEP):
+                end = start + WIN
+                fw  = fret_f[start:end]
+                for i in range(n_ind):
+                    ic = pearson_ic(ind_f[i, start:end], fw)
+                    all_ics[i].append(ic)
+
+    # ── ICIR計算 ─────────────────────────────────────────────────────────
+    ic_scores: dict[str, float] = {}
+    icir_vals: dict[int, float] = {}
+    for i, name in enumerate(IND_NAMES_SWING):
+        arr  = np.array(all_ics[i]) if all_ics[i] else np.array([0.0])
+        mean = float(arr.mean())
+        std  = float(arr.std()) + 1e-6
+        icir = mean / std
+        ic_scores[name] = round(icir, 4)
+        icir_vals[i]    = icir
+
+    # ── per-ticker Lift計算 ──────────────────────────────────────────────
+    lift_scores: dict[str, float] = {}
+    for i, name in enumerate(IND_NAMES_SWING):
+        lifts_per_ticker: list[float] = []
+        for td in ticker_data.values():
+            ind_col = td["ind_scores"][i, :t_train_end]
+            fret    = td["sell_outcomes"][FWD_KEY][:t_train_end]
+            vol     = td["vol_ok"][:t_train_end]
+            mask    = ~np.isnan(fret) & ~np.isnan(ind_col) & vol
+            if mask.sum() < 20:
+                continue
+            fret_v = fret[mask]; ind_v = ind_col[mask]
+            brate  = float((fret_v > SWING_LIFT_TARGET).mean())
+            if brate < 1e-6:
+                continue
+            sig = ind_v >= SWING_LIFT_SIGNAL
+            if sig.sum() < 5:
+                continue
+            crate = float((fret_v[sig] > SWING_LIFT_TARGET).mean())
+            lifts_per_ticker.append(crate / brate)
+        lift_scores[name] = round(float(np.mean(lifts_per_ticker)) if lifts_per_ticker else 1.0, 4)
+
+    # ── 有効指標選択 ─────────────────────────────────────────────────────
+    valid_names: list[str] = []
+    for i, name in enumerate(IND_NAMES_SWING):
+        passes_ic   = icir_vals[i] >= SWING_IC_MIN_ICIR
+        passes_lift = lift_scores[name] >= SWING_LIFT_MIN
+        tag = "✓" if (passes_ic and passes_lift) else "✗"
+        note = ""
+        if not passes_ic:   note += f" ICIR={icir_vals[i]:.3f}<{SWING_IC_MIN_ICIR}"
+        if not passes_lift: note += f" Lift={lift_scores[name]:.3f}<{SWING_LIFT_MIN}"
+        print(f"    {tag} {name}: ICIR={icir_vals[i]:.3f}  Lift={lift_scores[name]:.3f}{note}")
+        if passes_ic and passes_lift:
+            valid_names.append(name)
+
+    if not valid_names:
+        print("  警告: 有効指標0件 → 正ICIRトップ3にフォールバック")
+        top3 = sorted(
+            [i for i in range(n_ind) if icir_vals[i] > 0],
+            key=lambda i: icir_vals[i], reverse=True
+        )[:3]
+        valid_names = [IND_NAMES_SWING[i] for i in top3] if top3 else IND_NAMES_SWING
+
+    # ── 重み: ICIR比例 (sum=4.0) ─────────────────────────────────────────
+    raw_w = np.zeros(n_ind)
+    for i, name in enumerate(IND_NAMES_SWING):
+        if name in valid_names:
+            raw_w[i] = max(icir_vals[i], 0.0)
+    total = raw_w.sum()
+    weights = raw_w / total * 4.0 if total > 1e-6 else np.ones(n_ind) * (4.0 / n_ind)
+
+    return {
+        "valid_indicators": valid_names,
+        "weights":          weights,
+        "ic_scores":        ic_scores,
+        "lift_scores":      lift_scores,
+        "n_valid":          len(valid_names),
+    }
+
+
+def run_ic_lift_sell_probe(ticker_data: dict, weights: np.ndarray, t_train_end: int,
+                            checkpoint_dir: "Path | None" = None,
+                            time_limit_s: "float | None" = None,
+                            ) -> "tuple[dict | None, dict, bool]":
+    """
+    IC+Lift重みで全売りルール×閾値をグリッドサーチし最良の(sell, threshold)を選択する。
+    GAの代替。チェックポイント機能付き。
+
+    戻り値: (best_result, all_sell_results_compat, all_completed)
+      best_result: {"sell", "threshold", "weights", "sharpe", "convergence"}
+      all_sell_results_compat: run_ga_all_sells互換形式 (assembleで共通利用可能)
+    """
+    sell_rules = SWING_SELL_RULES
+    sell_hold  = SWING_SELL_HOLD
+    thresholds = SWING_BUY_THRESHOLDS
+    min_t      = SWING_MIN_TRADES
+    n_rules    = len(sell_rules)
+
+    # チェックポイント読み込み
+    completed_sells: set[str] = set()
+    sell_results: dict = {}
+    if checkpoint_dir is not None:
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        prog_file = checkpoint_dir / "progress.json"
+        if prog_file.exists():
+            prog = json.loads(prog_file.read_text())
+            completed_sells = set(prog.get("completed_sells", []))
+            for sname in list(completed_sells):
+                rf = checkpoint_dir / f"sell_{sname}.json"
+                if rf.exists():
+                    sell_results[sname] = json.loads(rf.read_text())
+                else:
+                    completed_sells.discard(sname)
+            if completed_sells:
+                print(f"  チェックポイント復元: {len(completed_sells)}/{n_rules} 売りルール完了")
+
+    wm_fixed   = weights.reshape(1, 8)
+    start_time = time.time()
+    time_over  = False
+
+    for rule_i, sname in enumerate(sell_rules, 1):
+        if sname in completed_sells:
+            print(f"  [{rule_i}/{n_rules}] {sname}: スキップ (チェックポイント済み)")
+            continue
+
+        if time_limit_s is not None and (time.time() - start_time) > time_limit_s:
+            print(f"  [{rule_i}/{n_rules}] タイムバジェット超過")
+            time_over = True
+            break
+
+        hb      = sell_hold[sname]
+        shp_row = batch_sharpe(
+            ticker_data, wm_fixed, sname, thresholds, hb, 0, t_train_end,
+            min_trades=min_t)[0]  # (len(thresholds),)
+
+        if np.all(np.isnan(shp_row)):
+            best_ti = 0; best_shp = -np.inf
+        else:
+            best_ti  = int(np.nanargmax(shp_row))
+            best_shp = float(shp_row[best_ti])
+
+        result = {
+            "sharpe":    round(best_shp, 4),
+            "threshold": thresholds[best_ti],
+            "weights":   weights.tolist(),
+        }
+        sell_results[sname] = result
+
+        if checkpoint_dir is not None:
+            (checkpoint_dir / f"sell_{sname}.json").write_text(json.dumps(result))
+            completed_sells.add(sname)
+            (checkpoint_dir / "progress.json").write_text(json.dumps({
+                "completed_sells": list(completed_sells),
+                "last_updated":    time.strftime("%Y-%m-%d %H:%M"),
+            }))
+
+        print(f"  [{rule_i}/{n_rules}] {sname}: sharpe={best_shp:.4f}  thresh={thresholds[best_ti]}")
+
+    all_completed = (not time_over) and (len(sell_results) >= n_rules)
+
+    if not sell_results:
+        return None, {}, False
+
+    # ベスト売りルール選択
+    finite = {s: r for s, r in sell_results.items() if np.isfinite(r["sharpe"])}
+    best_sname = max(finite, key=lambda s: finite[s]["sharpe"]) if finite else next(iter(sell_results))
+    best_r = sell_results[best_sname]
+    best_result = {
+        "sell":        best_sname,
+        "threshold":   best_r["threshold"],
+        "weights":     weights,
+        "sharpe":      best_r["sharpe"],
+        "convergence": [],
+    }
+
+    # run_ga_all_sells互換形式 (assemble側で共通利用)
+    compat = {
+        sname: {
+            "sharpe":     r["sharpe"],
+            "threshold":  r["threshold"],
+            "weights":    weights,
+            "convergence": [],
+        }
+        for sname, r in sell_results.items()
+    }
+    return best_result, compat, all_completed
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # 11. フェーズ実行 (16ジョブ並列用)
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -971,9 +1225,26 @@ def run_phase_wf_fold(mode: str, fold_i: int,
     ind_names = IND_NAMES_SWING if mode == "swing" else IND_NAMES_DAY
 
     checkpoint_dir = ARTIFACTS_DIR / f"checkpoint_{mode}_fold_{fold_i}"
-    best_fold, all_ga_results, all_completed = run_ga_all_sells(
-        ticker_data, mode, doe_effects, t_train_f,
-        checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s)
+
+    if mode == "swing":
+        print(f"  [IC+Lift] 指標検証中 (訓練 0〜{t_train_f} バー) ...")
+        ic_lift = compute_swing_ic_lift(ticker_data, t_train_f)
+        print(f"  [IC+Lift] 採用: {ic_lift['valid_indicators']} "
+              f"({ic_lift['n_valid']}件 / {len(IND_NAMES_SWING)}件)")
+        best_fold, all_ga_results, all_completed = run_ic_lift_sell_probe(
+            ticker_data, ic_lift["weights"], t_train_f,
+            checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s)
+        ic_lift_details = {
+            "valid_indicators": ic_lift["valid_indicators"],
+            "ic_scores":        ic_lift["ic_scores"],
+            "lift_scores":      ic_lift["lift_scores"],
+            "n_valid":          ic_lift["n_valid"],
+        }
+    else:
+        best_fold, all_ga_results, all_completed = run_ga_all_sells(
+            ticker_data, mode, doe_effects, t_train_f,
+            checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s)
+        ic_lift_details = None
 
     if not all_completed:
         print(f"[PHASE: WF Fold {fold_i}] 未完了: タイムバジェット超過。"
@@ -1022,6 +1293,7 @@ def run_phase_wf_fold(mode: str, fold_i: int,
         "oos_avg_return": oos_stats["avg_return"],
         "oos_max_dd":     oos_stats["max_dd"],
         "all_sell_oos":   all_sell_oos,
+        "ic_lift_details": ic_lift_details,
     }
     out_path = ARTIFACTS_DIR / f"wf_{mode}_fold_{fold_i}.json"
     out_path.write_text(json.dumps(artifact, ensure_ascii=False, indent=2))
@@ -1048,9 +1320,26 @@ def run_phase_final(mode: str, time_limit_s: "float | None" = None) -> None:
     ticker_data, _, _ = _load_ticker_data(mode)
 
     checkpoint_dir = ARTIFACTS_DIR / f"checkpoint_{mode}_final"
-    best_overall, all_ga_results, all_completed = run_ga_all_sells(
-        ticker_data, mode, doe_effects, t_holdout,
-        checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s)
+
+    if mode == "swing":
+        print(f"  [IC+Lift] 指標検証中 (訓練 0〜{t_holdout} バー) ...")
+        ic_lift = compute_swing_ic_lift(ticker_data, t_holdout)
+        print(f"  [IC+Lift] 採用: {ic_lift['valid_indicators']} "
+              f"({ic_lift['n_valid']}件 / {len(IND_NAMES_SWING)}件)")
+        best_overall, all_ga_results, all_completed = run_ic_lift_sell_probe(
+            ticker_data, ic_lift["weights"], t_holdout,
+            checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s)
+        ic_lift_details = {
+            "valid_indicators": ic_lift["valid_indicators"],
+            "ic_scores":        ic_lift["ic_scores"],
+            "lift_scores":      ic_lift["lift_scores"],
+            "n_valid":          ic_lift["n_valid"],
+        }
+    else:
+        best_overall, all_ga_results, all_completed = run_ga_all_sells(
+            ticker_data, mode, doe_effects, t_holdout,
+            checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s)
+        ic_lift_details = None
 
     if not all_completed:
         print(f"[PHASE: FINAL] 未完了: タイムバジェット超過。"
@@ -1070,11 +1359,12 @@ def run_phase_final(mode: str, time_limit_s: "float | None" = None) -> None:
             sname: {
                 "sharpe":     round(float(gr["sharpe"]), 4),
                 "threshold":  gr["threshold"],
-                "weights":    gr["weights"].tolist(),
+                "weights":    gr["weights"].tolist() if isinstance(gr["weights"], np.ndarray) else gr["weights"],
                 "convergence": [round(v, 4) for v in gr["convergence"]],
             }
             for sname, gr in all_ga_results.items()
         },
+        "ic_lift_details": ic_lift_details,
     }
     out_path = ARTIFACTS_DIR / f"final_{mode}.json"
     out_path.write_text(json.dumps(artifact, ensure_ascii=False, indent=2))
@@ -1238,14 +1528,30 @@ def run_phase_assemble(mode: str) -> None:
             "max_dd":        ds["max_dd"],
         })
 
-    ga_all_sells_summary = {
-        sname: {
+    ga_all_sells_summary = {}
+    for sname, gr in all_ga_results_raw.items():
+        w = gr["weights"] if isinstance(gr["weights"], list) else gr["weights"].tolist()
+        ga_all_sells_summary[sname] = {
             "sharpe":    round(float(gr["sharpe"]), 4),
             "threshold": gr["threshold"],
-            "weights":   {nm: round(float(gr["weights"][i]), 4) for i, nm in enumerate(ind_names)},
+            "weights":   {nm: round(float(w[i]), 4) for i, nm in enumerate(ind_names)},
         }
-        for sname, gr in all_ga_results_raw.items()
-    }
+
+    # IC+Lift詳細 (swing のみ)
+    ic_lift_results = None
+    if mode == "swing":
+        fold_ic_details = []
+        for wa in [json.loads((ARTIFACTS_DIR / f"wf_{mode}_fold_{fi}.json").read_text())
+                   for fi in range(n_wf_folds)]:
+            if wa.get("ic_lift_details"):
+                fold_ic_details.append(wa["ic_lift_details"])
+        final_ic = final_art.get("ic_lift_details")
+        if fold_ic_details or final_ic:
+            ic_lift_results = {
+                "method":       "ic_lift",
+                "fold_details": fold_ic_details,
+                "final":        final_ic,
+            }
 
     result = {
         "version":       7,
@@ -1280,8 +1586,9 @@ def run_phase_assemble(mode: str) -> None:
             "ranking":           doe_ranked,
         },
         "ga_results": {
-            "population":             GA_POP,
-            "generations":            GA_GENS,
+            "population":             GA_POP if mode == "day" else 0,
+            "generations":            GA_GENS if mode == "day" else 0,
+            "method":                 "ga" if mode == "day" else "ic_lift",
             "n_sell_rules_optimized": len(sell_rules),
             "all_sell_rules":         ga_all_sells_summary,
             "best_weights":           best_weights,
@@ -1290,6 +1597,7 @@ def run_phase_assemble(mode: str) -> None:
             "best_threshold":         best_thresh,
             "convergence":            [round(v, 4) for v in convergence],
         },
+        "ic_lift_results": ic_lift_results,
         "walk_forward": {
             "n_folds":         n_wf_folds,
             "folds":           wf_folds,
