@@ -32,22 +32,24 @@ from pathlib import Path
 import numpy as np
 
 HERE          = Path(__file__).parent
-DATA_FILE     = HERE / "price_data_intraday.json"
+DATA_FILE_SWING = HERE / "price_data.json"           # 日足 10年
+DATA_FILE_DAY   = HERE / "price_data_intraday.json"  # 1時間足 2年
 RESULTS_SWING = HERE / "strategy_results_swing.json"
 RESULTS_DAY   = HERE / "strategy_results_day.json"
 ARTIFACTS_DIR = HERE / "phase_artifacts"
 
 MIN_TRADES     = 30   # 訓練期間の最小取引数
 MIN_TRADES_OOS = 5    # OOS/ホールドアウト評価の最小取引数（短い窓でも記録する）
-BARS_PER_YEAR  = 1500  # 1h bars/year (US+JP平均)
+BARS_PER_YEAR_DAY   = 1500  # 1h bars/year (US+JP平均)
+BARS_PER_YEAR_SWING = 252   # daily bars/year
 
 # スイング専用パラメータ
 SWING_MIN_TRADES      = 10   # OOS最小トレード数（高閾値でトレード数減少に対応）
 SWING_BUY_THRESHOLDS  = [70, 75, 80]  # さらに高閾値: 最高品質シグナルのみ
 
 # IC+Lift スイング専用パラメータ (GAの代替)
-SWING_IC_WIN        = 400         # ローリングIC窓サイズ
-SWING_IC_STEP       = 100         # ローリングICスライドステップ
+SWING_IC_WIN        = 120   # ローリングIC窓サイズ (日足: 約6ヶ月)
+SWING_IC_STEP       = 30    # ローリングICスライドステップ (日足: 約1ヶ月)
 SWING_IC_MIN_ICIR   = 0.05        # 最小IC情報比: 0.03→0.05に戻す（品質優先）
 SWING_LIFT_SIGNAL   = 12.0        # シグナルゾーン下限
 SWING_LIFT_TARGET   = 0.02        # Lift対象リターン: 0.5%→2%（スイング水準に合わせる）
@@ -55,7 +57,7 @@ SWING_LIFT_MIN      = 1.05        # 最小Lift比率: 1.02→1.05（品質優先
 SWING_IC_MIN_VALID  = 3           # 有効指標の最低採用数（厳格化のため4→3）
 SWING_IC_TREND_INDS = {"MA", "Aroon", "MACD"}  # トレンド系指標: 必ず1件以上採用
 # チェックポイントバージョン: アルゴリズムやパラメータ変更時にインクリメント→旧キャッシュ無効化
-SWING_IC_CKPT_VER   = 5     # 4→5: クロスオーバーエントリー・trail大値除外
+SWING_IC_CKPT_VER   = 6     # 5→6: 日足10年データへ変更
 # 注: per-sell-rule IC+Lift — 各売りルールの実現損益でICを計算するため
 # SWING_FORWARD_KEY は廃止 (run_ic_lift_sell_probe 内で sell_outcomes[sname] を直接使用)
 
@@ -139,9 +141,9 @@ DAY_SELL_RULES: dict[str, dict] = {
 }
 
 SWING_SELL_HOLD = {
-    "target5_stop3": 35,  "target10_stop5": 50, "target15_stop5": 70,
-    "target20_stop7": 80, "target15_stop7": 70, "target25_stop10": 100,
-    "trail_5pct": 50,
+    "target5_stop3": 15, "target10_stop5": 25, "target15_stop5": 35,
+    "target20_stop7": 45, "target15_stop7": 35, "target25_stop10": 60,
+    "trail_5pct": 30,
 }
 
 DAY_SELL_HOLD = {
@@ -183,7 +185,7 @@ IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "Stoch", "ROC", "CCI", "VWAP"]
 
 BUY_THRESHOLDS = [50, 55, 60, 65, 70, 75]
 
-MAX_HOLD_BARS_SWING = 200
+MAX_HOLD_BARS_SWING = 60   # 日足: 最大60取引日 (約3ヶ月)
 MAX_HOLD_BARS_DAY   = 20
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -191,11 +193,13 @@ MAX_HOLD_BARS_DAY   = 20
 # ══════════════════════════════════════════════════════════════════════════════
 
 def load_data(mode: str) -> dict[str, dict]:
-    if not DATA_FILE.exists() or DATA_FILE.stat().st_size < 100:
-        print(f"ERROR: {DATA_FILE.name} が見つかりません。")
-        print("  node backtest/fetch_data.mjs --intraday  を実行してください")
+    data_file = DATA_FILE_SWING if mode == "swing" else DATA_FILE_DAY
+    fetch_cmd = "node backtest/fetch_data.mjs" if mode == "swing" else "node backtest/fetch_data.mjs --intraday"
+    if not data_file.exists() or data_file.stat().st_size < 100:
+        print(f"ERROR: {data_file.name} が見つかりません。")
+        print(f"  {fetch_cmd}  を実行してください")
         sys.exit(1)
-    raw = json.loads(DATA_FILE.read_text())
+    raw = json.loads(data_file.read_text())
     result = {}
     for ticker, rows in raw.items():
         if len(rows) < 300:
@@ -578,7 +582,8 @@ def batch_sharpe(ticker_data: dict, wm: np.ndarray, sell_name: str,
                  thresholds: list, hold_bars: int,
                  t_start: int, t_end: int,
                  min_trades: int = MIN_TRADES,
-                 crossover_only: bool = False) -> np.ndarray:
+                 crossover_only: bool = False,
+                 bars_per_year: int = BARS_PER_YEAR_DAY) -> np.ndarray:
     """
     wm: (N, 8) 重み行列
     返り値: (N, len(thresholds)) Sharpe
@@ -624,7 +629,7 @@ def batch_sharpe(ticker_data: dict, wm: np.ndarray, sell_name: str,
         avg = np.where(ok, s / np.where(n > 0, n, 1.), np.nan)
         var = np.where(ok & (n > 1), sq / np.where(n > 0, n, 1.) - avg**2, np.nan)
         std = np.sqrt(np.maximum(var, 0.))
-        factor = np.sqrt(BARS_PER_YEAR / max(hold_bars, 1))
+        factor = np.sqrt(bars_per_year / max(hold_bars, 1))
         shp[:, ti] = np.where(ok & (std > 1e-10), avg / std * factor, np.nan)
 
     return shp
@@ -632,7 +637,8 @@ def batch_sharpe(ticker_data: dict, wm: np.ndarray, sell_name: str,
 def detailed_eval_single(ticker_data: dict, w: np.ndarray, sell_name: str,
                           threshold: int, hold_bars: int,
                           t_start: int, t_end: int,
-                          crossover_only: bool = False) -> dict:
+                          crossover_only: bool = False,
+                          bars_per_year: int = BARS_PER_YEAR_DAY) -> dict:
     """単一重みベクトルの詳細評価 (n_trades / win_rate / avg_return / max_dd)"""
     n = 0; s = 0.; sq = 0.; wins = 0; min_ret = np.inf
     wm = w.reshape(1, 8).astype(np.float32)
@@ -663,7 +669,7 @@ def detailed_eval_single(ticker_data: dict, w: np.ndarray, sell_name: str,
     avg = s / n
     var = sq / n - avg**2
     std = np.sqrt(max(var, 0.))
-    factor = np.sqrt(BARS_PER_YEAR / max(hold_bars, 1))
+    factor = np.sqrt(bars_per_year / max(hold_bars, 1))
     sharpe = (avg / std * factor) if std > 1e-10 else 0.
     return {
         "sharpe":      round(float(sharpe), 4),
@@ -1155,7 +1161,8 @@ def run_ic_lift_sell_probe(ticker_data: dict, t_train_end: int,
         hb      = sell_hold[sname]
         shp_row = batch_sharpe(
             ticker_data, wm_rule, sname, thresholds, hb, 0, t_train_end,
-            min_trades=min_t, crossover_only=True)[0]  # (len(thresholds),)
+            min_trades=min_t, crossover_only=True,
+            bars_per_year=BARS_PER_YEAR_SWING)[0]  # (len(thresholds),)
 
         if np.all(np.isnan(shp_row)):
             best_ti = 0; best_shp = -np.inf
@@ -1293,15 +1300,17 @@ def run_phase_wf_fold(mode: str, fold_i: int,
         sys.exit(1)
 
     co       = (mode == "swing")
+    bpy      = BARS_PER_YEAR_SWING if mode == "swing" else BARS_PER_YEAR_DAY
     hb_f     = sell_hold[best_fold["sell"]]
     oos_stats = detailed_eval_single(ticker_data, best_fold["weights"],
                                      best_fold["sell"], best_fold["threshold"],
                                      hb_f, t_train_f, t_oos_end_f,
-                                     crossover_only=co)
+                                     crossover_only=co, bars_per_year=bpy)
     wm_f      = best_fold["weights"].reshape(1, 8)
     oos_shp_m = batch_sharpe(ticker_data, wm_f, best_fold["sell"],
                               [best_fold["threshold"]], hb_f, t_train_f, t_oos_end_f,
-                              min_trades=MIN_TRADES_OOS, crossover_only=co)
+                              min_trades=MIN_TRADES_OOS, crossover_only=co,
+                              bars_per_year=bpy)
     oos_shp_f = float(oos_shp_m[0, 0]) if not np.isnan(oos_shp_m[0, 0]) else 0.
 
     all_sell_oos: dict = {}
@@ -1309,10 +1318,11 @@ def run_phase_wf_fold(mode: str, fold_i: int,
         hb_ = sell_hold[sname]
         wm_ = gr["weights"].reshape(1, 8)
         sm  = batch_sharpe(ticker_data, wm_, sname, [gr["threshold"]], hb_, t_train_f, t_oos_end_f,
-                           min_trades=MIN_TRADES_OOS, crossover_only=co)
+                           min_trades=MIN_TRADES_OOS, crossover_only=co, bars_per_year=bpy)
         os_ = float(sm[0, 0]) if not np.isnan(sm[0, 0]) else 0.
         ds  = detailed_eval_single(ticker_data, gr["weights"], sname, gr["threshold"],
-                                    hb_, t_train_f, t_oos_end_f, crossover_only=co)
+                                    hb_, t_train_f, t_oos_end_f, crossover_only=co,
+                                    bars_per_year=bpy)
         all_sell_oos[sname] = {
             "oos_sharpe":    round(os_, 4),
             "oos_n_trades":  ds["n_trades"],
@@ -1481,6 +1491,7 @@ def run_phase_assemble(mode: str) -> None:
     ticker_data, _, _ = _load_ticker_data(mode)
 
     co      = (mode == "swing")  # crossover-only entry for swing mode
+    bpy     = BARS_PER_YEAR_SWING if mode == "swing" else BARS_PER_YEAR_DAY
     hb      = sell_hold[best_sell]
     wm_best = best_w.reshape(1, 8)
 
@@ -1493,7 +1504,7 @@ def run_phase_assemble(mode: str) -> None:
     assemble_thresholds = SWING_BUY_THRESHOLDS if mode == "swing" else BUY_THRESHOLDS
     all_results: list[dict] = []
     shp_mat = batch_sharpe(ticker_data, mc_w, best_sell, assemble_thresholds, hb, 0, t_holdout,
-                           crossover_only=co)
+                           crossover_only=co, bars_per_year=bpy)
     for wi in range(len(mc_w)):
         for ti, thr in enumerate(assemble_thresholds):
             sv = shp_mat[wi, ti]
@@ -1521,10 +1532,10 @@ def run_phase_assemble(mode: str) -> None:
 
     print("  ホールドアウト評価...")
     test_shp_m = batch_sharpe(ticker_data, wm_best, best_sell, [best_thresh], hb, t_holdout, T_min,
-                              min_trades=MIN_TRADES_OOS, crossover_only=co)
+                              min_trades=MIN_TRADES_OOS, crossover_only=co, bars_per_year=bpy)
     test_shp   = float(test_shp_m[0, 0]) if not np.isnan(test_shp_m[0, 0]) else 0.
     test_stats = detailed_eval_single(ticker_data, best_w, best_sell, best_thresh, hb, t_holdout, T_min,
-                                      crossover_only=co)
+                                      crossover_only=co, bars_per_year=bpy)
     overfit_ratio = round(test_shp / train_shp, 4) if abs(train_shp) > 1e-6 else 0.
 
     print("  売りルールランキング評価中...")
@@ -1532,14 +1543,14 @@ def run_phase_assemble(mode: str) -> None:
     for sname in sell_rules:
         hb_ = sell_hold[sname]
         sm  = batch_sharpe(ticker_data, wm_best, sname, assemble_thresholds, hb_, 0, t_holdout,
-                           crossover_only=co)
+                           crossover_only=co, bars_per_year=bpy)
         if not np.all(np.isnan(sm)):
             best_ti    = int(np.nanargmax(sm[0]))
             best_thr_s = assemble_thresholds[best_ti]
             best_shp_s = float(sm[0, best_ti])
             avg_shp    = float(np.nanmean(sm[0]))
             dstats     = detailed_eval_single(ticker_data, best_w, sname, best_thr_s, hb_, 0, t_holdout,
-                                              crossover_only=co)
+                                              crossover_only=co, bars_per_year=bpy)
         else:
             best_thr_s = assemble_thresholds[0]; best_shp_s = 0.; avg_shp = 0.
             dstats = {"win_rate": 0., "n_trades": 0, "avg_return": 0., "max_dd": 0.}
@@ -1556,7 +1567,7 @@ def run_phase_assemble(mode: str) -> None:
     top100_out: list[dict] = []
     for r in top100:
         ds = detailed_eval_single(ticker_data, r["weights"], best_sell, r["thr"], hb, 0, t_holdout,
-                                  crossover_only=co)
+                                  crossover_only=co, bars_per_year=bpy)
         top100_out.append({
             "buy_weights":   {nm: round(float(r["weights"][i]), 3) for i, nm in enumerate(ind_names)},
             "buy_threshold": r["thr"],
