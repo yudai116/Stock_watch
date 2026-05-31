@@ -55,7 +55,7 @@ SWING_LIFT_MIN      = 1.05        # 最小Lift比率: 1.02→1.05（品質優先
 SWING_IC_MIN_VALID  = 3           # 有効指標の最低採用数（厳格化のため4→3）
 SWING_IC_TREND_INDS = {"MA", "Aroon", "MACD"}  # トレンド系指標: 必ず1件以上採用
 # チェックポイントバージョン: アルゴリズムやパラメータ変更時にインクリメント→旧キャッシュ無効化
-SWING_IC_CKPT_VER   = 4
+SWING_IC_CKPT_VER   = 5     # 4→5: クロスオーバーエントリー・trail大値除外
 # 注: per-sell-rule IC+Lift — 各売りルールの実現損益でICを計算するため
 # SWING_FORWARD_KEY は廃止 (run_ic_lift_sell_probe 内で sell_outcomes[sname] を直接使用)
 
@@ -112,6 +112,7 @@ def doe_weight_row(row: np.ndarray) -> np.ndarray:
 SWING_SELL_RULES: dict[str, dict] = {
     # 時間固定保有は除外（方向性がなくシグナルと無関係に終了するため）
     # ストップ/トレール付きルールのみ残す → リスク管理が明確
+    # trail_10pct / trail_15pct は除外: 下落相場でストップが深すぎる (最大-5〜7%に制限)
     "target5_stop3":   {"type": "target_stop", "target": 5,  "stop": 3},
     "target10_stop5":  {"type": "target_stop", "target": 10, "stop": 5},
     "target15_stop5":  {"type": "target_stop", "target": 15, "stop": 5},
@@ -119,8 +120,6 @@ SWING_SELL_RULES: dict[str, dict] = {
     "target15_stop7":  {"type": "target_stop", "target": 15, "stop": 7},
     "target25_stop10": {"type": "target_stop", "target": 25, "stop": 10},
     "trail_5pct":      {"type": "trailing",    "trail": 5},
-    "trail_10pct":     {"type": "trailing",    "trail": 10},
-    "trail_15pct":     {"type": "trailing",    "trail": 15},
 }
 
 DAY_SELL_RULES: dict[str, dict] = {
@@ -142,7 +141,7 @@ DAY_SELL_RULES: dict[str, dict] = {
 SWING_SELL_HOLD = {
     "target5_stop3": 35,  "target10_stop5": 50, "target15_stop5": 70,
     "target20_stop7": 80, "target15_stop7": 70, "target25_stop10": 100,
-    "trail_5pct": 50,     "trail_10pct": 70,    "trail_15pct": 90,
+    "trail_5pct": 50,
 }
 
 DAY_SELL_HOLD = {
@@ -161,8 +160,6 @@ SWING_SELL_JA = {
     "target15_stop7":  "利確+15% / ストップ-7%",
     "target25_stop10": "利確+25% / ストップ-10%",
     "trail_5pct":      "トレーリングストップ 5%",
-    "trail_10pct":     "トレーリングストップ 10%",
-    "trail_15pct":     "トレーリングストップ 15%",
 }
 
 DAY_SELL_JA = {
@@ -580,11 +577,13 @@ def precompute_sell_outcomes(closes, opens, highs, lows, cr: float,
 def batch_sharpe(ticker_data: dict, wm: np.ndarray, sell_name: str,
                  thresholds: list, hold_bars: int,
                  t_start: int, t_end: int,
-                 min_trades: int = MIN_TRADES) -> np.ndarray:
+                 min_trades: int = MIN_TRADES,
+                 crossover_only: bool = False) -> np.ndarray:
     """
     wm: (N, 8) 重み行列
     返り値: (N, len(thresholds)) Sharpe
     min_trades: Sharpe計算に必要な最小取引数 (OOS評価ではMIN_TRADES_OOSを指定)
+    crossover_only: True のとき閾値を"下から越えた"初日のみエントリー(swing用)
     """
     N = len(wm); n_thr = len(thresholds)
     acc_n   = np.zeros((N, n_thr), dtype=np.float64)
@@ -602,7 +601,13 @@ def batch_sharpe(ticker_data: dict, wm: np.ndarray, sell_name: str,
         comp = (wm.astype(np.float32) @ ind)  # (N, T_slice)
 
         for ti, thr in enumerate(thresholds):
-            mask  = (comp >= thr) & valid
+            if crossover_only:
+                above = (comp >= thr)
+                prev_above = np.roll(above, 1, axis=1)
+                prev_above[:, 0] = False
+                mask = above & ~prev_above & valid
+            else:
+                mask  = (comp >= thr) & valid
             tr    = np.where(mask, sout, np.float32(0.))
             is_t  = mask
             n_    = is_t.sum(1).astype(np.float64)
@@ -626,7 +631,8 @@ def batch_sharpe(ticker_data: dict, wm: np.ndarray, sell_name: str,
 
 def detailed_eval_single(ticker_data: dict, w: np.ndarray, sell_name: str,
                           threshold: int, hold_bars: int,
-                          t_start: int, t_end: int) -> dict:
+                          t_start: int, t_end: int,
+                          crossover_only: bool = False) -> dict:
     """単一重みベクトルの詳細評価 (n_trades / win_rate / avg_return / max_dd)"""
     n = 0; s = 0.; sq = 0.; wins = 0; min_ret = np.inf
     wm = w.reshape(1, 8).astype(np.float32)
@@ -638,7 +644,13 @@ def detailed_eval_single(ticker_data: dict, w: np.ndarray, sell_name: str,
             vmask = vmask & ~td["edge_bar"][t_start:t_end]
         valid = ~np.isnan(sout) & vmask
         comp  = (wm @ ind)[0]
-        mask  = (comp >= threshold) & valid
+        if crossover_only:
+            above = (comp >= threshold)
+            prev_above = np.roll(above, 1)
+            prev_above[0] = False
+            mask = above & ~prev_above & valid
+        else:
+            mask  = (comp >= threshold) & valid
         tr    = sout[mask]
         if len(tr) == 0: continue
         n    += len(tr)
@@ -1143,7 +1155,7 @@ def run_ic_lift_sell_probe(ticker_data: dict, t_train_end: int,
         hb      = sell_hold[sname]
         shp_row = batch_sharpe(
             ticker_data, wm_rule, sname, thresholds, hb, 0, t_train_end,
-            min_trades=min_t)[0]  # (len(thresholds),)
+            min_trades=min_t, crossover_only=True)[0]  # (len(thresholds),)
 
         if np.all(np.isnan(shp_row)):
             best_ti = 0; best_shp = -np.inf
@@ -1280,14 +1292,16 @@ def run_phase_wf_fold(mode: str, fold_i: int,
         print("  → GitHub Actions で 'Re-run failed jobs' を実行すると続きから再開します。")
         sys.exit(1)
 
+    co       = (mode == "swing")
     hb_f     = sell_hold[best_fold["sell"]]
     oos_stats = detailed_eval_single(ticker_data, best_fold["weights"],
                                      best_fold["sell"], best_fold["threshold"],
-                                     hb_f, t_train_f, t_oos_end_f)
+                                     hb_f, t_train_f, t_oos_end_f,
+                                     crossover_only=co)
     wm_f      = best_fold["weights"].reshape(1, 8)
     oos_shp_m = batch_sharpe(ticker_data, wm_f, best_fold["sell"],
                               [best_fold["threshold"]], hb_f, t_train_f, t_oos_end_f,
-                              min_trades=MIN_TRADES_OOS)
+                              min_trades=MIN_TRADES_OOS, crossover_only=co)
     oos_shp_f = float(oos_shp_m[0, 0]) if not np.isnan(oos_shp_m[0, 0]) else 0.
 
     all_sell_oos: dict = {}
@@ -1295,10 +1309,10 @@ def run_phase_wf_fold(mode: str, fold_i: int,
         hb_ = sell_hold[sname]
         wm_ = gr["weights"].reshape(1, 8)
         sm  = batch_sharpe(ticker_data, wm_, sname, [gr["threshold"]], hb_, t_train_f, t_oos_end_f,
-                           min_trades=MIN_TRADES_OOS)
+                           min_trades=MIN_TRADES_OOS, crossover_only=co)
         os_ = float(sm[0, 0]) if not np.isnan(sm[0, 0]) else 0.
         ds  = detailed_eval_single(ticker_data, gr["weights"], sname, gr["threshold"],
-                                    hb_, t_train_f, t_oos_end_f)
+                                    hb_, t_train_f, t_oos_end_f, crossover_only=co)
         all_sell_oos[sname] = {
             "oos_sharpe":    round(os_, 4),
             "oos_n_trades":  ds["n_trades"],
@@ -1465,6 +1479,7 @@ def run_phase_assemble(mode: str) -> None:
     print("  データ読み込み・指標計算中...")
     ticker_data, _, _ = _load_ticker_data(mode)
 
+    co      = (mode == "swing")  # crossover-only entry for swing mode
     hb      = sell_hold[best_sell]
     wm_best = best_w.reshape(1, 8)
 
@@ -1476,7 +1491,8 @@ def run_phase_assemble(mode: str) -> None:
 
     assemble_thresholds = SWING_BUY_THRESHOLDS if mode == "swing" else BUY_THRESHOLDS
     all_results: list[dict] = []
-    shp_mat = batch_sharpe(ticker_data, mc_w, best_sell, assemble_thresholds, hb, 0, t_holdout)
+    shp_mat = batch_sharpe(ticker_data, mc_w, best_sell, assemble_thresholds, hb, 0, t_holdout,
+                           crossover_only=co)
     for wi in range(len(mc_w)):
         for ti, thr in enumerate(assemble_thresholds):
             sv = shp_mat[wi, ti]
@@ -1504,22 +1520,25 @@ def run_phase_assemble(mode: str) -> None:
 
     print("  ホールドアウト評価...")
     test_shp_m = batch_sharpe(ticker_data, wm_best, best_sell, [best_thresh], hb, t_holdout, T_min,
-                              min_trades=MIN_TRADES_OOS)
+                              min_trades=MIN_TRADES_OOS, crossover_only=co)
     test_shp   = float(test_shp_m[0, 0]) if not np.isnan(test_shp_m[0, 0]) else 0.
-    test_stats = detailed_eval_single(ticker_data, best_w, best_sell, best_thresh, hb, t_holdout, T_min)
+    test_stats = detailed_eval_single(ticker_data, best_w, best_sell, best_thresh, hb, t_holdout, T_min,
+                                      crossover_only=co)
     overfit_ratio = round(test_shp / train_shp, 4) if abs(train_shp) > 1e-6 else 0.
 
     print("  売りルールランキング評価中...")
     sell_stats: list[dict] = []
     for sname in sell_rules:
         hb_ = sell_hold[sname]
-        sm  = batch_sharpe(ticker_data, wm_best, sname, assemble_thresholds, hb_, 0, t_holdout)
+        sm  = batch_sharpe(ticker_data, wm_best, sname, assemble_thresholds, hb_, 0, t_holdout,
+                           crossover_only=co)
         if not np.all(np.isnan(sm)):
             best_ti    = int(np.nanargmax(sm[0]))
             best_thr_s = assemble_thresholds[best_ti]
             best_shp_s = float(sm[0, best_ti])
             avg_shp    = float(np.nanmean(sm[0]))
-            dstats     = detailed_eval_single(ticker_data, best_w, sname, best_thr_s, hb_, 0, t_holdout)
+            dstats     = detailed_eval_single(ticker_data, best_w, sname, best_thr_s, hb_, 0, t_holdout,
+                                              crossover_only=co)
         else:
             best_thr_s = assemble_thresholds[0]; best_shp_s = 0.; avg_shp = 0.
             dstats = {"win_rate": 0., "n_trades": 0, "avg_return": 0., "max_dd": 0.}
@@ -1535,7 +1554,8 @@ def run_phase_assemble(mode: str) -> None:
     print("  top100 詳細評価中...")
     top100_out: list[dict] = []
     for r in top100:
-        ds = detailed_eval_single(ticker_data, r["weights"], best_sell, r["thr"], hb, 0, t_holdout)
+        ds = detailed_eval_single(ticker_data, r["weights"], best_sell, r["thr"], hb, 0, t_holdout,
+                                  crossover_only=co)
         top100_out.append({
             "buy_weights":   {nm: round(float(r["weights"][i]), 3) for i, nm in enumerate(ind_names)},
             "buy_threshold": r["thr"],
