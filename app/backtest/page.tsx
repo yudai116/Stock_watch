@@ -642,7 +642,94 @@ const IND_TEXT_CLS: Record<string, string> = {
   MA:    "text-orange-400",   Aroon:  "text-cyan-400",    ROC:   "text-red-400",
   RVOL:  "text-teal-400",     VWAP:   "text-indigo-400",
 };
+
+// ─── Indicator catalog (v8) ────────────────────────────────────────────────────
+
+type IndInfo = { name: string; params: string; role: string; signal: string; note: "逆張り" | "トレンド" | "中長期" | "確認" };
+const IND_CATALOG: Record<string, IndInfo[]> = {
+  swing: [
+    { name: "RSI",    params: "期間14日",       role: "短期売られすぎ検出",
+      signal: "<25: 23点（極度売られすぎ）　25〜45: 12〜19点（逆張りゾーン）　55以上: 0〜7点",
+      note: "逆張り" },
+    { name: "MACD",   params: "12-26-9",         role: "トレンド転換シグナル",
+      signal: "GCクロス当日: 24点（最強）　GC後ヒスト拡大: 15点　GC後継続: 10点　DCクロス: 2点",
+      note: "トレンド" },
+    { name: "BB",     params: "20日 ±2σ",       role: "価格バンド内位置",
+      signal: "バンド下抜け(<0): 20点　下位10%圏: 15〜20点　上位30%以上: 0〜3点",
+      note: "逆張り" },
+    { name: "EMA200", params: "200日EMA乖離",    role: "長期トレンドの健全性",
+      signal: "−15〜−5%押し目: 12〜21点（最高）　EMA上昇中は+5点ボーナス　急落(<−25%): 5点",
+      note: "中長期" },
+    { name: "MOM3M",  params: "63日ROC",         role: "3ヶ月モメンタム",
+      signal: "−15〜−5%調整: 14〜20点（健全な押し目）　急落(<−30%): 4点（落下ナイフ除外）",
+      note: "中長期" },
+    { name: "Stoch",  params: "K=14 D=3",        role: "ストキャスティクス",
+      signal: "K<20: 20〜25点　GCクロス時+3点ボーナス　K>70: 0〜3点",
+      note: "逆張り" },
+    { name: "CCI",    params: "20日",             role: "コモディティチャネル指数",
+      signal: "<−200: 22〜25点（深い過売り）　<−100: 14〜22点　>+100: 0〜3点",
+      note: "逆張り" },
+    { name: "52WK",   params: "252日高低値",      role: "52週レンジ内位置",
+      signal: "年間安値0〜10%圏: 23点（絶好の逆張り）　0〜20%: 16〜23点　70%以上: 0〜2点",
+      note: "中長期" },
+  ],
+  day: [
+    { name: "RSI",   params: "期間9",            role: "超短期売られすぎ検出",
+      signal: "<25: 23点（極度売られすぎ）　25〜45: 12〜19点（逆張りゾーン）",
+      note: "逆張り" },
+    { name: "MACD",  params: "5-13-4",            role: "短期トレンド転換",
+      signal: "GCクロス当日: 24点　GC後ヒスト拡大: 15点　GC後継続: 10点",
+      note: "トレンド" },
+    { name: "BB",    params: "10期間 ±2σ",       role: "短期バンド位置",
+      signal: "下抜け: 20点　下位10%圏: 15〜20点　上位30%以上: 0〜3点",
+      note: "逆張り" },
+    { name: "MA",    params: "EMA9 / EMA21",      role: "短期トレンド確認",
+      signal: "GC付近の上方乖離: 4〜12点　EMA21>EMA9(GCゾーン): +8点ボーナス",
+      note: "トレンド" },
+    { name: "Stoch", params: "K=5 D=3",           role: "超短期ストキャスティクス",
+      signal: "K<20: 20〜25点（最高）　GCクロス時+3点　K>70: 0〜3点",
+      note: "逆張り" },
+    { name: "RVOL",  params: "SMA20比の相対出来高", role: "出来高モメンタム確認",
+      signal: ">3倍: 22点（高注目・反転確度↑）　>2倍: 16〜22点　>1.5倍: 11〜16点　≤0.5倍: 0点",
+      note: "確認" },
+    { name: "CCI",   params: "14期間",            role: "コモディティチャネル指数",
+      signal: "<−100: 14〜22点　<0: 8〜14点　>+100: 0〜3点",
+      note: "逆張り" },
+    { name: "VWAP",  params: "日別累積VWAP乖離",  role: "当日VWAP対比の割安度",
+      signal: "−3%以上下: 20〜25点　−1.5〜0%: 7〜13点　プラス乖離: 0〜3点",
+      note: "確認" },
+  ],
+};
 const RANK_TEXT = ["text-yellow-400", "text-gray-300", "text-orange-500", "text-gray-600"];
+
+const NOTE_STYLE: Record<string, string> = {
+  "逆張り": "text-emerald-400 border-emerald-700/50 bg-emerald-950/30",
+  "トレンド": "text-blue-400 border-blue-700/50 bg-blue-950/30",
+  "中長期": "text-orange-400 border-orange-700/50 bg-orange-950/30",
+  "確認": "text-teal-400 border-teal-700/50 bg-teal-950/30",
+};
+
+function IndicatorCatalogSection({ mode }: { mode: string }) {
+  const inds = IND_CATALOG[mode] ?? [];
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {inds.map((ind) => (
+        <div key={ind.name} className="bg-gray-800/50 rounded-xl p-3 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${IND_COLORS_CLS[ind.name] ?? "bg-gray-500"}`} />
+            <span className={`${IND_TEXT_CLS[ind.name] ?? "text-gray-300"} font-bold text-sm`}>{ind.name}</span>
+            <span className="text-gray-600 text-xs">{ind.params}</span>
+            <span className={`ml-auto text-xs border px-1.5 py-0.5 rounded-full ${NOTE_STYLE[ind.note] ?? "text-gray-500 border-gray-700"}`}>
+              {ind.note}
+            </span>
+          </div>
+          <p className="text-gray-300 text-xs font-medium">{ind.role}</p>
+          <p className="text-gray-500 text-xs leading-relaxed">{ind.signal}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function WeightBar({ weights }: { weights: Record<string, number> }) {
   const total = Object.values(weights).reduce((a, b) => a + b, 0) || 1;
@@ -872,6 +959,25 @@ export default function BacktestPage({
         </div>
       </div>
 
+      {/* ── Indicator Catalog ── */}
+      <section className="space-y-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <SectionHeading>
+            {mode === "swing" ? "スイング指標一覧（v8・8指標）" : "デイトレ指標一覧（v8・8指標）"}
+          </SectionHeading>
+          <span className="text-xs text-gray-500 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded-full">
+            {mode === "swing" ? "日足10年 / 47銘柄" : "1h足 / US37銘柄"}
+          </span>
+        </div>
+        <p className="text-gray-500 text-xs -mt-2">
+          {mode === "swing"
+            ? "逆張り重視の8指標。短期の売られすぎ（RSI/BB/Stoch/CCI）＋中長期の健全な押し目（EMA200/MOM3M/52WK）＋転換確認（MACD）でスコアを合算。合計点 ≥ 閾値[55〜75]でエントリーシグナル。"
+            : "VWAP乖離・RVOL（相対出来高）を軸に、短期売られすぎ（RSI/BB/Stoch/CCI）と短期転換（MACD/MA）でスコアを合算。合計点 ≥ 閾値[45〜70]でシグナル。"
+          }
+        </p>
+        <IndicatorCatalogSection mode={mode} />
+      </section>
+
       {/* ── Real data strategy search results ── */}
       {strategyData.available ? (
         <section className="space-y-6">
@@ -913,7 +1019,7 @@ export default function BacktestPage({
                       {strategyData.walk_forward.avg_oos_sharpe.toFixed(3)}
                     </p>
                     <p className="text-gray-400 text-xs mt-0.5">WF平均OOS Sharpe</p>
-                    <p className="text-gray-600 text-xs">{strategyData.walk_forward.n_folds ?? 3}fold平均 ← 信頼性指標</p>
+                    <p className="text-gray-600 text-xs">{strategyData.walk_forward.n_folds ?? 6}fold平均 ← 信頼性指標</p>
                   </div>
                 )}
                 {strategyData.walk_forward.wf_stability != null && (
@@ -1124,7 +1230,7 @@ export default function BacktestPage({
               </h3>
               <div className="bg-gray-800/50 rounded-xl p-4">
                 <p className="text-gray-600 text-xs mb-3">
-                  WF 4フォールド＋最終GAの計5回で得られた最良重みの統計。CV(変動係数)が低いほど安定した指標。
+                  WF 6フォールド＋最終GAの計7回で得られた最良重みの統計。CV(変動係数)が低いほど安定した指標。
                 </p>
                 <div className="space-y-2">
                   {Object.entries(strategyData.weight_confidence_intervals)
@@ -1203,7 +1309,7 @@ export default function BacktestPage({
               {mode === "day" ? "デイトレ" : "スイング"}戦略最適化を実行するには
             </h3>
             <p className="text-blue-200/70 text-sm mb-4">
-              GitHub Actions を使って実際の1時間足データ(25銘柄)で最適化できます。
+              GitHub Actions を使って実際のデータ(47銘柄)で最適化できます。
               iPhoneの Scriptable アプリから起動可能。
             </p>
             <div className="bg-gray-900 rounded-lg p-4 font-mono text-xs space-y-1">
@@ -1217,7 +1323,7 @@ export default function BacktestPage({
               {[
                 { icon: "🔬", title: "Taguchi L18", desc: "実験計画法で18実験から重要指標を特定" },
                 { icon: "🧬", title: "遺伝的アルゴリズム", desc: "Population 2000, 500世代 × 全売りルールで重みを最適化" },
-                { icon: "🧪", title: "Walk-Forward 検証", desc: "4fold拡大窓バリデーション + ホールドアウト20%で過学習検出" },
+                { icon: "🧪", title: "Walk-Forward 検証", desc: "6fold拡大窓バリデーション + ホールドアウト20%で過学習検出" },
               ].map(({ icon, title, desc }) => (
                 <div key={title} className="bg-gray-800/50 rounded-lg p-3">
                   <p className="text-gray-300 font-medium">{icon} {title}</p>
