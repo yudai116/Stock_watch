@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-strategy_search.py v4 — DOE (Taguchi L18) → GA × 全売りルール → Walk-Forward 6折
+strategy_search.py v5 — DOE (Taguchi L18) → IC+Lift/GA × 全売りルール → Walk-Forward 6折
 
 【モード】
   --swing : スイング (日足10年, RSI14/MACD12-26/BB20/EMA200/MOM3M(63日)/Stoch14/CCI20/52WK, 47銘柄)
@@ -9,19 +9,26 @@ strategy_search.py v4 — DOE (Taguchi L18) → GA × 全売りルール → Wal
 
 【パイプライン】
   1. DOE   (Taguchi L18 直交表) → 指標の主効果ランキング
-  2. WF    (6折拡大窓, 訓練データ内) → 各Fold: 全売りルール × GA (pop=2000, gen=500)
-  3. 最終GA (全売りルール × pop=2000 × gen=500) → best (sell, weights)
+  2. WF    (6折拡大窓, 訓練データ内) → 各Fold: 全売りルール × IC+Lift/GA (pop=2000, gen=500)
+  3. 最終最適化 (全売りルール × IC+Lift/GA) → best (sell, weights)
   4. MC最終評価 (5000サンプル) → top100
   5. ホールドアウト評価 (後ろ20%)
   ※ --both で約8〜10時間 (swing/dayそれぞれ約4〜5時間)
+
+【v9改善点】
+  - SWING/DAY 閾値を大幅引き下げ → ホールドアウトのトレード数確保 (目標: 20+件)
+  - DAY 売りルールから過学習しやすい hold_1b / target2_stop1 を除去
+  - スイング IC選択基準を厳格化 (ICIR≥0.08, Lift≥1.08) → 有効指標に集中
+  - MIN_TRADES_OOS を 5→10 へ引き上げ → 統計的に意味ある OOS 評価のみ記録
+  - data_source の表示バグを修正 (swing は price_data.json を正しく表示)
 
 【その他】
   - 取引コスト: US 0.16% / JP 0.30% (往復)
   - ボリュームフィルター: vol >= 0.7 × SMA(vol,20)
   - エッジバーフィルター: 各日の最初・最後の1hバーは除外 (day モードのみ)
   - エントリー価格: シグナルバー翌バーの始値 (先読みバイアスなし)
-  - SWING 閾値: [55,60,65,70,75] (v8: 引き下げによりシグナル数増加)
-  - DAY 閾値: [45,50,55,60,65,70] (v8: 引き下げによりシグナル数増加)
+  - SWING 閾値: [30,35,40,45,50] (v9: 大幅引き下げでシグナル数を大幅増加)
+  - DAY 閾値: [25,30,35,40,45,50] (v9: 大幅引き下げでシグナル数を大幅増加)
 """
 from __future__ import annotations
 
@@ -41,25 +48,25 @@ RESULTS_DAY   = HERE / "strategy_results_day.json"
 ARTIFACTS_DIR = HERE / "phase_artifacts"
 
 MIN_TRADES     = 30   # 訓練期間の最小取引数
-MIN_TRADES_OOS = 5    # OOS/ホールドアウト評価の最小取引数（短い窓でも記録する）
+MIN_TRADES_OOS = 10   # OOS/ホールドアウト評価の最小取引数（v9: 5→10 統計的信頼性向上）
 BARS_PER_YEAR_DAY   = 1500  # 1h bars/year (US+JP平均)
 BARS_PER_YEAR_SWING = 252   # daily bars/year
 
 # スイング専用パラメータ
-SWING_MIN_TRADES      = 10   # OOS最小トレード数（高閾値でトレード数減少に対応）
-SWING_BUY_THRESHOLDS  = [55, 60, 65, 70, 75]  # 閾値を下げてシグナル数を増やす
+SWING_MIN_TRADES      = 15   # OOS最小トレード数（v9: 10→15 品質向上）
+SWING_BUY_THRESHOLDS  = [30, 35, 40, 45, 50]  # v9: 大幅引き下げでホールドアウトのトレード数を確保
 
 # IC+Lift スイング専用パラメータ (GAの代替)
 SWING_IC_WIN        = 120   # ローリングIC窓サイズ (日足: 約6ヶ月)
 SWING_IC_STEP       = 30    # ローリングICスライドステップ (日足: 約1ヶ月)
-SWING_IC_MIN_ICIR   = 0.05        # 最小IC情報比: 0.03→0.05に戻す（品質優先）
+SWING_IC_MIN_ICIR   = 0.08        # 最小IC情報比: v9: 0.05→0.08（より厳格な指標選択）
 SWING_LIFT_SIGNAL   = 12.0        # シグナルゾーン下限
-SWING_LIFT_TARGET   = 0.02        # Lift対象リターン: 0.5%→2%（スイング水準に合わせる）
-SWING_LIFT_MIN      = 1.05        # 最小Lift比率: 1.02→1.05（品質優先）
-SWING_IC_MIN_VALID  = 3           # 有効指標の最低採用数（厳格化のため4→3）
+SWING_LIFT_TARGET   = 0.02        # Lift対象リターン: 2%（スイング水準）
+SWING_LIFT_MIN      = 1.08        # 最小Lift比率: v9: 1.05→1.08（品質優先）
+SWING_IC_MIN_VALID  = 2           # 有効指標の最低採用数: v9: 3→2（厳選指標優先）
 SWING_IC_TREND_INDS = {"MACD", "EMA200", "MOM3M"}  # トレンド系指標: 必ず1件以上採用
 # チェックポイントバージョン: アルゴリズムやパラメータ変更時にインクリメント→旧キャッシュ無効化
-SWING_IC_CKPT_VER   = 8     # 7→8: 閾値引下げ(55-75)/RVOL導入/WF6折/銘柄48本
+SWING_IC_CKPT_VER   = 9     # 8→9: 閾値大幅引下げ(30-50)/IC厳格化(ICIR≥0.08)/hold_1b除去
 # 注: per-sell-rule IC+Lift — 各売りルールの実現損益でICを計算するため
 # SWING_FORWARD_KEY は廃止 (run_ic_lift_sell_probe 内で sell_outcomes[sname] を直接使用)
 
@@ -127,6 +134,7 @@ SWING_SELL_RULES: dict[str, dict] = {
 }
 
 DAY_SELL_RULES: dict[str, dict] = {
+    # v9: hold_1b と target2_stop1 を除去 (1h予測は過学習しやすく汎化性が低い)
     "hold_2b":        {"type": "hold",        "bars": 2},
     "hold_4b":        {"type": "hold",        "bars": 4},
     "hold_6b":        {"type": "hold",        "bars": 6},
@@ -135,11 +143,9 @@ DAY_SELL_RULES: dict[str, dict] = {
     "target5_stop3":  {"type": "target_stop", "target": 5,  "stop": 3},
     "target7_stop4":  {"type": "target_stop", "target": 7,  "stop": 4},
     "target10_stop5": {"type": "target_stop", "target": 10, "stop": 5},
+    "trail_1pct":     {"type": "trailing",    "trail": 1},
     "trail_2pct":     {"type": "trailing",    "trail": 2},
     "trail_3pct":     {"type": "trailing",    "trail": 3},
-    "hold_1b":        {"type": "hold",        "bars": 1},
-    "target2_stop1":  {"type": "target_stop", "target": 2,  "stop": 1},
-    "trail_1pct":     {"type": "trailing",    "trail": 1},
 }
 
 SWING_SELL_HOLD = {
@@ -149,11 +155,11 @@ SWING_SELL_HOLD = {
 }
 
 DAY_SELL_HOLD = {
+    # v9: hold_1b / target2_stop1 を除去 (過学習しやすい短期ルール)
     "hold_2b": 2, "hold_4b": 4, "hold_6b": 6, "hold_8b": 8,
     "target3_stop2": 4,  "target5_stop3": 6,
     "target7_stop4": 8,  "target10_stop5": 10,
-    "trail_2pct": 4,     "trail_3pct": 6,
-    "hold_1b": 1, "target2_stop1": 2, "trail_1pct": 3,
+    "trail_1pct": 3,     "trail_2pct": 4,     "trail_3pct": 6,
 }
 
 SWING_SELL_JA = {
@@ -167,6 +173,7 @@ SWING_SELL_JA = {
 }
 
 DAY_SELL_JA = {
+    # v9: hold_1b / target2_stop1 を除去
     "hold_2b":        "固定保有 2h",
     "hold_4b":        "固定保有 4h",
     "hold_6b":        "固定保有 6h",
@@ -175,17 +182,15 @@ DAY_SELL_JA = {
     "target5_stop3":  "利確+5% / ストップ-3%",
     "target7_stop4":  "利確+7% / ストップ-4%",
     "target10_stop5": "利確+10% / ストップ-5%",
+    "trail_1pct":     "トレーリングストップ 1%",
     "trail_2pct":     "トレーリングストップ 2%",
     "trail_3pct":     "トレーリングストップ 3%",
-    "hold_1b":       "固定保有 1h",
-    "target2_stop1": "利確+2% / ストップ-1%",
-    "trail_1pct":    "トレーリングストップ 1%",
 }
 
 IND_NAMES_SWING = ["RSI", "MACD", "BB", "EMA200", "MOM3M", "Stoch", "CCI", "52WK"]
 IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "Stoch", "RVOL", "CCI", "VWAP"]
 
-BUY_THRESHOLDS = [45, 50, 55, 60, 65, 70]
+BUY_THRESHOLDS = [25, 30, 35, 40, 45, 50]  # v9: 大幅引き下げでホールドアウトのトレード数を確保
 
 MAX_HOLD_BARS_SWING = 60   # 日足: 最大60取引日 (約3ヶ月)
 MAX_HOLD_BARS_DAY   = 20
@@ -1666,10 +1671,10 @@ def run_phase_assemble(mode: str) -> None:
             }
 
     result = {
-        "version":       7,
+        "version":       9,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
-        "data_source":   "price_data_intraday.json (1h bars)",
+        "data_source":   "price_data_intraday.json (1h bars)" if mode == "day" else "price_data.json (daily bars)",
         "n_tickers":     len(ticker_data),
         "tickers":       list(ticker_data.keys()),
         "n_evaluated":   len(all_results),
@@ -1926,10 +1931,10 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
         }
 
     return {
-        "version":       6,
+        "version":       9,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
-        "data_source":   "price_data_intraday.json (1h bars)",
+        "data_source":   "price_data_intraday.json (1h bars)" if mode == "day" else "price_data.json (daily bars)",
         "n_tickers":     len(ticker_data),
         "tickers":       list(ticker_data.keys()),
         "n_evaluated":   len(all_results),

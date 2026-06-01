@@ -963,7 +963,7 @@ export default function BacktestPage({
       <section className="space-y-3">
         <div className="flex items-center gap-3 flex-wrap">
           <SectionHeading>
-            {mode === "swing" ? "スイング指標一覧（v8・8指標）" : "デイトレ指標一覧（v8・8指標）"}
+            {mode === "swing" ? "スイング指標一覧（v9・8指標）" : "デイトレ指標一覧（v9・8指標）"}
           </SectionHeading>
           <span className="text-xs text-gray-500 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded-full">
             {mode === "swing" ? "日足10年 / 47銘柄" : "1h足 / US37銘柄"}
@@ -971,8 +971,8 @@ export default function BacktestPage({
         </div>
         <p className="text-gray-500 text-xs -mt-2">
           {mode === "swing"
-            ? "逆張り重視の8指標。短期の売られすぎ（RSI/BB/Stoch/CCI）＋中長期の健全な押し目（EMA200/MOM3M/52WK）＋転換確認（MACD）でスコアを合算。合計点 ≥ 閾値[55〜75]でエントリーシグナル。"
-            : "VWAP乖離・RVOL（相対出来高）を軸に、短期売られすぎ（RSI/BB/Stoch/CCI）と短期転換（MACD/MA）でスコアを合算。合計点 ≥ 閾値[45〜70]でシグナル。"
+            ? "逆張り重視の8指標。短期の売られすぎ（RSI/BB/Stoch/CCI）＋中長期の健全な押し目（EMA200/MOM3M/52WK）＋転換確認（MACD）でスコアを合算。合計点 ≥ 閾値[30〜50]でエントリーシグナル（v9: 閾値引下げによりホールドアウト期間のトレード数を確保）。IC情報比 ≥ 0.08 かつ Lift ≥ 1.08 の指標のみ採用。"
+            : "VWAP乖離・RVOL（相対出来高）を軸に、短期売られすぎ（RSI/BB/Stoch/CCI）と短期転換（MACD/MA）でスコアを合算。合計点 ≥ 閾値[25〜50]でシグナル（v9: 閾値引下げ）。過学習しやすい1h固定保有・超タイトストップを除去。"
           }
         </p>
         <IndicatorCatalogSection mode={mode} />
