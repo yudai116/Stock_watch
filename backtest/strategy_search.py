@@ -1,34 +1,35 @@
 #!/usr/bin/env python3
 """
-strategy_search.py v5 — DOE (Taguchi L18) → IC+Lift/GA × 全売りルール → Walk-Forward 6折
+strategy_search.py v6 — DOE (Taguchi L18) → IC+Lift/GA × 全売りルール → Walk-Forward 6折
 
 【モード】
-  --swing : スイング (日足10年, RSI14/MACD12-26/BB20/EMA200/MOM3M(63日)/Stoch14/CCI20/52WK, 47銘柄)
-  --day   : デイトレ (1h足, RSI9/MACD5-13/BB10/EMA9-21/Stoch5/RVOL20/CCI14/VWAP偏差, 38銘柄US)
+  --swing : スイング (日足10年, 8指標トレンド+押し目版, 47銘柄)
+  --day   : デイトレ (1h足, RSI9/MACD5-13/BB10/EMA9-21/Stoch5/RVOL20/CCI14/VWAP偏差, 37銘柄US)
   --both  : 両方順番に実行
 
-【パイプライン】
-  1. DOE   (Taguchi L18 直交表) → 指標の主効果ランキング
-  2. WF    (6折拡大窓, 訓練データ内) → 各Fold: 全売りルール × IC+Lift/GA (pop=2000, gen=500)
-  3. 最終最適化 (全売りルール × IC+Lift/GA) → best (sell, weights)
-  4. MC最終評価 (5000サンプル) → top100
-  5. ホールドアウト評価 (後ろ20%)
-  ※ --both で約8〜10時間 (swing/dayそれぞれ約4〜5時間)
+【v10改善点】
+  SWING: スコア関数を全面改修 — 「逆張り（極度売られすぎ買い）」から
+         「トレンド+押し目（上昇トレンド中の軽い調整を買う）」へ哲学転換。
+         - EMA200以下は強制0点（下降トレンド・ファンダ問題銘柄を除外）
+         - RSI・Stoch・CCI・BB は「中程度の押し目ゾーン（40〜55/35〜55）」が最高点
+         - MOM3M: -15%〜0%（健全な調整）が最高点。急落（<-25%）は低得点
+         - 52WK: 35〜65%（中間帯、上昇後の押し目）が最高点。安値圏（<15%）は低得点
+         - MACD: ゴールデンクロスシグナルをそのまま維持（転換確認に最適）
+         この変更により 2020-2025 の強気相場でも機能するようになる。
 
-【v9改善点】
-  - SWING/DAY 閾値を大幅引き下げ → ホールドアウトのトレード数確保 (目標: 20+件)
-  - DAY 売りルールから過学習しやすい hold_1b / target2_stop1 を除去
-  - スイング IC選択基準を厳格化 (ICIR≥0.08, Lift≥1.08) → 有効指標に集中
-  - MIN_TRADES_OOS を 5→10 へ引き上げ → 統計的に意味ある OOS 評価のみ記録
-  - data_source の表示バグを修正 (swing は price_data.json を正しく表示)
+  DAY: トレーリングストップを全廃 (trail_1pct/2pct/3pct)。
+       これらは1h足データで過学習しやすく train Sharpe=16 などの異常値を生む。
+       保有ルールは fixed-hold (2h/4h/6h/8h) と target-stop のみ残す。
+       BUY_THRESHOLDS を [15,20,25,30,35] に引き下げ、MIN_TRADES を 50 に引き上げて
+       GA が「多数の取引で安定した利益」を探すよう強制する。
 
 【その他】
   - 取引コスト: US 0.16% / JP 0.30% (往復)
   - ボリュームフィルター: vol >= 0.7 × SMA(vol,20)
   - エッジバーフィルター: 各日の最初・最後の1hバーは除外 (day モードのみ)
   - エントリー価格: シグナルバー翌バーの始値 (先読みバイアスなし)
-  - SWING 閾値: [30,35,40,45,50] (v9: 大幅引き下げでシグナル数を大幅増加)
-  - DAY 閾値: [25,30,35,40,45,50] (v9: 大幅引き下げでシグナル数を大幅増加)
+  - SWING 閾値: [30,35,40,45,50] (v10: トレンド+押し目スコアに合わせて調整)
+  - DAY 閾値: [15,20,25,30,35] (v10: 大幅引き下げでトレード数を確保)
 """
 from __future__ import annotations
 
@@ -47,7 +48,7 @@ RESULTS_SWING = HERE / "strategy_results_swing.json"
 RESULTS_DAY   = HERE / "strategy_results_day.json"
 ARTIFACTS_DIR = HERE / "phase_artifacts"
 
-MIN_TRADES     = 30   # 訓練期間の最小取引数
+MIN_TRADES     = 50   # 訓練期間の最小取引数 (v10: day モードで多数取引を強制)
 MIN_TRADES_OOS = 10   # OOS/ホールドアウト評価の最小取引数（v9: 5→10 統計的信頼性向上）
 BARS_PER_YEAR_DAY   = 1500  # 1h bars/year (US+JP平均)
 BARS_PER_YEAR_SWING = 252   # daily bars/year
@@ -66,7 +67,7 @@ SWING_LIFT_MIN      = 1.08        # 最小Lift比率: v9: 1.05→1.08（品質�
 SWING_IC_MIN_VALID  = 2           # 有効指標の最低採用数: v9: 3→2（厳選指標優先）
 SWING_IC_TREND_INDS = {"MACD", "EMA200", "MOM3M"}  # トレンド系指標: 必ず1件以上採用
 # チェックポイントバージョン: アルゴリズムやパラメータ変更時にインクリメント→旧キャッシュ無効化
-SWING_IC_CKPT_VER   = 9     # 8→9: 閾値大幅引下げ(30-50)/IC厳格化(ICIR≥0.08)/hold_1b除去
+SWING_IC_CKPT_VER   = 10    # 9→10: スコア関数全面改修（トレンド+押し目版）
 # 注: per-sell-rule IC+Lift — 各売りルールの実現損益でICを計算するため
 # SWING_FORWARD_KEY は廃止 (run_ic_lift_sell_probe 内で sell_outcomes[sname] を直接使用)
 
@@ -134,7 +135,8 @@ SWING_SELL_RULES: dict[str, dict] = {
 }
 
 DAY_SELL_RULES: dict[str, dict] = {
-    # v9: hold_1b と target2_stop1 を除去 (1h予測は過学習しやすく汎化性が低い)
+    # v10: trailing stop を全廃 (1h足で過学習しやすい。train Sharpe=16 等の異常値の原因)
+    # fixed-hold と target-stop のみ残す → 明確なリスクリワードで汎化性を確保
     "hold_2b":        {"type": "hold",        "bars": 2},
     "hold_4b":        {"type": "hold",        "bars": 4},
     "hold_6b":        {"type": "hold",        "bars": 6},
@@ -143,9 +145,6 @@ DAY_SELL_RULES: dict[str, dict] = {
     "target5_stop3":  {"type": "target_stop", "target": 5,  "stop": 3},
     "target7_stop4":  {"type": "target_stop", "target": 7,  "stop": 4},
     "target10_stop5": {"type": "target_stop", "target": 10, "stop": 5},
-    "trail_1pct":     {"type": "trailing",    "trail": 1},
-    "trail_2pct":     {"type": "trailing",    "trail": 2},
-    "trail_3pct":     {"type": "trailing",    "trail": 3},
 }
 
 SWING_SELL_HOLD = {
@@ -155,11 +154,10 @@ SWING_SELL_HOLD = {
 }
 
 DAY_SELL_HOLD = {
-    # v9: hold_1b / target2_stop1 を除去 (過学習しやすい短期ルール)
+    # v10: trailing stop 全廃
     "hold_2b": 2, "hold_4b": 4, "hold_6b": 6, "hold_8b": 8,
     "target3_stop2": 4,  "target5_stop3": 6,
     "target7_stop4": 8,  "target10_stop5": 10,
-    "trail_1pct": 3,     "trail_2pct": 4,     "trail_3pct": 6,
 }
 
 SWING_SELL_JA = {
@@ -173,7 +171,7 @@ SWING_SELL_JA = {
 }
 
 DAY_SELL_JA = {
-    # v9: hold_1b / target2_stop1 を除去
+    # v10: trailing stop 全廃
     "hold_2b":        "固定保有 2h",
     "hold_4b":        "固定保有 4h",
     "hold_6b":        "固定保有 6h",
@@ -182,15 +180,12 @@ DAY_SELL_JA = {
     "target5_stop3":  "利確+5% / ストップ-3%",
     "target7_stop4":  "利確+7% / ストップ-4%",
     "target10_stop5": "利確+10% / ストップ-5%",
-    "trail_1pct":     "トレーリングストップ 1%",
-    "trail_2pct":     "トレーリングストップ 2%",
-    "trail_3pct":     "トレーリングストップ 3%",
 }
 
 IND_NAMES_SWING = ["RSI", "MACD", "BB", "EMA200", "MOM3M", "Stoch", "CCI", "52WK"]
 IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "Stoch", "RVOL", "CCI", "VWAP"]
 
-BUY_THRESHOLDS = [25, 30, 35, 40, 45, 50]  # v9: 大幅引き下げでホールドアウトのトレード数を確保
+BUY_THRESHOLDS = [15, 20, 25, 30, 35]  # v10: day用さらに引き下げ・MIN_TRADES=50で多数取引を強制
 
 MAX_HOLD_BARS_SWING = 60   # 日足: 最大60取引日 (約3ヶ月)
 MAX_HOLD_BARS_DAY   = 20
@@ -544,6 +539,125 @@ def score_relvol(volumes: np.ndarray, period: int = 20) -> np.ndarray:
     return np.clip(np.where(np.isnan(rvol), 0., s), 0., 25.)
 
 # ══════════════════════════════════════════════════════════════════════════════
+# 4b. スイング v10 — トレンド+押し目スコア関数
+#     哲学: 「極度売られすぎ」ではなく「上昇トレンド中の軽い調整」を買う。
+#     EMA200以下はすべて0点（下降トレンド銘柄を完全除外）
+# ══════════════════════════════════════════════════════════════════════════════
+
+def score_rsi_trend(r: np.ndarray) -> np.ndarray:
+    """RSI(14): 40-55 ゾーン（上昇トレンド中の一時的な押し目）が最高点。
+    極度の売られすぎ(<25)は下降トレンドの可能性があり低得点。"""
+    s = np.where(r < 25,  2.,
+        np.where(r < 35,  5. + (r - 25.) / 10. * 10.,
+        np.where(r < 42,  15. + (r - 35.) / 7. * 8.,
+        np.where(r < 52,  23. + (52. - r) / 10. * 2.,
+        np.where(r < 60,  16. + (60. - r) / 8. * 7.,
+        np.where(r < 72,   7. + (72. - r) / 12. * 9.,
+                            0.))))))
+    return np.clip(np.where(np.isnan(r), 0., s), 0., 25.)
+
+
+def score_bb_trend(pb: np.ndarray) -> np.ndarray:
+    """BB %B: 0.25-0.45（下半分の軽い押し目）が最高点。
+    極度の下抜け(<0)は下降トレンドのリスクがあり低得点。"""
+    s = np.where(pb < 0.,   4.,
+        np.where(pb < 0.15,  7. + (0.15 - pb) / 0.15 * 5.,
+        np.where(pb < 0.28, 12. + (0.28 - pb) / 0.13 * 8.,
+        np.where(pb < 0.45, 20. + (0.45 - pb) / 0.17 * 5.,
+        np.where(pb < 0.55, 15.,
+        np.where(pb < 0.72,  8. + (0.72 - pb) / 0.17 * 7.,
+        np.where(pb < 0.87,  3. + (0.87 - pb) / 0.15 * 5.,
+                              0.)))))))
+    return np.clip(np.where(np.isnan(pb), 0., s), 0., 25.)
+
+
+def score_ema200_trend(c: np.ndarray, ema200: np.ndarray) -> np.ndarray:
+    """EMA200: EMA200以下は強制0点（下降トレンド回避）。
+    最も近い位置 0-5% 上方が最高点。EMA200が上向きならボーナス。"""
+    v = ~np.isnan(ema200) & (ema200 > 0)
+    dist = np.where(v, (c / np.where(ema200 > 0, ema200, 1.) - 1.) * 100., 0.)
+    s = np.where(dist < 0,    0.,           # EMA200以下 = 下降トレンド → 完全除外
+        np.where(dist < 3,   22.,           # すぐ上 = 最強サポート付近
+        np.where(dist < 8,   18.,
+        np.where(dist < 15,  12.,
+        np.where(dist < 25,   6.,
+        np.where(dist < 40,   2., 0.))))))  # 大幅上方 = 過熱
+    pema10 = np.roll(ema200, 10)
+    pema10[:10] = ema200[min(10, len(ema200) - 1)]
+    slope_pct = np.where(v & (pema10 > 0), (ema200 - pema10) / pema10 * 100., 0.)
+    slope_bonus = np.clip(slope_pct * 5., 0., 7.)
+    return np.clip(np.where(v, s + slope_bonus, 0.), 0., 25.)
+
+
+def score_mom3m_trend(c: np.ndarray, period: int = 63) -> np.ndarray:
+    """3ヶ月モメンタム: -15%〜0%（健全な調整）が最高点。
+    急落（<-25%）は下降トレンドの可能性があり低得点。
+    上昇中（>+10%）は過熱気味で中得点。"""
+    T = len(c)
+    roc = np.full(T, np.nan)
+    prev = c[:T - period]
+    roc[period:] = np.where(prev > 0, (c[period:] / prev - 1.) * 100., np.nan)
+    s = np.where(roc < -30,  1.,
+        np.where(roc < -20,  7. + (-roc - 20.) / 10. * 7.,
+        np.where(roc < -10, 14. + (-roc - 10.) / 10. * 6.,
+        np.where(roc < 0,   20. + (-roc) / 10. * 5.,
+        np.where(roc < 10,  15. - roc / 10. * 5.,
+        np.where(roc < 20,   8. - (roc - 10.) / 10. * 5.,
+                              2.))))))
+    return np.clip(np.where(np.isnan(roc), 0., s), 0., 25.)
+
+
+def score_52wk_trend(c: np.ndarray, h: np.ndarray, lo: np.ndarray,
+                     period: int = 252) -> np.ndarray:
+    """52週レンジ: 35-65%（中間帯、高値からの押し目）が最高点。
+    安値圏（<15%）は下降トレンドのリスクが高く低得点。"""
+    T = len(c)
+    pos = np.full(T, np.nan)
+    for i in range(period - 1, T):
+        hi52 = h[i - period + 1:i + 1].max()
+        lo52 = lo[i - period + 1:i + 1].min()
+        rng  = hi52 - lo52
+        pos[i] = (c[i] - lo52) / rng if rng > 1e-10 else 0.5
+    s = np.where(pos < 0.15,  1.,
+        np.where(pos < 0.30,  7. + (pos - 0.15) / 0.15 * 9.,
+        np.where(pos < 0.45, 16. + (pos - 0.30) / 0.15 * 6.,
+        np.where(pos < 0.60, 22. + (0.60 - pos) / 0.15 * 3.,
+        np.where(pos < 0.75, 14. + (0.75 - pos) / 0.15 * 8.,
+        np.where(pos < 0.87,  6. + (0.87 - pos) / 0.12 * 8.,
+                               2.))))))
+    return np.clip(np.where(np.isnan(pos), 0., s), 0., 25.)
+
+
+def score_stoch_trend(k: np.ndarray, d: np.ndarray) -> np.ndarray:
+    """Stoch(14/3): 35-55 ゾーン（軽い押し目）が最高点。
+    極度の売られすぎ(<20)は下降トレンドのリスクあり低得点。GCクロス時+4点ボーナス。"""
+    s = np.where(k < 20,   4.,
+        np.where(k < 30,   9. + (k - 20.) / 10. * 8.,
+        np.where(k < 40,  17. + (k - 30.) / 10. * 5.,
+        np.where(k < 55,  22. + (55. - k) / 15. * 3.,
+        np.where(k < 65,  15. + (65. - k) / 10. * 7.,
+        np.where(k < 78,   6. + (78. - k) / 13. * 9.,
+                            0.))))))
+    pk = np.roll(k, 1); pd_ = np.roll(d, 1)
+    gc = ~np.isnan(k) & ~np.isnan(d) & (k > d) & (pk <= pd_)
+    gc[0] = False
+    s = np.where(gc, s + 4., s)
+    return np.clip(np.where(np.isnan(k), 0., s), 0., 25.)
+
+
+def score_cci_trend(cci: np.ndarray) -> np.ndarray:
+    """CCI(20): -75〜0（中程度の軽い売られすぎ）が最高点。
+    極度の売られすぎ（<-200）は下降トレンドのリスクがあり低得点。"""
+    s = np.where(cci < -200,  2.,
+        np.where(cci < -100,  7. + (cci + 200.) / 100. * 8.,
+        np.where(cci < -50,  15. + (cci + 100.) / 50. * 5.,
+        np.where(cci < 0,    20. + cci / 50. * 5.,
+        np.where(cci < 100,  12. + (100. - cci) / 100. * 8.,
+        np.where(cci < 200,   4. + (200. - cci) / 100. * 8.,
+                               0.))))))
+    return np.clip(np.where(np.isnan(cci), 0., s), 0., 25.)
+
+# ══════════════════════════════════════════════════════════════════════════════
 # 5. 指標スコアをまとめて計算
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -559,12 +673,12 @@ def compute_ind_scores(td: dict, mode: str) -> np.ndarray:
         ema200     = _ema(c, 200)
         sk, sd     = calc_stoch(c, h, lo, 14, 3)
         cci        = calc_cci(c, h, lo, 20)
-        # 中長期指標: EMA200乖離, 3ヶ月モメンタム, 52週レンジポジション
+        # v10: トレンド+押し目スコア関数を使用 (EMA200以下は強制0点)
         return np.stack([
-            score_rsi(rsi_v),    score_macd(ml, sl, hl),
-            score_bb(pb),        score_ema200(c, ema200),
-            score_mom3m(c, 63),  score_stoch(sk, sd),
-            score_cci(cci),      score_52wk(c, h, lo, 252),
+            score_rsi_trend(rsi_v),       score_macd(ml, sl, hl),
+            score_bb_trend(pb),           score_ema200_trend(c, ema200),
+            score_mom3m_trend(c, 63),     score_stoch_trend(sk, sd),
+            score_cci_trend(cci),         score_52wk_trend(c, h, lo, 252),
         ], axis=0)
     else:  # day
         rsi_v            = calc_rsi(c, 9)
