@@ -28,7 +28,7 @@ const USE_ALPACA    = INTRADAY && !!ALPACA_KEY && !!ALPACA_SECRET;
 // Alpaca で取得できる最古の日付 (IEX feed)
 const ALPACA_START = "2016-01-01";
 
-// 48 tickers — semiconductor / AI / cloud tech focus
+// 47 tickers — semiconductor / AI / cloud tech focus
 const TICKERS = [
   // ── US 大型半導体・AI ──────────────────────────────────────────
   "NVDA",    // NVIDIA (GPU/AI)
