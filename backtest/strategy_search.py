@@ -4,7 +4,7 @@ strategy_search.py v6 — DOE (Taguchi L18) → IC+Lift/GA × 全売りルール
 
 【モード】
   --swing : スイング (日足10年, 8指標トレンド+押し目版, 47銘柄)
-  --day   : デイトレ (1h足, RSI9/MACD5-13/BB10/EMA9-21/Stoch5/RVOL20/CCI14/VWAP偏差, 37銘柄US)
+  --day   : 短期スイング (日足, RSI9/MACD5-13/BB10/EMA9-21/Stoch5/RVOL20/CCI14/ROC5, 47銘柄)
   --both  : 両方順番に実行
 
 【v10改善点】
@@ -43,14 +43,14 @@ import numpy as np
 
 HERE          = Path(__file__).parent
 DATA_FILE_SWING = HERE / "price_data.json"           # 日足 10年
-DATA_FILE_DAY   = HERE / "price_data_intraday.json"  # 1時間足 2年
+DATA_FILE_DAY   = HERE / "price_data.json"           # 日足 (swing と共用)
 RESULTS_SWING = HERE / "strategy_results_swing.json"
 RESULTS_DAY   = HERE / "strategy_results_day.json"
 ARTIFACTS_DIR = HERE / "phase_artifacts"
 
 MIN_TRADES     = 50   # 訓練期間の最小取引数 (v10: day モードで多数取引を強制)
 MIN_TRADES_OOS = 10   # OOS/ホールドアウト評価の最小取引数（v9: 5→10 統計的信頼性向上）
-BARS_PER_YEAR_DAY   = 1500  # 1h bars/year (US+JP平均)
+BARS_PER_YEAR_DAY   = 252   # daily bars/year
 BARS_PER_YEAR_SWING = 252   # daily bars/year
 
 # スイング専用パラメータ
@@ -171,11 +171,11 @@ SWING_SELL_JA = {
 }
 
 DAY_SELL_JA = {
-    # v10: trailing stop 全廃
-    "hold_2b":        "固定保有 2h",
-    "hold_4b":        "固定保有 4h",
-    "hold_6b":        "固定保有 6h",
-    "hold_8b":        "固定保有 8h",
+    # v10: trailing stop 全廃、日足移行 (v11)
+    "hold_2b":        "固定保有 2日",
+    "hold_4b":        "固定保有 4日",
+    "hold_6b":        "固定保有 6日",
+    "hold_8b":        "固定保有 8日",
     "target3_stop2":  "利確+3% / ストップ-2%",
     "target5_stop3":  "利確+5% / ストップ-3%",
     "target7_stop4":  "利確+7% / ストップ-4%",
@@ -183,12 +183,12 @@ DAY_SELL_JA = {
 }
 
 IND_NAMES_SWING = ["RSI", "MACD", "BB", "EMA200", "MOM3M", "Stoch", "CCI", "52WK"]
-IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "Stoch", "RVOL", "CCI", "VWAP"]
+IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "Stoch", "RVOL", "CCI", "ROC5"]
 
 BUY_THRESHOLDS = [15, 20, 25, 30, 35]  # v10: day用さらに引き下げ・MIN_TRADES=50で多数取引を強制
 
 MAX_HOLD_BARS_SWING = 60   # 日足: 最大60取引日 (約3ヶ月)
-MAX_HOLD_BARS_DAY   = 20
+MAX_HOLD_BARS_DAY   = 10
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 1. データ読み込み
@@ -196,7 +196,7 @@ MAX_HOLD_BARS_DAY   = 20
 
 def load_data(mode: str) -> dict[str, dict]:
     data_file = DATA_FILE_SWING if mode == "swing" else DATA_FILE_DAY
-    fetch_cmd = "node backtest/fetch_data.mjs" if mode == "swing" else "node backtest/fetch_data.mjs --intraday"
+    fetch_cmd = "node backtest/fetch_data.mjs"  # both modes use daily data
     if not data_file.exists() or data_file.stat().st_size < 100:
         print(f"ERROR: {data_file.name} が見つかりません。")
         print(f"  {fetch_cmd}  を実行してください")
@@ -242,9 +242,6 @@ def _load_ticker_data(mode: str) -> tuple[dict, int, int]:
             "sell_outcomes": sell_out,
             "vol_ok":        vol_ok,
         }
-        if mode == "day":
-            entry_dict["edge_bar"] = edge_bar_mask(td["dates"], len(c))
-
         ticker_data[tkr] = entry_dict
 
     T_min     = min(len(td["ind_scores"][0]) for td in ticker_data.values())
@@ -525,6 +522,22 @@ def score_vwap(vwap_dev: np.ndarray) -> np.ndarray:
         np.where(dev_pct < 3.,    1 + (3.-dev_pct)/1.5*2, 0.)))))
     return np.clip(np.where(np.isnan(vwap_dev), 0., s), 0., 25.)
 
+def score_roc5(c: np.ndarray, period: int = 5) -> np.ndarray:
+    """5日リターン(ROC5): -8%〜-2%（軽い短期押し目）が最高点。急落・急騰は低得点。
+    短期スイング日足版で VWAP の代替として使用。"""
+    T = len(c)
+    roc = np.full(T, np.nan)
+    prev = c[:T - period]
+    roc[period:] = np.where(prev > 0, (c[period:] / prev - 1.) * 100., np.nan)
+    s = np.where(roc < -20,  1.,
+        np.where(roc < -10,  8. + (-roc - 10.) / 10. * 10.,
+        np.where(roc <  -4, 18. + (-roc -  4.) /  6. *  7.,
+        np.where(roc <   0, 15. + (-roc) / 4. * 5.,
+        np.where(roc <   5, 10. - roc / 5. * 7.,
+        np.where(roc <  15,  3. - (roc - 5.) / 10. * 3.,
+                              0.))))))
+    return np.clip(np.where(np.isnan(roc), 0., s), 0., 25.)
+
 def score_relvol(volumes: np.ndarray, period: int = 20) -> np.ndarray:
     """相対出来高 (RVOL): SMA比の出来高。高出来高 = 市場の強い関心・反転確度が高い。"""
     sma_v = _sma(volumes, period)
@@ -680,19 +693,18 @@ def compute_ind_scores(td: dict, mode: str) -> np.ndarray:
             score_mom3m_trend(c, 63),     score_stoch_trend(sk, sd),
             score_cci_trend(cci),         score_52wk_trend(c, h, lo, 252),
         ], axis=0)
-    else:  # day
-        rsi_v            = calc_rsi(c, 9)
-        ml, sl, hl       = calc_macd(c, 5, 13, 4)
-        pb               = calc_bb(c, 10)
-        ef               = _ema(c, 9); es = _ema(c, 21)
-        sk, sd           = calc_stoch(c, h, lo, 5, 3)
-        cci              = calc_cci(c, h, lo, 14)
-        vwap_dev         = calc_vwap_dev(c, volumes, dates)
+    else:  # day — 日足短期スイング (v11: 1h足→日足移行, VWAP→ROC5)
+        rsi_v      = calc_rsi(c, 9)
+        ml, sl, hl = calc_macd(c, 5, 13, 4)
+        pb         = calc_bb(c, 10)
+        ef         = _ema(c, 9); es = _ema(c, 21)
+        sk, sd     = calc_stoch(c, h, lo, 5, 3)
+        cci        = calc_cci(c, h, lo, 14)
         return np.stack([
             score_rsi(rsi_v),    score_macd(ml, sl, hl),
             score_bb(pb),        score_ma(c, ef, es),
             score_stoch(sk, sd), score_relvol(volumes, 20),
-            score_cci(cci),      score_vwap(vwap_dev),
+            score_cci(cci),      score_roc5(c, 5),
         ], axis=0)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1785,10 +1797,10 @@ def run_phase_assemble(mode: str) -> None:
             }
 
     result = {
-        "version":       10,
+        "version":       11,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
-        "data_source":   "price_data_intraday.json (1h bars)" if mode == "day" else "price_data.json (daily bars)",
+        "data_source":   "price_data.json (daily bars)",
         "n_tickers":     len(ticker_data),
         "tickers":       list(ticker_data.keys()),
         "n_evaluated":   len(all_results),
@@ -2045,10 +2057,10 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
         }
 
     return {
-        "version":       10,
+        "version":       11,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
-        "data_source":   "price_data_intraday.json (1h bars)" if mode == "day" else "price_data.json (daily bars)",
+        "data_source":   "price_data.json (daily bars)",
         "n_tickers":     len(ticker_data),
         "tickers":       list(ticker_data.keys()),
         "n_evaluated":   len(all_results),

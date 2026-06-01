@@ -53,6 +53,18 @@ type WalkForward = {
   test_max_dd: number;
 };
 
+type IcLiftFinal = {
+  valid_indicators: string[];
+  ic_scores: Record<string, number>;
+  lift_scores: Record<string, number>;
+  n_valid: number;
+};
+
+type IcLiftResults = {
+  method?: string;
+  final?: IcLiftFinal;
+};
+
 // ─── Static data from backtest_results_v4.json + trade_records.py ─────────────
 
 const MULTS = {
@@ -276,6 +288,7 @@ type StrategyData = {
   doe_results?: DoeResults;
   ga_results?: GaResults;
   walk_forward?: WalkForward;
+  ic_lift_results?: IcLiftResults;
 } | { available: false };
 
 function loadStrategyData(mode: "swing" | "day"): StrategyData {
@@ -632,7 +645,7 @@ const IND_COLORS_CLS: Record<string, string> = {
   CCI:    "bg-yellow-500",  "52WK": "bg-red-500",
   // day mode indicators
   MA:    "bg-orange-500",   Aroon:  "bg-cyan-500",    ROC:   "bg-red-500",
-  RVOL:  "bg-teal-500",     VWAP:   "bg-indigo-500",
+  RVOL:  "bg-teal-500",     VWAP:   "bg-indigo-500",  ROC5:  "bg-indigo-500",
 };
 const IND_TEXT_CLS: Record<string, string> = {
   RSI:    "text-emerald-400", MACD:   "text-blue-400",    BB:    "text-purple-400",
@@ -640,7 +653,7 @@ const IND_TEXT_CLS: Record<string, string> = {
   CCI:    "text-yellow-400",  "52WK": "text-red-400",
   // day mode indicators
   MA:    "text-orange-400",   Aroon:  "text-cyan-400",    ROC:   "text-red-400",
-  RVOL:  "text-teal-400",     VWAP:   "text-indigo-400",
+  RVOL:  "text-teal-400",     VWAP:   "text-indigo-400",  ROC5:  "text-indigo-400",
 };
 
 // ─── Indicator catalog (v10) ────────────────────────────────────────────────────
@@ -695,8 +708,8 @@ const IND_CATALOG: Record<string, IndInfo[]> = {
     { name: "CCI",   params: "14期間",            role: "コモディティチャネル指数",
       signal: "<−100: 14〜22点　<0: 8〜14点　>+100: 0〜3点",
       note: "逆張り" },
-    { name: "VWAP",  params: "日別累積VWAP乖離",  role: "当日VWAP対比の割安度",
-      signal: "−3%以上下: 20〜25点　−1.5〜0%: 7〜13点　プラス乖離: 0〜3点",
+    { name: "ROC5",  params: "5日リターン",         role: "短期モメンタム（押し目検出）",
+      signal: "−8%〜−2%: 18〜25点（軽い押し目）　−15%〜−8%: 8〜18点　+5%以上: 0〜3点（過熱）",
       note: "確認" },
   ],
 };
@@ -972,7 +985,7 @@ export default function BacktestPage({
         <p className="text-gray-500 text-xs -mt-2">
           {mode === "swing"
             ? "トレンド+押し目の8指標（v10: 逆張りから哲学転換）。EMA200以下は強制0点で下降トレンク銘柄を完全除外。RSI40〜52・BB%B0.28〜0.45・Stoch40〜55・CCI-75〜0（軽い押し目）が最高点。MOM3M -15〜0%（健全な調整）・52WK 35〜65%（中間帯）が最高点。MADCのゴールデンクロスで転換確認。IC情報比 ≥ 0.08 かつ Lift ≥ 1.08 の指標のみ採用。"
-            : "VWAP乖離・RVOL（相対出来高）を軸に、短期売られすぎ（RSI/BB/Stoch/CCI）と短期転換（MACD/MA）でスコアを合算。合計点 ≥ 閾値[15〜35]でシグナル（v10: トレーリングストップ全廃・MIN_TRADES=50）。固定保有（2/4/6/8h）とtarget-stopのみで過学習を防止。"
+            : "日足短期スイング（v11: 1h足→日足移行）。VWAP廃止→ROC5（5日リターン）採用。RSI9・MACD5-13・BB10・EMA9/21・Stoch5・RVOL20・CCI14・ROC5の8指標。合計点 ≥ 閾値[15〜35]でシグナル。固定保有（2/4/6/8日）とtarget-stopのみで過学習を防止。47銘柄・10年日足データ。"
           }
         </p>
         <IndicatorCatalogSection mode={mode} />
@@ -1106,6 +1119,56 @@ export default function BacktestPage({
                 最終最適化は先頭80%、ホールドアウト評価は末尾20%（最適化中は一切未使用）。
               </p>
             </div>
+          )}
+
+          {/* IC+Lift indicator selection (swing only) */}
+          {mode === "swing" && "ic_lift_results" in strategyData && strategyData.ic_lift_results?.final && (
+            <section className="space-y-3">
+              <SectionHeading>IC+Lift 指標選択結果</SectionHeading>
+              <p className="text-gray-500 text-xs -mt-2">
+                ICIR ≥ 0.08 かつ Lift ≥ 1.08 を満たした指標のみGA最適化に採用。
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="border-b border-gray-700">
+                      <th className="py-1.5 px-2 text-gray-400">指標</th>
+                      <th className="py-1.5 px-2 text-right text-gray-400">ICIR</th>
+                      <th className="py-1.5 px-2 text-right text-gray-400">Lift</th>
+                      <th className="py-1.5 px-2 text-center text-gray-400">採用</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(strategyData.ic_lift_results.final.ic_scores)
+                      .sort(([, a], [, b]) => b - a)
+                      .map(([ind, icir]) => {
+                        const lift = strategyData.ic_lift_results!.final!.lift_scores[ind] ?? 0;
+                        const selected = strategyData.ic_lift_results!.final!.valid_indicators.includes(ind);
+                        return (
+                          <tr key={ind} className={`border-b border-gray-800 ${selected ? "bg-emerald-950/20" : ""}`}>
+                            <td className="py-1.5 px-2">
+                              <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${IND_COLORS_CLS[ind] ?? "bg-gray-500"}`} />
+                              <span className={selected ? "text-emerald-300 font-bold" : "text-gray-500"}>{ind}</span>
+                            </td>
+                            <td className={`py-1.5 px-2 text-right font-mono ${icir >= 0.08 ? "text-emerald-400" : "text-gray-600"}`}>
+                              {icir.toFixed(3)}
+                            </td>
+                            <td className={`py-1.5 px-2 text-right font-mono ${lift >= 1.08 ? "text-emerald-400" : "text-gray-600"}`}>
+                              {lift.toFixed(3)}
+                            </td>
+                            <td className="py-1.5 px-2 text-center">
+                              {selected ? <span className="text-emerald-400">✓</span> : <span className="text-gray-700">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-gray-600 text-xs">
+                採用済み: {strategyData.ic_lift_results.final.valid_indicators.join(" / ")} ({strategyData.ic_lift_results.final.n_valid}件)
+              </p>
+            </section>
           )}
 
           {/* DOE results (v3) */}
