@@ -90,12 +90,12 @@ const TICKERS = [
 const DAILY_START = "2015-01-01";
 const DAILY_END   = "2025-12-31";
 
-// Intraday 1h: Yahoo Finance allows up to 730 days back
-// Use 2 years ago from today minus 1 week safety margin
+// Intraday: Alpaca=30min(10年), Yahoo fallback=1h(730日)
+// Yahoo Finance: 30min は60日上限、1h は730日が利用可能。フォールバックは1hで多めの履歴を確保。
 function getIntradayRange() {
   const end = new Date();
   const start = new Date();
-  start.setDate(start.getDate() - 720); // ~2 years, safely within 730-day limit
+  start.setDate(start.getDate() - 720); // ~2 years, safely within Yahoo 730-day (1h) limit
   return {
     start: start.toISOString().split("T")[0],
     end:   end.toISOString().split("T")[0],
@@ -160,17 +160,17 @@ async function fetchTickerIntraday(ticker, start, end) {
   }
 }
 
-// ── Alpaca Markets API (US株のみ, 1h足, 最大10年) ─────────────────────────────
+// ── Alpaca Markets API (US株のみ, 30min足, 最大10年) ─────────────────────────────
 async function fetchAlpacaIntraday(ticker) {
   const end = new Date().toISOString().split("T")[0];
-  console.log(`  Fetching ${ticker} (Alpaca 1h, ${ALPACA_START} → ${end}) ...`);
+  console.log(`  Fetching ${ticker} (Alpaca 30min, ${ALPACA_START} → ${end}) ...`);
 
   const allBars = [];
   let pageToken = null;
 
   do {
     const params = new URLSearchParams({
-      timeframe: "1Hour",
+      timeframe: "30Min",  // v11: 1Hour→30Min (2倍の密度でシグナル数増加)
       start:     ALPACA_START,
       end,
       feed:      "iex",   // 無料プラン (IEX Realtime Feed)
@@ -233,7 +233,7 @@ async function main() {
     if (USE_ALPACA) {
       // ── Alpaca: US株のみ (日本株は Alpaca 非対応なので除外) ──────────────
       const usTickers = TICKERS.filter(t => !t.endsWith(".T"));
-      console.log(`Alpaca 1h足取得 (US株 ${usTickers.length}銘柄, ${ALPACA_START}〜) ...`);
+      console.log(`Alpaca 30min足取得 (US株 ${usTickers.length}銘柄, ${ALPACA_START}〜) ...`);
       console.log(`※ 日本株 (.T) はAlpaca非対応のため今回スキップ\n`);
 
       for (const ticker of usTickers) {
