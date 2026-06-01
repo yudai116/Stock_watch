@@ -1,6 +1,6 @@
 {
   "version": 7,
-  "generated_at": "2026-05-31 16:50",
+  "generated_at": "2026-06-01 04:55",
   "mode": "day",
   "data_source": "price_data_intraday.json (1h bars)",
   "n_tickers": 18,
@@ -2811,9 +2811,9 @@
           },
           "hold_6b": {
             "oos_sharpe": 0.0,
-            "oos_n_trades": 3,
-            "oos_win_rate": 1.0,
-            "oos_avg_return": 4.218
+            "oos_n_trades": 4,
+            "oos_win_rate": 0.75,
+            "oos_avg_return": 2.347
           },
           "hold_8b": {
             "oos_sharpe": 2.2943,
