@@ -1785,7 +1785,7 @@ def run_phase_assemble(mode: str) -> None:
             }
 
     result = {
-        "version":       9,
+        "version":       10,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
         "data_source":   "price_data_intraday.json (1h bars)" if mode == "day" else "price_data.json (daily bars)",
@@ -2045,7 +2045,7 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
         }
 
     return {
-        "version":       9,
+        "version":       10,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
         "data_source":   "price_data_intraday.json (1h bars)" if mode == "day" else "price_data.json (daily bars)",
