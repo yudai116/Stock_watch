@@ -643,34 +643,34 @@ const IND_TEXT_CLS: Record<string, string> = {
   RVOL:  "text-teal-400",     VWAP:   "text-indigo-400",
 };
 
-// ─── Indicator catalog (v8) ────────────────────────────────────────────────────
+// ─── Indicator catalog (v10) ────────────────────────────────────────────────────
 
 type IndInfo = { name: string; params: string; role: string; signal: string; note: "逆張り" | "トレンド" | "中長期" | "確認" };
 const IND_CATALOG: Record<string, IndInfo[]> = {
   swing: [
-    { name: "RSI",    params: "期間14日",       role: "短期売られすぎ検出",
-      signal: "<25: 23点（極度売られすぎ）　25〜45: 12〜19点（逆張りゾーン）　55以上: 0〜7点",
-      note: "逆張り" },
+    { name: "RSI",    params: "期間14日",       role: "トレンド内押し目検出",
+      signal: "40〜52: 25点（上昇トレンド中の軽い調整）　35〜42: 15〜23点　<25: 2点（急落リスク）",
+      note: "トレンド" },
     { name: "MACD",   params: "12-26-9",         role: "トレンド転換シグナル",
       signal: "GCクロス当日: 24点（最強）　GC後ヒスト拡大: 15点　GC後継続: 10点　DCクロス: 2点",
       note: "トレンド" },
     { name: "BB",     params: "20日 ±2σ",       role: "価格バンド内位置",
-      signal: "バンド下抜け(<0): 20点　下位10%圏: 15〜20点　上位30%以上: 0〜3点",
-      note: "逆張り" },
-    { name: "EMA200", params: "200日EMA乖離",    role: "長期トレンドの健全性",
-      signal: "−15〜−5%押し目: 12〜21点（最高）　EMA上昇中は+5点ボーナス　急落(<−25%): 5点",
+      signal: "0.28〜0.45（下半分の軽い押し目）: 20〜25点　下抜け(<0): 4点　上位30%以上: 0〜3点",
+      note: "トレンド" },
+    { name: "EMA200", params: "200日EMA乖離",    role: "上昇トレンド必須フィルター",
+      signal: "EMA200以下: 強制0点（下降トレンド除外）　0〜3%上方: 22点（サポート付近）　EMA上向き: +7点ボーナス",
       note: "中長期" },
     { name: "MOM3M",  params: "63日ROC",         role: "3ヶ月モメンタム",
-      signal: "−15〜−5%調整: 14〜20点（健全な押し目）　急落(<−30%): 4点（落下ナイフ除外）",
+      signal: "−15〜0%調整: 20〜25点（健全な押し目）　急落(<−30%): 1点（落下ナイフ除外）　+10%超: 8点（過熱）",
       note: "中長期" },
     { name: "Stoch",  params: "K=14 D=3",        role: "ストキャスティクス",
-      signal: "K<20: 20〜25点　GCクロス時+3点ボーナス　K>70: 0〜3点",
-      note: "逆張り" },
+      signal: "K=40〜55: 22〜25点（軽い押し目）　GCクロス時+4点ボーナス　K<20: 4点（急落リスク）",
+      note: "トレンド" },
     { name: "CCI",    params: "20日",             role: "コモディティチャネル指数",
-      signal: "<−200: 22〜25点（深い過売り）　<−100: 14〜22点　>+100: 0〜3点",
-      note: "逆張り" },
+      signal: "−75〜0: 20〜25点（中程度の押し目）　<−200: 2点（急落リスク）　>+100: 0〜4点",
+      note: "トレンド" },
     { name: "52WK",   params: "252日高低値",      role: "52週レンジ内位置",
-      signal: "年間安値0〜10%圏: 23点（絶好の逆張り）　0〜20%: 16〜23点　70%以上: 0〜2点",
+      signal: "35〜65%圏（中間帯・押し目）: 19〜25点　安値圏（<15%）: 1点　高値圏（>87%）: 2点",
       note: "中長期" },
   ],
   day: [
@@ -963,7 +963,7 @@ export default function BacktestPage({
       <section className="space-y-3">
         <div className="flex items-center gap-3 flex-wrap">
           <SectionHeading>
-            {mode === "swing" ? "スイング指標一覧（v9・8指標）" : "デイトレ指標一覧（v9・8指標）"}
+            {mode === "swing" ? "スイング指標一覧（v10・8指標）" : "デイトレ指標一覧（v10・8指標）"}
           </SectionHeading>
           <span className="text-xs text-gray-500 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded-full">
             {mode === "swing" ? "日足10年 / 47銘柄" : "1h足 / US37銘柄"}
@@ -971,8 +971,8 @@ export default function BacktestPage({
         </div>
         <p className="text-gray-500 text-xs -mt-2">
           {mode === "swing"
-            ? "逆張り重視の8指標。短期の売られすぎ（RSI/BB/Stoch/CCI）＋中長期の健全な押し目（EMA200/MOM3M/52WK）＋転換確認（MACD）でスコアを合算。合計点 ≥ 閾値[30〜50]でエントリーシグナル（v9: 閾値引下げによりホールドアウト期間のトレード数を確保）。IC情報比 ≥ 0.08 かつ Lift ≥ 1.08 の指標のみ採用。"
-            : "VWAP乖離・RVOL（相対出来高）を軸に、短期売られすぎ（RSI/BB/Stoch/CCI）と短期転換（MACD/MA）でスコアを合算。合計点 ≥ 閾値[25〜50]でシグナル（v9: 閾値引下げ）。過学習しやすい1h固定保有・超タイトストップを除去。"
+            ? "トレンド+押し目の8指標（v10: 逆張りから哲学転換）。EMA200以下は強制0点で下降トレンク銘柄を完全除外。RSI40〜52・BB%B0.28〜0.45・Stoch40〜55・CCI-75〜0（軽い押し目）が最高点。MOM3M -15〜0%（健全な調整）・52WK 35〜65%（中間帯）が最高点。MADCのゴールデンクロスで転換確認。IC情報比 ≥ 0.08 かつ Lift ≥ 1.08 の指標のみ採用。"
+            : "VWAP乖離・RVOL（相対出来高）を軸に、短期売られすぎ（RSI/BB/Stoch/CCI）と短期転換（MACD/MA）でスコアを合算。合計点 ≥ 閾値[15〜35]でシグナル（v10: トレーリングストップ全廃・MIN_TRADES=50）。固定保有（2/4/6/8h）とtarget-stopのみで過学習を防止。"
           }
         </p>
         <IndicatorCatalogSection mode={mode} />
