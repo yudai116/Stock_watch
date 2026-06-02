@@ -12,6 +12,13 @@ on:
           - swing
           - day
           - both
+  push:
+    branches:
+      - main
+    paths:
+      - 'backtest/**'
+      - 'app/**'
+      - '.github/workflows/backtest.yml'
   schedule:
     - cron: '0 1 * * 0'
 
