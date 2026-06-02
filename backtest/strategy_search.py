@@ -4,7 +4,7 @@ strategy_search.py v6 — DOE (Taguchi L18) → IC+Lift/GA × 全売りルール
 
 【モード】
   --swing : スイング (日足10年, 8指標トレンド+押し目版, 47銘柄)
-  --day   : デイトレ (10min足 Alpaca/Yahoo1h, RSI9/MACD5-13/BB10/EMA9-21/Stoch5/RVOL20/CCI14/VWAP, 37銘柄US)
+  --day   : デイトレ (10min足 Alpaca, ORB30min/MOM3B/VWAP強気/RSI/MACD/BB/MA/RVOL 8指標, 37銘柄US)
   --both  : 両方順番に実行
 
 【v10改善点】
@@ -48,7 +48,7 @@ RESULTS_SWING = HERE / "strategy_results_swing.json"
 RESULTS_DAY   = HERE / "strategy_results_day.json"
 ARTIFACTS_DIR = HERE / "phase_artifacts"
 
-MIN_TRADES     = 50   # 訓練期間の最小取引数 (v10: day モードで多数取引を強制)
+MIN_TRADES     = 25   # v12: day ORB導入でシグナル増加 → 制約を緩め実現可能な戦略を発見
 MIN_TRADES_OOS = 10   # OOS/ホールドアウト評価の最小取引数（v9: 5→10 統計的信頼性向上）
 BARS_PER_YEAR_DAY   = 9828  # 10min bars/year (252日 × 39本/日) ※Yahoo 1h fallback時は過大だが許容
 BARS_PER_YEAR_SWING = 252   # daily bars/year
@@ -183,9 +183,9 @@ DAY_SELL_JA = {
 }
 
 IND_NAMES_SWING = ["RSI", "MACD", "BB", "EMA200", "MOM3M", "Stoch", "CCI", "52WK"]
-IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "Stoch", "RVOL", "CCI", "VWAP"]
+IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "RVOL", "VWAP_B", "ORB", "MOM3B"]
 
-BUY_THRESHOLDS = [15, 20, 25, 30, 35]  # v10: day用さらに引き下げ・MIN_TRADES=50で多数取引を強制
+BUY_THRESHOLDS = [5, 8, 10, 12, 15]   # v12: ORB単独でも反応できる低閾値 (max合計score~200)
 
 MAX_HOLD_BARS_SWING = 60   # 日足: 最大60取引日 (約3ヶ月)
 MAX_HOLD_BARS_DAY   = 78   # 10min足×78 = 13h ≈ 2取引日
@@ -253,14 +253,16 @@ def _load_ticker_data(mode: str) -> tuple[dict, int, int]:
 
 
 def _wf_splits(T_min: int, t_holdout: int) -> list[tuple[int, int]]:
-    """6-fold expanding WF splits within training data [0, t_holdout]."""
+    """8-fold expanding WF splits within training data [0, t_holdout]."""
     return [
-        (int(T_min * 0.22), int(T_min * 0.33)),
-        (int(T_min * 0.33), int(T_min * 0.44)),
-        (int(T_min * 0.44), int(T_min * 0.55)),
-        (int(T_min * 0.55), int(T_min * 0.66)),
-        (int(T_min * 0.66), int(T_min * 0.73)),
-        (int(T_min * 0.73), t_holdout),
+        (int(T_min * 0.15), int(T_min * 0.25)),  # fold 0
+        (int(T_min * 0.25), int(T_min * 0.35)),  # fold 1
+        (int(T_min * 0.35), int(T_min * 0.45)),  # fold 2
+        (int(T_min * 0.45), int(T_min * 0.55)),  # fold 3
+        (int(T_min * 0.55), int(T_min * 0.64)),  # fold 4
+        (int(T_min * 0.64), int(T_min * 0.73)),  # fold 5
+        (int(T_min * 0.73), int(T_min * 0.77)),  # fold 6
+        (int(T_min * 0.77), t_holdout),            # fold 7
     ]
 
 
@@ -541,6 +543,60 @@ def score_roc5(c: np.ndarray, period: int = 5) -> np.ndarray:
                               0.))))))
     return np.clip(np.where(np.isnan(roc), 0., s), 0., 25.)
 
+
+def score_orb(highs: np.ndarray, lows: np.ndarray, closes: np.ndarray,
+              dates: list) -> np.ndarray:
+    """Opening Range Breakout (ORB): 最初30min(3本×10min)レンジ上抜けで高スコア。
+    デイトレの核心シグナル: 出来高が集まる朝一の方向性ブレイクを捕捉。"""
+    T = len(closes)
+    or_high_arr = np.full(T, np.nan)
+    day_starts = [0]
+    for i in range(1, T):
+        if dates[i][:10] != dates[i - 1][:10]:
+            day_starts.append(i)
+    day_starts.append(T)
+    for k in range(len(day_starts) - 1):
+        s = day_starts[k]
+        e = day_starts[k + 1]
+        or_end = min(s + 3, e)
+        if or_end - s < 2:
+            continue
+        oh = float(np.max(highs[s:or_end]))
+        or_high_arr[or_end:e] = oh
+    valid = ~np.isnan(or_high_arr)
+    pct = np.where(valid, (closes - or_high_arr) / np.maximum(or_high_arr, 1e-8), np.nan)
+    return np.where(~valid, 0.,
+           np.where(pct > 0.005, 15.,
+           np.where(pct > 0.001, 10.,
+           np.where(pct > 0.,     7.,
+           np.where(pct > -0.003, 3., 0.)))))
+
+
+def score_vwap_bull(vwap_dev: np.ndarray) -> np.ndarray:
+    """VWAP乖離(強気版): VWAP以上ほど高スコア。ORBブレイクアウトの方向性確認用。
+    従来の score_vwap (逆張り) とは逆向き — day モード専用。"""
+    dev_pct = vwap_dev * 100
+    s = np.where(dev_pct > 2.0,   15.,
+        np.where(dev_pct > 0.5,   10. + (dev_pct - 0.5) / 1.5 * 5.,
+        np.where(dev_pct > 0.,    6.  + dev_pct / 0.5 * 4.,
+        np.where(dev_pct > -1.5,  2.  + (dev_pct + 1.5) / 1.5 * 4.,
+        0.))))
+    return np.clip(np.where(np.isnan(vwap_dev), 0., s), 0., 15.)
+
+
+def score_momentum_3b(c: np.ndarray) -> np.ndarray:
+    """3バー(30min)短期モメンタム: 「株価塗装感」= 強い一方向性トレンドを定量化。
+    +0.3%〜+2%の上昇勢力が最高スコア。急騰・急落は逓減。"""
+    T = len(c)
+    roc = np.zeros(T)
+    roc[3:] = (c[3:] - c[:-3]) / np.maximum(c[:-3], 1e-8) * 100
+    return np.where(roc <= 0., 0.,
+           np.where(roc < 0.2,  roc / 0.2 * 5.,
+           np.where(roc < 0.8,  5. + (roc - 0.2) / 0.6 * 5.,
+           np.where(roc < 2.0,  10.,
+           np.where(roc < 4.0,  10. - (roc - 2.0) / 2.0 * 5., 5.)))))
+
+
 def score_relvol(volumes: np.ndarray, period: int = 20) -> np.ndarray:
     """相対出来高 (RVOL): SMA比の出来高。高出来高 = 市場の強い関心・反転確度が高い。"""
     sma_v = _sma(volumes, period)
@@ -696,19 +752,18 @@ def compute_ind_scores(td: dict, mode: str) -> np.ndarray:
             score_mom3m_trend(c, 63),     score_stoch_trend(sk, sd),
             score_cci_trend(cci),         score_52wk_trend(c, h, lo, 252),
         ], axis=0)
-    else:  # day — 10min足デイトレ (v11: 1h→10min移行)
-        rsi_v            = calc_rsi(c, 9)
-        ml, sl, hl       = calc_macd(c, 5, 13, 4)
-        pb               = calc_bb(c, 10)
-        ef               = _ema(c, 9); es = _ema(c, 21)
-        sk, sd           = calc_stoch(c, h, lo, 5, 3)
-        cci              = calc_cci(c, h, lo, 14)
-        vwap_dev         = calc_vwap_dev(c, volumes, dates)
+    else:  # day — 10min足デイトレ (v12: ORB + MOM3B + VWAP強気版)
+        rsi_v    = calc_rsi(c, 9)
+        ml, sl, hl = calc_macd(c, 5, 13, 4)
+        pb       = calc_bb(c, 10)
+        ef       = _ema(c, 9); es = _ema(c, 21)
+        vwap_dev = calc_vwap_dev(c, volumes, dates)
         return np.stack([
-            score_rsi(rsi_v),    score_macd(ml, sl, hl),
-            score_bb(pb),        score_ma(c, ef, es),
-            score_stoch(sk, sd), score_relvol(volumes, 20),
-            score_cci(cci),      score_vwap(vwap_dev),
+            score_rsi(rsi_v),          score_macd(ml, sl, hl),
+            score_bb(pb),              score_ma(c, ef, es),
+            score_relvol(volumes, 20), score_vwap_bull(vwap_dev),
+            score_orb(h, lo, c, dates),
+            score_momentum_3b(c),
         ], axis=0)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1801,7 +1856,7 @@ def run_phase_assemble(mode: str) -> None:
             }
 
     result = {
-        "version":       11,
+        "version":       12,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
         "data_source":   "price_data_intraday.json (10min bars, Alpaca)" if mode == "day" else "price_data.json (daily bars)",
@@ -2061,7 +2116,7 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
         }
 
     return {
-        "version":       11,
+        "version":       12,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
         "data_source":   "price_data_intraday.json (10min bars, Alpaca)" if mode == "day" else "price_data.json (daily bars)",
