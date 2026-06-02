@@ -1,6 +1,6 @@
 {
-  "version": 13,
-  "generated_at": "2026-06-02 11:52",
+  "version": 14,
+  "generated_at": "2026-06-02 17:04",
   "mode": "swing",
   "data_source": "price_data.json (daily bars)",
   "n_tickers": 47,
