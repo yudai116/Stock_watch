@@ -979,13 +979,13 @@ export default function BacktestPage({
             {mode === "swing" ? "スイング指標一覧（v10・8指標）" : "デイトレ指標一覧（v10・8指標）"}
           </SectionHeading>
           <span className="text-xs text-gray-500 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded-full">
-            {mode === "swing" ? "日足10年 / 47銘柄" : "30min足 Alpaca / US37銘柄"}
+            {mode === "swing" ? "日足10年 / 47銘柄" : "10min足 Alpaca / US37銘柄"}
           </span>
         </div>
         <p className="text-gray-500 text-xs -mt-2">
           {mode === "swing"
             ? "トレンド+押し目の8指標（v10: 逆張りから哲学転換）。EMA200以下は強制0点で下降トレンク銘柄を完全除外。RSI40〜52・BB%B0.28〜0.45・Stoch40〜55・CCI-75〜0（軽い押し目）が最高点。MOM3M -15〜0%（健全な調整）・52WK 35〜65%（中間帯）が最高点。MADCのゴールデンクロスで転換確認。IC情報比 ≥ 0.08 かつ Lift ≥ 1.08 の指標のみ採用。"
-            : "30min足デイトレ（v11: 1h→30min移行、Alpaca 10年/Yahoo 1h fallback）。RSI9・MACD5-13・BB10・EMA9/21・Stoch5・RVOL20・CCI14・VWAP乖離の8指標。30min×2=1h保有など短時間ルール。合計点 ≥ 閾値[15〜35]でシグナル。トレーリングストップ全廃・MIN_TRADES=50。US37銘柄。"
+            : "10min足デイトレ（v11: 1h→10min移行、Alpaca 10年/Yahoo 1h fallback）。RSI9・MACD5-13・BB10・EMA9/21・Stoch5・RVOL20・CCI14・VWAP乖離の8指標。10min×6=1h保有など短時間ルール。合計点 ≥ 閾値[15〜35]でシグナル。トレーリングストップ全廃・MIN_TRADES=50。US37銘柄。"
           }
         </p>
         <IndicatorCatalogSection mode={mode} />

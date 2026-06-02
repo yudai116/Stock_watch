@@ -41,7 +41,7 @@ jobs:
           cache: 'npm'
       - name: npm install
         run: npm ci
-      - name: 30min足データ取得 (Alpaca優先/最大10年, フォールバックYahoo1h-730日) — デイトレ用
+      - name: 10min足データ取得 (Alpaca優先/最大10年, フォールバックYahoo1h-730日) — デイトレ用
         run: node backtest/fetch_data.mjs --intraday
         env:
           ALPACA_API_KEY:    ${{ secrets.ALPACA_API_KEY }}

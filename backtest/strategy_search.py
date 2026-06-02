@@ -4,7 +4,7 @@ strategy_search.py v6 — DOE (Taguchi L18) → IC+Lift/GA × 全売りルール
 
 【モード】
   --swing : スイング (日足10年, 8指標トレンド+押し目版, 47銘柄)
-  --day   : デイトレ (30min足 Alpaca/Yahoo1h, RSI9/MACD5-13/BB10/EMA9-21/Stoch5/RVOL20/CCI14/VWAP, 37銘柄US)
+  --day   : デイトレ (10min足 Alpaca/Yahoo1h, RSI9/MACD5-13/BB10/EMA9-21/Stoch5/RVOL20/CCI14/VWAP, 37銘柄US)
   --both  : 両方順番に実行
 
 【v10改善点】
@@ -43,14 +43,14 @@ import numpy as np
 
 HERE          = Path(__file__).parent
 DATA_FILE_SWING = HERE / "price_data.json"           # 日足 10年
-DATA_FILE_DAY   = HERE / "price_data_intraday.json"  # 30min足 (Alpaca優先/Yahoo1hフォールバック)
+DATA_FILE_DAY   = HERE / "price_data_intraday.json"  # 10min足 (Alpaca優先/Yahoo1hフォールバック)
 RESULTS_SWING = HERE / "strategy_results_swing.json"
 RESULTS_DAY   = HERE / "strategy_results_day.json"
 ARTIFACTS_DIR = HERE / "phase_artifacts"
 
 MIN_TRADES     = 50   # 訓練期間の最小取引数 (v10: day モードで多数取引を強制)
 MIN_TRADES_OOS = 10   # OOS/ホールドアウト評価の最小取引数（v9: 5→10 統計的信頼性向上）
-BARS_PER_YEAR_DAY   = 3276  # 30min bars/year (252日 × 13本/日) ※Yahoo 1h fallback時は過大だが許容
+BARS_PER_YEAR_DAY   = 9828  # 10min bars/year (252日 × 39本/日) ※Yahoo 1h fallback時は過大だが許容
 BARS_PER_YEAR_SWING = 252   # daily bars/year
 
 # スイング専用パラメータ
@@ -171,11 +171,11 @@ SWING_SELL_JA = {
 }
 
 DAY_SELL_JA = {
-    # v10: trailing stop 全廃 / v11: 30min足 (2bar=1h, 4bar=2h, 6bar=3h, 8bar=4h)
-    "hold_2b":        "固定保有 1h",
-    "hold_4b":        "固定保有 2h",
-    "hold_6b":        "固定保有 3h",
-    "hold_8b":        "固定保有 4h",
+    # v10: trailing stop 全廃 / v11: 10min足 (2bar=20min, 4bar=40min, 6bar=1h, 8bar=1.5h)
+    "hold_2b":        "固定保有 20min",
+    "hold_4b":        "固定保有 40min",
+    "hold_6b":        "固定保有 1h",
+    "hold_8b":        "固定保有 1.5h",
     "target3_stop2":  "利確+3% / ストップ-2%",
     "target5_stop3":  "利確+5% / ストップ-3%",
     "target7_stop4":  "利確+7% / ストップ-4%",
@@ -188,7 +188,7 @@ IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "Stoch", "RVOL", "CCI", "VWAP"]
 BUY_THRESHOLDS = [15, 20, 25, 30, 35]  # v10: day用さらに引き下げ・MIN_TRADES=50で多数取引を強制
 
 MAX_HOLD_BARS_SWING = 60   # 日足: 最大60取引日 (約3ヶ月)
-MAX_HOLD_BARS_DAY   = 26   # 30min足×26 = 13h ≈ 2取引日
+MAX_HOLD_BARS_DAY   = 78   # 10min足×78 = 13h ≈ 2取引日
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 1. データ読み込み
@@ -696,7 +696,7 @@ def compute_ind_scores(td: dict, mode: str) -> np.ndarray:
             score_mom3m_trend(c, 63),     score_stoch_trend(sk, sd),
             score_cci_trend(cci),         score_52wk_trend(c, h, lo, 252),
         ], axis=0)
-    else:  # day — 30min足デイトレ (v11: 1h→30min移行)
+    else:  # day — 10min足デイトレ (v11: 1h→10min移行)
         rsi_v            = calc_rsi(c, 9)
         ml, sl, hl       = calc_macd(c, 5, 13, 4)
         pb               = calc_bb(c, 10)
@@ -1804,7 +1804,7 @@ def run_phase_assemble(mode: str) -> None:
         "version":       11,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
-        "data_source":   "price_data_intraday.json (30min bars, Alpaca)" if mode == "day" else "price_data.json (daily bars)",
+        "data_source":   "price_data_intraday.json (10min bars, Alpaca)" if mode == "day" else "price_data.json (daily bars)",
         "n_tickers":     len(ticker_data),
         "tickers":       list(ticker_data.keys()),
         "n_evaluated":   len(all_results),
@@ -2064,7 +2064,7 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
         "version":       11,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
-        "data_source":   "price_data_intraday.json (30min bars, Alpaca)" if mode == "day" else "price_data.json (daily bars)",
+        "data_source":   "price_data_intraday.json (10min bars, Alpaca)" if mode == "day" else "price_data.json (daily bars)",
         "n_tickers":     len(ticker_data),
         "tickers":       list(ticker_data.keys()),
         "n_evaluated":   len(all_results),
