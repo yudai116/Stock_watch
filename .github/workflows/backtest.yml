@@ -71,7 +71,7 @@ jobs:
   # ── Job 2: スイング DOE ────────────────────────────────────────────────────
   swing-doe:
     needs: fetch-data
-    if: ${{ github.event.inputs.mode != 'day' }}
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -96,7 +96,7 @@ jobs:
   # ── Job 3: デイトレ DOE ────────────────────────────────────────────────────
   day-doe:
     needs: fetch-data
-    if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -121,7 +121,7 @@ jobs:
   # ── Job 4: スイング WF Fold 0 ─────────────────────────────────────────────
   swing-wf-fold-0:
     needs: [fetch-data, swing-doe]
-    if: ${{ github.event.inputs.mode != 'day' }}
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -167,7 +167,7 @@ jobs:
   # ── Job 5: スイング WF Fold 1 ─────────────────────────────────────────────
   swing-wf-fold-1:
     needs: [fetch-data, swing-doe]
-    if: ${{ github.event.inputs.mode != 'day' }}
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -213,7 +213,7 @@ jobs:
   # ── Job 6: スイング WF Fold 2 ─────────────────────────────────────────────
   swing-wf-fold-2:
     needs: [fetch-data, swing-doe]
-    if: ${{ github.event.inputs.mode != 'day' }}
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -259,7 +259,7 @@ jobs:
   # ── Job 7: スイング WF Fold 3 ─────────────────────────────────────────────
   swing-wf-fold-3:
     needs: [fetch-data, swing-doe]
-    if: ${{ github.event.inputs.mode != 'day' }}
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -305,7 +305,7 @@ jobs:
   # ── Job: スイング WF Fold 4 ───────────────────────────────────────────────
   swing-wf-fold-4:
     needs: [fetch-data, swing-doe]
-    if: ${{ github.event.inputs.mode != 'day' }}
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -351,7 +351,7 @@ jobs:
   # ── Job: スイング WF Fold 5 ───────────────────────────────────────────────
   swing-wf-fold-5:
     needs: [fetch-data, swing-doe]
-    if: ${{ github.event.inputs.mode != 'day' }}
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -397,7 +397,7 @@ jobs:
   # ── Job 8: スイング 最終GA ─────────────────────────────────────────────────
   swing-final:
     needs: [fetch-data, swing-doe]
-    if: ${{ github.event.inputs.mode != 'day' }}
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -443,7 +443,7 @@ jobs:
   # ── Job 9: デイトレ WF Fold 0 ─────────────────────────────────────────────
   day-wf-fold-0:
     needs: [fetch-data, day-doe]
-    if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -489,7 +489,7 @@ jobs:
   # ── Job 10: デイトレ WF Fold 1 ────────────────────────────────────────────
   day-wf-fold-1:
     needs: [fetch-data, day-doe]
-    if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -535,7 +535,7 @@ jobs:
   # ── Job 11: デイトレ WF Fold 2 ────────────────────────────────────────────
   day-wf-fold-2:
     needs: [fetch-data, day-doe]
-    if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -581,7 +581,7 @@ jobs:
   # ── Job 12: デイトレ WF Fold 3 ────────────────────────────────────────────
   day-wf-fold-3:
     needs: [fetch-data, day-doe]
-    if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -627,7 +627,7 @@ jobs:
   # ── Job: デイトレ WF Fold 4 ──────────────────────────────────────────────
   day-wf-fold-4:
     needs: [fetch-data, day-doe]
-    if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -673,7 +673,7 @@ jobs:
   # ── Job: デイトレ WF Fold 5 ──────────────────────────────────────────────
   day-wf-fold-5:
     needs: [fetch-data, day-doe]
-    if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -719,7 +719,7 @@ jobs:
   # ── Job 13: デイトレ 最終GA ───────────────────────────────────────────────
   day-final:
     needs: [fetch-data, day-doe]
-    if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -765,7 +765,7 @@ jobs:
   # ── Job 14: スイング アセンブル ───────────────────────────────────────────
   swing-assemble:
     needs: [swing-wf-fold-0, swing-wf-fold-1, swing-wf-fold-2, swing-wf-fold-3, swing-wf-fold-4, swing-wf-fold-5, swing-final]
-    if: ${{ github.event.inputs.mode != 'day' }}
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -822,7 +822,7 @@ jobs:
   # ── Job 15: デイトレ アセンブル ───────────────────────────────────────────
   day-assemble:
     needs: [day-wf-fold-0, day-wf-fold-1, day-wf-fold-2, day-wf-fold-3, day-wf-fold-4, day-wf-fold-5, day-final]
-    if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
