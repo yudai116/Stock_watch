@@ -72,13 +72,20 @@ SWING_IC_CKPT_VER   = 10    # 9→10: スコア関数全面改修（トレンド
 # SWING_FORWARD_KEY は廃止 (run_ic_lift_sell_probe 内で sell_outcomes[sname] を直接使用)
 
 # GA ハイパーパラメータ
-GA_POP   = 2000   # 個体数
-GA_GENS  = 500    # 世代数
-GA_ELITE = 40     # エリート保存数
-GA_TOURN = 7      # トーナメントサイズ
-GA_SIGMA = 0.10   # Gaussian突然変異σ
-GA_MPROB = 0.25   # 突然変異確率
-GA_L2_LAMBDA = 0.5  # L2正則化強度: 1指標への過度な集中を抑制しOOS汎化性を向上
+GA_POP   = 2000   # swing個体数 (10年日足データ向け)
+GA_GENS  = 500    # swing世代数
+GA_ELITE = 40     # swing エリート保存数
+GA_TOURN = 7      # トーナメントサイズ (共通)
+GA_SIGMA = 0.10   # Gaussian突然変異σ (共通)
+GA_MPROB = 0.25   # 突然変異確率 (共通)
+GA_L2_LAMBDA = 0.5  # swing L2正則化強度: 1指標への過度な集中を抑制しOOS汎化性を向上
+
+# Day mode専用GA (Alpaca ~2年データで過学習しないよう縮小・正則化強化)
+# 2000×500 → 300×100: 評価回数を1/33に削減、過学習ペナルティを4倍強化
+GA_POP_DAY       = 300   # 個体数 (swing=2000の1/7)
+GA_GENS_DAY      = 100   # 世代数 (swing=500の1/5)
+GA_ELITE_DAY     = 15    # エリート保存数
+GA_L2_LAMBDA_DAY = 2.0   # L2強度: ORBへの単一指標集中を抑制
 
 # ── 取引コスト (往復) ────────────────────────────────────────────────────────
 JP_COST = 0.0030   # 東証: 0.30%
@@ -1037,7 +1044,10 @@ def run_ga(ticker_data: dict, mode: str, doe_effects: dict,
     sell_hold  = SWING_SELL_HOLD  if mode == "swing" else DAY_SELL_HOLD
     ind_names  = IND_NAMES_SWING  if mode == "swing" else IND_NAMES_DAY
 
-    POP = GA_POP; GENS = GA_GENS; ELITE = GA_ELITE
+    if mode == "day":
+        POP = GA_POP_DAY; GENS = GA_GENS_DAY; ELITE = GA_ELITE_DAY; l2 = GA_L2_LAMBDA_DAY
+    else:
+        POP = GA_POP;     GENS = GA_GENS;     ELITE = GA_ELITE;     l2 = GA_L2_LAMBDA
     TOURN_SIZE = GA_TOURN; MUT_SIGMA = GA_SIGMA; MUT_PROB = GA_MPROB
 
     alpha = _make_alpha(doe_effects, ind_names)
@@ -1054,7 +1064,7 @@ def run_ga(ticker_data: dict, mode: str, doe_effects: dict,
         fit = np.where(np.isnan(shp[:, 0]), -np.inf, shp[:, 0])
         # L2正則化: 重みの集中を抑制しOOS汎化性を向上（指標数で正規化）
         n_ind = wm_.shape[1]
-        return fit - GA_L2_LAMBDA * np.sum(wm_**2, axis=1) / n_ind
+        return fit - l2 * np.sum(wm_**2, axis=1) / n_ind
 
     convergence = []
     no_improve = 0
@@ -1145,16 +1155,21 @@ def run_ga_all_sells(ticker_data: dict, mode: str, doe_effects: dict,
         prog_file = checkpoint_dir / "progress.json"
         if prog_file.exists():
             prog = json.loads(prog_file.read_text())
-            completed_sells = set(prog.get("completed_sells", []))
-            for sname in list(completed_sells):
-                rf = checkpoint_dir / f"ga_{sname}.json"
-                if rf.exists():
-                    gr = json.loads(rf.read_text())
-                    gr["weights"] = np.array(gr["weights_list"])
-                    all_ga_results[sname] = gr
-                else:
-                    completed_sells.discard(sname)
-            print(f"  チェックポイント復元: {len(completed_sells)}/{len(sell_rules)} 売りルール完了")
+            # t_train_end が変わった場合（MIN_BARS_DAY変更等でT_minが変化）はチェックポイント無効化
+            ckpt_t = prog.get("t_train_end", -1)
+            if ckpt_t != t_train_end:
+                print(f"  チェックポイント無効: t_train_end変更 ({ckpt_t} → {t_train_end}), 最初からやり直し")
+            else:
+                completed_sells = set(prog.get("completed_sells", []))
+                for sname in list(completed_sells):
+                    rf = checkpoint_dir / f"ga_{sname}.json"
+                    if rf.exists():
+                        gr = json.loads(rf.read_text())
+                        gr["weights"] = np.array(gr["weights_list"])
+                        all_ga_results[sname] = gr
+                    else:
+                        completed_sells.discard(sname)
+                print(f"  チェックポイント復元: {len(completed_sells)}/{len(sell_rules)} 売りルール完了")
 
     # MC probe (300サンプル) で各売りルールの best_thresh を事前決定
     thresholds = SWING_BUY_THRESHOLDS if mode == "swing" else BUY_THRESHOLDS
@@ -1211,6 +1226,7 @@ def run_ga_all_sells(ticker_data: dict, mode: str, doe_effects: dict,
             completed_sells.add(sname)
             (checkpoint_dir / "progress.json").write_text(json.dumps({
                 "completed_sells": list(completed_sells),
+                "t_train_end":     t_train_end,
                 "last_updated":    time.strftime("%Y-%m-%d %H:%M"),
             }))
 
@@ -1905,7 +1921,7 @@ def run_phase_assemble(mode: str) -> None:
             }
 
     result = {
-        "version":       14,
+        "version":       15,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
         "data_source":   "price_data_intraday.json (10min bars, Alpaca)" if mode == "day" else "price_data.json (daily bars)",
@@ -1937,8 +1953,8 @@ def run_phase_assemble(mode: str) -> None:
             "ranking":           doe_ranked,
         },
         "ga_results": {
-            "population":             GA_POP if mode == "day" else 0,
-            "generations":            GA_GENS if mode == "day" else 0,
+            "population":             GA_POP_DAY if mode == "day" else 0,
+            "generations":            GA_GENS_DAY if mode == "day" else 0,
             "method":                 "ga" if mode == "day" else "ic_lift",
             "n_sell_rules_optimized": len(sell_rules),
             "all_sell_rules":         ga_all_sells_summary,
@@ -2165,7 +2181,7 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
         }
 
     return {
-        "version":       14,
+        "version":       15,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
         "data_source":   "price_data_intraday.json (10min bars, Alpaca)" if mode == "day" else "price_data.json (daily bars)",
