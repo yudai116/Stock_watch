@@ -597,6 +597,34 @@ def score_momentum_3b(c: np.ndarray) -> np.ndarray:
            np.where(roc < 4.0,  10. - (roc - 2.0) / 2.0 * 5., 5.)))))
 
 
+def score_rsi_bull(r: np.ndarray) -> np.ndarray:
+    """RSI モメンタム版 (day専用): RSI 50〜70 でピーク。
+    ORBブレイクアウト後の「上昇モメンタム継続」を確認する指標。
+    過学習防止: ピーク幅±15(35-70)を広くとり急峻な山を避ける。
+    設計根拠: RSI>50=強気トレンド継続, 50-70=モメンタムゾーン, >75=過熱リスク。"""
+    s = np.where(r < 35,  0.,
+        np.where(r < 50, (r - 35) / 15 * 10.,
+        np.where(r < 65, 10. + (r - 50) / 15 * 5.,
+        np.where(r < 70, 15.,
+        np.where(r < 80, 15. - (r - 70) / 10 * 12.,
+        np.maximum(0., 3. - (r - 80) / 10 * 3.))))))
+    return np.clip(np.where(np.isnan(r), 0., s), 0., 15.)
+
+
+def score_bb_bull(pb: np.ndarray) -> np.ndarray:
+    """BB%B ブレイクアウト版 (day専用): BB%B 0.40〜0.75 でピーク。
+    ORB上抜け時に「中間帯〜やや上 = まだ余地がある」ことを確認。
+    過学習防止: 0.3-0.8 の広い範囲を優遇、上限帯(>0.85)は急落。
+    設計根拠: 上位バンド近く(>0.8)は過熱、下位(<0.3)はORBと矛盾。"""
+    s = np.where(pb < 0.1,  0.,
+        np.where(pb < 0.4,  (pb - 0.1) / 0.3 * 10.,
+        np.where(pb < 0.6,  10. + (pb - 0.4) / 0.2 * 5.,
+        np.where(pb < 0.75, 15.,
+        np.where(pb < 0.85, 15. - (pb - 0.75) / 0.1 * 10.,
+        np.maximum(0., 5. - (pb - 0.85) / 0.15 * 5.))))))
+    return np.clip(np.where(np.isnan(pb), 0., s), 0., 15.)
+
+
 def score_relvol(volumes: np.ndarray, period: int = 20) -> np.ndarray:
     """相対出来高 (RVOL): SMA比の出来高。高出来高 = 市場の強い関心・反転確度が高い。"""
     sma_v = _sma(volumes, period)
@@ -752,15 +780,15 @@ def compute_ind_scores(td: dict, mode: str) -> np.ndarray:
             score_mom3m_trend(c, 63),     score_stoch_trend(sk, sd),
             score_cci_trend(cci),         score_52wk_trend(c, h, lo, 252),
         ], axis=0)
-    else:  # day — 10min足デイトレ (v12: ORB + MOM3B + VWAP強気版)
+    else:  # day — 10min足デイトレ (v13: ORB + RSI_bull + BB_bull で指標を統一)
         rsi_v    = calc_rsi(c, 9)
         ml, sl, hl = calc_macd(c, 5, 13, 4)
         pb       = calc_bb(c, 10)
         ef       = _ema(c, 9); es = _ema(c, 21)
         vwap_dev = calc_vwap_dev(c, volumes, dates)
         return np.stack([
-            score_rsi(rsi_v),          score_macd(ml, sl, hl),
-            score_bb(pb),              score_ma(c, ef, es),
+            score_rsi_bull(rsi_v),     score_macd(ml, sl, hl),
+            score_bb_bull(pb),         score_ma(c, ef, es),
             score_relvol(volumes, 20), score_vwap_bull(vwap_dev),
             score_orb(h, lo, c, dates),
             score_momentum_3b(c),
@@ -1856,7 +1884,7 @@ def run_phase_assemble(mode: str) -> None:
             }
 
     result = {
-        "version":       12,
+        "version":       13,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
         "data_source":   "price_data_intraday.json (10min bars, Alpaca)" if mode == "day" else "price_data.json (daily bars)",
@@ -2116,7 +2144,7 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
         }
 
     return {
-        "version":       12,
+        "version":       13,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
         "data_source":   "price_data_intraday.json (10min bars, Alpaca)" if mode == "day" else "price_data.json (daily bars)",
