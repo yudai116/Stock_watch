@@ -190,6 +190,11 @@ BUY_THRESHOLDS = [5, 8, 10, 12, 15]   # v12: ORB単独でも反応できる低�
 MAX_HOLD_BARS_SWING = 60   # 日足: 最大60取引日 (約3ヶ月)
 MAX_HOLD_BARS_DAY   = 78   # 10min足×78 = 13h ≈ 2取引日
 
+# Day mode: Alpaca IEX free tierは約2年の10min足しか返さない。
+# IPO直後の銘柄(ARM 2023, SOUN, IONQ)は大幅に短い → T_minを引き下げてWF fold OOS窓が3日になる。
+# 5000バー≈5ヶ月分をフィルター閾値として最近上場銘柄を除外する。
+MIN_BARS_DAY = 5000
+
 # ══════════════════════════════════════════════════════════════════════════════
 # 1. データ読み込み
 # ══════════════════════════════════════════════════════════════════════════════
@@ -203,9 +208,10 @@ def load_data(mode: str) -> dict[str, dict]:
         sys.exit(1)
     raw = json.loads(data_file.read_text())
     result = {}
+    min_bars = MIN_BARS_DAY if mode == "day" else 300
     for ticker, rows in raw.items():
-        if len(rows) < 300:
-            print(f"  SKIP {ticker}: {len(rows)} bars < 300")
+        if len(rows) < min_bars:
+            print(f"  SKIP {ticker}: {len(rows)} bars < {min_bars}")
             continue
         result[ticker] = {
             "closes":  np.array([r["close"]  for r in rows], dtype=np.float64),
@@ -252,18 +258,33 @@ def _load_ticker_data(mode: str) -> tuple[dict, int, int]:
     return ticker_data, T_min, t_holdout
 
 
-def _wf_splits(T_min: int, t_holdout: int) -> list[tuple[int, int]]:
-    """8-fold expanding WF splits within training data [0, t_holdout]."""
-    return [
-        (int(T_min * 0.15), int(T_min * 0.25)),  # fold 0
-        (int(T_min * 0.25), int(T_min * 0.35)),  # fold 1
-        (int(T_min * 0.35), int(T_min * 0.45)),  # fold 2
-        (int(T_min * 0.45), int(T_min * 0.55)),  # fold 3
-        (int(T_min * 0.55), int(T_min * 0.64)),  # fold 4
-        (int(T_min * 0.64), int(T_min * 0.73)),  # fold 5
-        (int(T_min * 0.73), int(T_min * 0.77)),  # fold 6
-        (int(T_min * 0.77), t_holdout),            # fold 7
-    ]
+def _wf_splits(T_min: int, t_holdout: int, mode: str = "swing") -> list[tuple[int, int]]:
+    """Expanding WF splits within training data [0, t_holdout].
+    swing: 8 folds (daily 10年, OOS ≈ 250日/fold)
+    day:   6 folds (10min ~2年, OOS ≈ 22取引日/fold @ T_min=8000)
+    """
+    if mode == "swing":
+        return [
+            (int(T_min * 0.15), int(T_min * 0.25)),  # fold 0
+            (int(T_min * 0.25), int(T_min * 0.35)),  # fold 1
+            (int(T_min * 0.35), int(T_min * 0.45)),  # fold 2
+            (int(T_min * 0.45), int(T_min * 0.55)),  # fold 3
+            (int(T_min * 0.55), int(T_min * 0.64)),  # fold 4
+            (int(T_min * 0.64), int(T_min * 0.73)),  # fold 5
+            (int(T_min * 0.73), int(T_min * 0.77)),  # fold 6
+            (int(T_min * 0.77), t_holdout),            # fold 7
+        ]
+    else:
+        # Day: 6 equally-spaced folds. Alpaca IEX returns ~2yr of 10min data.
+        # With MIN_BARS_DAY=5000 filter, T_min ≈ 8000 → OOS ≈ 960 bars ≈ 24 trading days each.
+        return [
+            (int(T_min * 0.15), int(T_min * 0.27)),  # fold 0
+            (int(T_min * 0.27), int(T_min * 0.39)),  # fold 1
+            (int(T_min * 0.39), int(T_min * 0.51)),  # fold 2
+            (int(T_min * 0.51), int(T_min * 0.63)),  # fold 3
+            (int(T_min * 0.63), int(T_min * 0.72)),  # fold 4
+            (int(T_min * 0.72), t_holdout),            # fold 5
+        ]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1546,7 +1567,7 @@ def run_phase_wf_fold(mode: str, fold_i: int,
     t_holdout   = doe_art["t_holdout"]
     doe_effects = doe_art["doe_effects"]
 
-    splits = _wf_splits(T_min, t_holdout)
+    splits = _wf_splits(T_min, t_holdout, mode)
     if fold_i < 0 or fold_i >= len(splits):
         print(f"ERROR: fold_i={fold_i} 範囲外 (0〜{len(splits)-1})"); sys.exit(1)
 
@@ -1717,7 +1738,7 @@ def run_phase_assemble(mode: str) -> None:
     doe_effects = doe_art["doe_effects"]
     doe_ranked  = doe_art["doe_ranked"]
 
-    splits     = _wf_splits(T_min, t_holdout)
+    splits     = _wf_splits(T_min, t_holdout, mode)
     n_wf_folds = len(splits)
 
     wf_folds: list[dict] = []
@@ -1884,7 +1905,7 @@ def run_phase_assemble(mode: str) -> None:
             }
 
     result = {
-        "version":       13,
+        "version":       14,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
         "data_source":   "price_data_intraday.json (10min bars, Alpaca)" if mode == "day" else "price_data.json (daily bars)",
@@ -2144,7 +2165,7 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
         }
 
     return {
-        "version":       13,
+        "version":       14,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
         "data_source":   "price_data_intraday.json (10min bars, Alpaca)" if mode == "day" else "price_data.json (daily bars)",
