@@ -1,6 +1,6 @@
 {
-  "version": 9,
-  "generated_at": "2026-06-01 16:38",
+  "version": 11,
+  "generated_at": "2026-06-02 02:38",
   "mode": "swing",
   "data_source": "price_data.json (daily bars)",
   "n_tickers": 47,
@@ -2111,7 +2111,7 @@
     "EMA200": -0.1692,
     "MOM3M": -0.2577,
     "Stoch": -0.1744,
-    "CCI": -0.0306,
+    "CCI": -0.0305,
     "52WK": 0.6717
   },
   "top100_median_weights": {
@@ -2198,14 +2198,14 @@
   "doe_results": {
     "n_experiments": 18,
     "indicator_effects": {
-      "RSI": 0.53,
-      "MACD": 0.6421,
-      "BB": 0.6425,
-      "EMA200": 0.5408,
-      "MOM3M": 0.7454,
-      "Stoch": 0.6141,
-      "CCI": 0.6047,
-      "52WK": 0.493
+      "RSI": 1.3567,
+      "MACD": 1.6435,
+      "BB": 1.6445,
+      "EMA200": 1.3843,
+      "MOM3M": 1.908,
+      "Stoch": 1.572,
+      "CCI": 1.5479,
+      "52WK": 1.262
     },
     "ranking": [
       "MOM3M",
