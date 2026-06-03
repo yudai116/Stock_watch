@@ -6,14 +6,28 @@ on:
       mode:
         description: 'バックテストモード'
         required: false
-        default: 'swing'
+        default: 'both'
         type: choice
         options:
           - swing
           - day
           - both
+      ga_l2_lambda:
+        description: 'L2正則化強度 (デフォルト: 0.5, 過学習時は増やす)'
+        required: false
+        default: '0.5'
+        type: string
+      threshold_offset:
+        description: '買い閾値オフセット (0=デフォルト, -10=閾値を10下げる)'
+        required: false
+        default: '0'
+        type: string
   schedule:
     - cron: '0 1 * * 0'
+
+env:
+  GA_L2_LAMBDA:      ${{ github.event.inputs.ga_l2_lambda    || '0.5' }}
+  THRESHOLD_OFFSET:  ${{ github.event.inputs.threshold_offset || '0'   }}
 
 # ── チェックポイント/再開の仕組み ────────────────────────────────────────────
 # 全体の目標実行時間: 5〜6時間未満 (--both モード)

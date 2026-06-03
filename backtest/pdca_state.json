@@ -1,0 +1,15 @@
+{
+  "run_count": 0,
+  "stop_requested": false,
+  "current_params": {
+    "ga_l2_lambda": 0.5,
+    "threshold_offset": 0,
+    "mode": "both"
+  },
+  "history": [],
+  "best": {
+    "swing_sharpe": 0.0,
+    "day_sharpe": 0.0
+  },
+  "no_improve_streak": 0
+}

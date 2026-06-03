@@ -31,6 +31,8 @@ import sys
 import time
 from pathlib import Path
 
+import os
+
 import numpy as np
 
 HERE          = Path(__file__).parent
@@ -49,7 +51,6 @@ BARS_PER_YEAR_SWING = 1638  # 1h bars/year (252 × 6.5h)
 
 # スイング専用パラメータ
 SWING_MIN_TRADES      = 10   # OOS最小トレード数（高閾値でトレード数減少に対応）
-SWING_BUY_THRESHOLDS  = [55, 60, 65, 70, 75]  # 閾値を下げてシグナル数を増やす
 
 # IC+Lift スイング専用パラメータ (GAの代替)
 SWING_IC_WIN        = 780   # ローリングIC窓サイズ (1h足: 120日 × 6.5h)
@@ -72,7 +73,7 @@ GA_ELITE = 40     # エリート保存数
 GA_TOURN = 7      # トーナメントサイズ
 GA_SIGMA = 0.10   # Gaussian突然変異σ
 GA_MPROB = 0.25   # 突然変異確率
-GA_L2_LAMBDA = 0.5  # L2正則化強度: 1指標への過度な集中を抑制しOOS汎化性を向上
+GA_L2_LAMBDA = float(os.environ.get("GA_L2_LAMBDA", "0.5"))  # L2正則化強度: 1指標への過度な集中を抑制しOOS汎化性を向上
 
 # ── 取引コスト (往復) ────────────────────────────────────────────────────────
 JP_COST = 0.0030   # 東証: 0.30%
@@ -192,7 +193,9 @@ DAY_SELL_JA = {
 IND_NAMES_SWING = ["RSI", "MACD", "BB", "EMA200", "MOM3M", "Stoch", "CCI", "52WK"]
 IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "Stoch", "RVOL", "CCI", "VWAP"]
 
-BUY_THRESHOLDS = [45, 50, 55, 60, 65, 70]
+_TOFF = int(os.environ.get("THRESHOLD_OFFSET", "0"))
+BUY_THRESHOLDS        = [max(30, t + _TOFF) for t in [45, 50, 55, 60, 65, 70]]
+SWING_BUY_THRESHOLDS  = [max(30, t + _TOFF) for t in [55, 60, 65, 70, 75]]  # 閾値を下げてシグナル数を増やす
 
 # ── 相場レジーム ─────────────────────────────────────────────────────────────
 # 実現ボラティリティのパーセンタイルで3分類する
