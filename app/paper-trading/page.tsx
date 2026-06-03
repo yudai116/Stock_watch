@@ -21,6 +21,8 @@ type OpenPosition = {
   shares: number;
   entry_date: string;
   score: number;
+  multiplier: number;
+  currency: "USD" | "JPY";
   target_pct: number | null;
   stop_pct: number | null;
   trail_pct: number | null;
@@ -28,9 +30,13 @@ type OpenPosition = {
 };
 
 type AlgoState = {
-  capital_remaining: number;
+  capital_usd: number;
+  capital_jpy: number;
+  initial_capital_usd: number;
+  initial_capital_jpy: number;
   open: Record<string, OpenPosition>;
-  closed_pnl: number;
+  closed_pnl_usd: number;
+  closed_pnl_jpy: number;
   total_trades: number;
   winning_trades: number;
 };
@@ -44,6 +50,8 @@ type TradeLog = {
   shares: number;
   date: string;
   score: number | null;
+  multiplier: number | null;
+  currency: "USD" | "JPY";
   pnl: number | null;
   return_pct: number | null;
   reason?: string;
@@ -67,8 +75,16 @@ function loadData() {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatCurrency(v: number) {
+const USDJPY_APPROX = 150.0; // 表示用の固定レート (概算)
+
+function fmtUSD(v: number) {
   return v.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+}
+function fmtJPY(v: number) {
+  return `¥${Math.round(v).toLocaleString("ja-JP")}`;
+}
+function fmtPct(v: number) {
+  return `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
 }
 
 function pctClass(v: number) {
@@ -85,23 +101,33 @@ function daysSince(dateStr: string) {
 
 // ── Components ────────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function StatCard({ label, value, sub, valueClass }: {
+  label: string; value: string; sub?: string; valueClass?: string
+}) {
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
       <div className="text-xs text-gray-500 mb-1">{label}</div>
-      <div className="text-base font-bold text-white">{value}</div>
+      <div className={`text-base font-bold ${valueClass ?? "text-white"}`}>{value}</div>
       {sub && <div className="text-xs text-gray-500 mt-0.5">{sub}</div>}
     </div>
   );
 }
 
 function AlgoCard({ algo, state }: { algo: Algorithm; state: AlgoState }) {
-  const openValue = Object.values(state.open).reduce(
-    (s, p) => s + p.entry_price * p.shares, 0
-  );
-  const equity = state.capital_remaining + openValue;
-  const pnl = equity - 100000;
-  const pnlPct = (pnl / 100000) * 100;
+  const usdOpenVal = Object.values(state.open)
+    .filter(p => p.currency === "USD")
+    .reduce((s, p) => s + p.entry_price * p.shares, 0);
+  const jpyOpenVal = Object.values(state.open)
+    .filter(p => p.currency !== "USD")
+    .reduce((s, p) => s + p.entry_price * p.shares, 0);
+
+  const usdEquity = state.capital_usd + usdOpenVal;
+  const jpyEquity = state.capital_jpy + jpyOpenVal;
+  const usdPnl = usdEquity - state.initial_capital_usd;
+  const jpyPnl = jpyEquity - state.initial_capital_jpy;
+  const usdPnlPct = (usdPnl / state.initial_capital_usd) * 100;
+  const jpyPnlPct = (jpyPnl / state.initial_capital_jpy) * 100;
+
   const winRate = state.total_trades > 0
     ? (state.winning_trades / state.total_trades) * 100
     : null;
@@ -111,6 +137,9 @@ function AlgoCard({ algo, state }: { algo: Algorithm; state: AlgoState }) {
     : algo.trail_pct
     ? `トレール ${(algo.trail_pct * 100).toFixed(0)}%`
     : algo.sell_rule;
+
+  const jpOpen = Object.values(state.open).filter(p => p.currency !== "USD").length;
+  const usOpen = Object.values(state.open).filter(p => p.currency === "USD").length;
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
@@ -123,19 +152,25 @@ function AlgoCard({ algo, state }: { algo: Algorithm; state: AlgoState }) {
       </div>
       <div className="grid grid-cols-2 gap-2 text-xs">
         <div>
-          <span className="text-gray-500">総資産</span>
-          <div className="text-white font-mono">{formatCurrency(equity)}</div>
-        </div>
-        <div>
-          <span className="text-gray-500">損益</span>
-          <div className={`font-mono font-bold ${pctClass(pnl)}`}>
-            {pnl >= 0 ? "+" : ""}{formatCurrency(pnl)}
-            <span className="text-xs ml-1">({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%)</span>
+          <span className="text-gray-500">USD損益</span>
+          <div className={`font-mono font-bold ${pctClass(usdPnl)}`}>
+            {usdPnl >= 0 ? "+" : ""}{fmtUSD(usdPnl)}
+            <span className="text-xs font-normal ml-1">({fmtPct(usdPnlPct)})</span>
           </div>
         </div>
         <div>
-          <span className="text-gray-500">オープン</span>
-          <div className="text-white">{Object.keys(state.open).length}ポジション</div>
+          <span className="text-gray-500">JPY損益</span>
+          <div className={`font-mono font-bold ${pctClass(jpyPnl)}`}>
+            {jpyPnl >= 0 ? "+" : ""}{fmtJPY(jpyPnl)}
+            <span className="text-xs font-normal ml-1">({fmtPct(jpyPnlPct)})</span>
+          </div>
+        </div>
+        <div>
+          <span className="text-gray-500">ポジション</span>
+          <div className="text-white">
+            US:{usOpen} JP:{jpOpen}
+            <span className="text-gray-500 ml-1">/ 5</span>
+          </div>
         </div>
         <div>
           <span className="text-gray-500">勝率</span>
@@ -165,19 +200,36 @@ export default function PaperTradingPage() {
 
   const { positions, logs, algorithms } = data;
 
-  // Overall stats
-  const totalEquity = algorithms.reduce((sum, algo) => {
-    const state = positions[String(algo.id)];
-    const openVal = Object.values(state.open).reduce((s, p) => s + p.entry_price * p.shares, 0);
-    return sum + state.capital_remaining + openVal;
+  // Overall USD totals
+  const totalUsdEquity = algorithms.reduce((sum, algo) => {
+    const st = positions[String(algo.id)];
+    const openVal = Object.values(st.open)
+      .filter(p => p.currency === "USD")
+      .reduce((s, p) => s + p.entry_price * p.shares, 0);
+    return sum + st.capital_usd + openVal;
   }, 0);
-  const totalPnl = totalEquity - 100000 * algorithms.length;
-  const totalPnlPct = (totalPnl / (100000 * algorithms.length)) * 100;
+  const totalUsdInitial = algorithms.reduce(
+    (s, a) => s + positions[String(a.id)].initial_capital_usd, 0
+  );
+  const totalUsdPnl = totalUsdEquity - totalUsdInitial;
+
+  // Overall JPY totals
+  const totalJpyEquity = algorithms.reduce((sum, algo) => {
+    const st = positions[String(algo.id)];
+    const openVal = Object.values(st.open)
+      .filter(p => p.currency !== "USD")
+      .reduce((s, p) => s + p.entry_price * p.shares, 0);
+    return sum + st.capital_jpy + openVal;
+  }, 0);
+  const totalJpyInitial = algorithms.reduce(
+    (s, a) => s + positions[String(a.id)].initial_capital_jpy, 0
+  );
+  const totalJpyPnl = totalJpyEquity - totalJpyInitial;
+
   const totalTrades = algorithms.reduce((s, a) => s + positions[String(a.id)].total_trades, 0);
   const totalWins = algorithms.reduce((s, a) => s + positions[String(a.id)].winning_trades, 0);
   const overallWinRate = totalTrades > 0 ? (totalWins / totalTrades) * 100 : null;
 
-  // All open positions across all algos
   const allOpen: Array<{ algoId: number; algoName: string; ticker: string; pos: OpenPosition }> = [];
   for (const algo of algorithms) {
     for (const [ticker, pos] of Object.entries(positions[String(algo.id)].open)) {
@@ -185,8 +237,7 @@ export default function PaperTradingPage() {
     }
   }
 
-  // Recent trades (last 50)
-  const recentLogs = [...logs].reverse().slice(0, 50);
+  const recentLogs = [...logs].reverse().slice(0, 60);
 
   return (
     <div className="space-y-6">
@@ -194,21 +245,23 @@ export default function PaperTradingPage() {
       <div>
         <h1 className="text-xl font-bold text-white">ペーパートレード</h1>
         <p className="text-xs text-gray-500 mt-1">
-          10アルゴリズム並行仮想売買 — 各 $100,000 初期資金 — 毎営業日 UTC 23:00 自動更新
+          10アルゴリズム並行仮想売買 — US37銘柄 + JP10銘柄 — 毎営業日 UTC 23:00 自動更新
         </p>
       </div>
 
       {/* Overall summary */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard
-          label="合計資産 (10アルゴ)"
-          value={formatCurrency(totalEquity)}
-          sub={`初期: ${formatCurrency(100000 * algorithms.length)}`}
+          label="USD合計損益 (10アルゴ)"
+          value={`${totalUsdPnl >= 0 ? "+" : ""}${fmtUSD(totalUsdPnl)}`}
+          sub={`資産: ${fmtUSD(totalUsdEquity)} / 初期: ${fmtUSD(totalUsdInitial)}`}
+          valueClass={pctClass(totalUsdPnl)}
         />
         <StatCard
-          label="合計損益"
-          value={`${totalPnl >= 0 ? "+" : ""}${formatCurrency(totalPnl)}`}
-          sub={`${totalPnlPct >= 0 ? "+" : ""}${totalPnlPct.toFixed(1)}%`}
+          label="JPY合計損益 (10アルゴ)"
+          value={`${totalJpyPnl >= 0 ? "+" : ""}${fmtJPY(totalJpyPnl)}`}
+          sub={`資産: ${fmtJPY(totalJpyEquity)} / 初期: ${fmtJPY(totalJpyInitial)}`}
+          valueClass={pctClass(totalJpyPnl)}
         />
         <StatCard
           label="全取引数 / 勝率"
@@ -218,7 +271,7 @@ export default function PaperTradingPage() {
         <StatCard
           label="オープンポジション"
           value={`${allOpen.length}件`}
-          sub={`${algorithms.length}アルゴ稼働中`}
+          sub={`US${allOpen.filter(p => p.pos.currency === "USD").length} / JP${allOpen.filter(p => p.pos.currency !== "USD").length}`}
         />
       </div>
 
@@ -246,14 +299,17 @@ export default function PaperTradingPage() {
                   <th className="text-left py-2 pr-3">アルゴ</th>
                   <th className="text-right py-2 pr-3">エントリー</th>
                   <th className="text-right py-2 pr-3">株数</th>
-                  <th className="text-right py-2 pr-3">保有日数</th>
-                  <th className="text-right py-2 pr-3">含損益 (簡易)</th>
-                  <th className="text-right py-2">スコア</th>
+                  <th className="text-right py-2 pr-3">評価額</th>
+                  <th className="text-right py-2 pr-3">保有日</th>
+                  <th className="text-right py-2 pr-3">スコア</th>
+                  <th className="text-right py-2">倍率</th>
                 </tr>
               </thead>
               <tbody>
                 {allOpen.map(({ algoId, algoName, ticker, pos }) => {
                   const days = daysSince(pos.entry_date);
+                  const isJp = pos.currency === "JPY";
+                  const posVal = pos.entry_price * pos.shares;
                   return (
                     <tr key={`${algoId}-${ticker}`} className="border-b border-gray-800/50 hover:bg-gray-900">
                       <td className="py-2 pr-3">
@@ -265,13 +321,21 @@ export default function PaperTradingPage() {
                         >
                           {ticker}
                         </a>
+                        <span className={`ml-1 text-xs ${isJp ? "text-orange-400" : "text-gray-600"}`}>
+                          {isJp ? "JP" : "US"}
+                        </span>
                       </td>
-                      <td className="py-2 pr-3 text-gray-400">#{algoId} {algoName}</td>
-                      <td className="py-2 pr-3 text-right font-mono">${pos.entry_price.toFixed(2)}</td>
+                      <td className="py-2 pr-3 text-gray-400">#{algoId}</td>
+                      <td className="py-2 pr-3 text-right font-mono">
+                        {isJp ? fmtJPY(pos.entry_price) : `$${pos.entry_price.toFixed(2)}`}
+                      </td>
                       <td className="py-2 pr-3 text-right font-mono">{pos.shares}</td>
+                      <td className="py-2 pr-3 text-right font-mono text-gray-400">
+                        {isJp ? fmtJPY(posVal) : fmtUSD(posVal)}
+                      </td>
                       <td className="py-2 pr-3 text-right text-gray-400">{days}日</td>
-                      <td className="py-2 pr-3 text-right text-gray-500">—</td>
-                      <td className="py-2 text-right text-yellow-400">{pos.score.toFixed(1)}</td>
+                      <td className="py-2 pr-3 text-right text-yellow-400">{pos.score.toFixed(1)}</td>
+                      <td className="py-2 text-right text-blue-400">{pos.multiplier?.toFixed(1)}x</td>
                     </tr>
                   );
                 })}
@@ -280,6 +344,13 @@ export default function PaperTradingPage() {
           </div>
         </div>
       )}
+
+      {/* Position sizing guide */}
+      <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-3 text-xs text-gray-500">
+        <span className="text-gray-400 font-semibold">ポジションサイズ計算式: </span>
+        閾値スコア → 0.5x（最小）、スコア100 → 2.0x（最大）の線形スケール。
+        US基本 $2,000 × 倍率 / JP基本 ¥300,000 × 倍率。最大5ポジション（うちJP最大2）。
+      </div>
 
       {/* Trade history */}
       <div>
@@ -300,49 +371,66 @@ export default function PaperTradingPage() {
                   <th className="text-left py-2 pr-3">売買</th>
                   <th className="text-left py-2 pr-3">アルゴ</th>
                   <th className="text-right py-2 pr-3">価格</th>
+                  <th className="text-right py-2 pr-3">倍率</th>
                   <th className="text-right py-2 pr-3">損益</th>
                   <th className="text-right py-2">リターン</th>
                 </tr>
               </thead>
               <tbody>
-                {recentLogs.map((log, i) => (
-                  <tr key={i} className="border-b border-gray-800/50 hover:bg-gray-900">
-                    <td className="py-2 pr-3 text-gray-500 font-mono">{log.date}</td>
-                    <td className="py-2 pr-3">
-                      <a
-                        href={`https://finance.yahoo.com/quote/${log.ticker}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-400 hover:underline font-mono"
-                      >
-                        {log.ticker}
-                      </a>
-                    </td>
-                    <td className="py-2 pr-3">
-                      <span className={log.action === "BUY" ? "text-green-400" : "text-red-400"}>
-                        {log.action === "BUY" ? "買" : "売"}
-                      </span>
-                    </td>
-                    <td className="py-2 pr-3 text-gray-500">#{log.algo_id} {log.algo_name}</td>
-                    <td className="py-2 pr-3 text-right font-mono">${log.price.toFixed(2)}</td>
-                    <td className={`py-2 pr-3 text-right font-mono ${log.pnl !== null ? pctClass(log.pnl) : "text-gray-600"}`}>
-                      {log.pnl !== null ? `${log.pnl >= 0 ? "+" : ""}$${Math.abs(log.pnl).toFixed(0)}` : "—"}
-                    </td>
-                    <td className={`py-2 text-right font-mono ${log.return_pct !== null ? pctClass(log.return_pct) : "text-gray-600"}`}>
-                      {log.return_pct !== null ? `${log.return_pct >= 0 ? "+" : ""}${log.return_pct.toFixed(1)}%` : "—"}
-                    </td>
-                  </tr>
-                ))}
+                {recentLogs.map((log, i) => {
+                  const isJp = log.currency === "JPY";
+                  return (
+                    <tr key={i} className="border-b border-gray-800/50 hover:bg-gray-900">
+                      <td className="py-2 pr-3 text-gray-500 font-mono">{log.date}</td>
+                      <td className="py-2 pr-3">
+                        <a
+                          href={`https://finance.yahoo.com/quote/${log.ticker}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:underline font-mono"
+                        >
+                          {log.ticker}
+                        </a>
+                        <span className={`ml-1 ${isJp ? "text-orange-400" : "text-gray-600"}`}>
+                          {isJp ? "JP" : "US"}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-3">
+                        <span className={log.action === "BUY" ? "text-green-400" : "text-red-400"}>
+                          {log.action === "BUY" ? "買" : "売"}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-3 text-gray-500">#{log.algo_id}</td>
+                      <td className="py-2 pr-3 text-right font-mono">
+                        {isJp ? fmtJPY(log.price) : `$${log.price.toFixed(2)}`}
+                      </td>
+                      <td className="py-2 pr-3 text-right text-blue-400">
+                        {log.multiplier != null ? `${log.multiplier.toFixed(1)}x` : "—"}
+                      </td>
+                      <td className={`py-2 pr-3 text-right font-mono ${log.pnl !== null ? pctClass(log.pnl) : "text-gray-600"}`}>
+                        {log.pnl !== null
+                          ? isJp
+                            ? `${log.pnl >= 0 ? "+" : ""}${fmtJPY(log.pnl)}`
+                            : `${log.pnl >= 0 ? "+" : ""}${fmtUSD(log.pnl)}`
+                          : "—"}
+                      </td>
+                      <td className={`py-2 text-right font-mono ${log.return_pct !== null ? pctClass(log.return_pct) : "text-gray-600"}`}>
+                        {log.return_pct !== null ? fmtPct(log.return_pct) : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
-      {/* Footer note */}
-      <div className="text-xs text-gray-600 border-t border-gray-800 pt-4">
-        ※ 純粋シミュレーション — 実際の注文は行いません。価格は yfinance 終値。手数料 0.16%。
-        初期資金 $100,000 × 10アルゴ = $1,000,000 仮想資金。
+      {/* Footer */}
+      <div className="text-xs text-gray-600 border-t border-gray-800 pt-4 space-y-1">
+        <div>※ 純粋シミュレーション — 実際の注文は行いません。価格は yfinance 終値。</div>
+        <div>※ 手数料: US 0.16% / JP 0.30%（往復）。初期資金: $20,000 + ¥3,000,000 × 10アルゴ。</div>
+        <div>※ USD/JPY合算表示は参考値（¥{USDJPY_APPROX}固定換算）。</div>
       </div>
     </div>
   );

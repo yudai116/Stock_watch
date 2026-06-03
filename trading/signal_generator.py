@@ -3,6 +3,7 @@
 Paper Trading Signal Generator
 毎営業日 UTC 23:00 に GitHub Actions で実行。
 yfinance で実価格を取得し、10アルゴ並行でシグナル計算 → positions.json / trade_log.json を更新。
+US株: USD資金プール / JP株: JPY資金プール — 別管理。
 """
 
 import json
@@ -24,11 +25,55 @@ US_TICKERS = [
     "MPWR", "SWKS", "MRVL", "CRWD", "PLTR", "SMCI", "META", "GOOGL", "AMZN",
     "ORCL", "ANET", "NOW", "PANW", "DDOG", "ZS", "SOUN", "IONQ",
 ]
+JP_TICKERS = [
+    "8035.T",  # 東京エレクトロン
+    "6857.T",  # アドバンテスト
+    "6723.T",  # ルネサスエレクトロニクス
+    "4063.T",  # 信越化学
+    "6963.T",  # ローム
+    "6920.T",  # レーザーテック
+    "6146.T",  # ディスコ
+    "6981.T",  # 村田製作所
+    "6762.T",  # TDK
+    "6902.T",  # デンソー
+]
+ALL_TICKERS = US_TICKERS + JP_TICKERS
 
-POSITION_SIZE = 5000.0
-MAX_POSITIONS = 10
-COMMISSION_RATE = 0.0016
+# Per-algo initial capital
+INITIAL_CAPITAL_USD = 20000.0     # 各アルゴ $20,000
+INITIAL_CAPITAL_JPY = 3000000.0   # 各アルゴ ¥3,000,000 (≈ $20,000 at ¥150)
+
+# Position sizing
+BASE_POSITION_USD = 2000.0    # 基本ポジションサイズ (USD)
+BASE_POSITION_JPY = 300000.0  # 基本ポジションサイズ (JPY) ≈ $2,000 at ¥150
+MAX_MULTIPLIER = 2.0          # スコア最大時の倍率
+MIN_MULTIPLIER = 0.5          # 閾値ちょうどの最小倍率 (滑らかな入りのため)
+
+MAX_POSITIONS = 5             # 1アルゴあたり最大ポジション数
+MAX_JP_POSITIONS = 2          # うちJP株の上限（集中リスク回避）
+
 IND_NAMES = ["RSI", "MACD", "BB", "EMA200", "MOM3M", "Stoch", "CCI", "52WK"]
+
+
+def is_jp(ticker: str) -> bool:
+    return ticker.endswith(".T")
+
+
+def commission_for(ticker: str) -> float:
+    return 0.0015 if is_jp(ticker) else 0.0016
+
+
+def base_position_for(ticker: str) -> float:
+    return BASE_POSITION_JPY if is_jp(ticker) else BASE_POSITION_USD
+
+
+def capital_key_for(ticker: str) -> str:
+    return "capital_jpy" if is_jp(ticker) else "capital_usd"
+
+
+def pnl_key_for(ticker: str) -> str:
+    return "closed_pnl_jpy" if is_jp(ticker) else "closed_pnl_usd"
+
 
 # ── Indicator calculation (copied from backtest/strategy_search.py) ──────────
 
@@ -199,7 +244,8 @@ def score_52wk_trend(c: np.ndarray, h: np.ndarray, lo: np.ndarray,
 
 # ── Core logic ────────────────────────────────────────────────────────────────
 
-def fetch_prices(tickers: list[str], days: int = 320) -> dict:
+def fetch_prices(tickers: list[str], days: int = 450) -> dict:
+    """days=450 calendar days ≈ 321 trading days — ensures 52WK(252) and EMA200 warmup."""
     end = datetime.today()
     start = end - timedelta(days=days)
     result = {}
@@ -210,12 +256,16 @@ def fetch_prices(tickers: list[str], days: int = 320) -> dict:
             if df is None or len(df) < 60:
                 print(f"  [SKIP] {ticker}: insufficient data ({len(df) if df is not None else 0} rows)")
                 continue
+            last_date = date.fromisoformat(str(df.index[-1])[:10])
+            if (date.today() - last_date).days > 4:
+                print(f"  [SKIP] {ticker}: stale data (last={last_date}, likely holiday gap)")
+                continue
             result[ticker] = {
-                "closes":  df["Close"].values.astype(float),
-                "highs":   df["High"].values.astype(float),
-                "lows":    df["Low"].values.astype(float),
-                "volumes": df["Volume"].values.astype(float),
-                "dates":   [str(d)[:10] for d in df.index],
+                "closes":     df["Close"].values.astype(float),
+                "highs":      df["High"].values.astype(float),
+                "lows":       df["Low"].values.astype(float),
+                "volumes":    df["Volume"].values.astype(float),
+                "dates":      [str(d)[:10] for d in df.index],
                 "last_close": float(df["Close"].iloc[-1]),
                 "last_date":  str(df.index[-1])[:10],
             }
@@ -253,22 +303,38 @@ def composite_score(ind_scores: np.ndarray, weights: dict) -> float:
     return float(np.dot(w, last) / wsum * 100.0 / 25.0)
 
 
+def calc_position_multiplier(score: float, threshold: float) -> float:
+    """MIN_MULTIPLIER at threshold → MAX_MULTIPLIER at score=100. Smooth entry."""
+    if score <= threshold:
+        return 0.0
+    ratio = (score - threshold) / (100.0 - threshold)
+    return MIN_MULTIPLIER + (MAX_MULTIPLIER - MIN_MULTIPLIER) * ratio
+
+
 def open_position(algo: dict, ticker: str, price: float, today_str: str,
                   score: float, positions: dict, logs: list):
     aid = str(algo["id"])
     state = positions[aid]
-    shares = math.floor(POSITION_SIZE / price)
+    ccy = "JPY" if is_jp(ticker) else "USD"
+    cap_key = capital_key_for(ticker)
+    base = base_position_for(ticker)
+    mult = calc_position_multiplier(score, algo["threshold"])
+    position_size = base * mult
+    shares = math.floor(position_size / price)
     if shares <= 0:
         return
-    cost = shares * price * (1 + COMMISSION_RATE)
-    if cost > state["capital_remaining"]:
+    comm = commission_for(ticker)
+    cost = shares * price * (1 + comm)
+    if cost > state[cap_key]:
         return
-    state["capital_remaining"] -= cost
+    state[cap_key] -= cost
     state["open"][ticker] = {
         "entry_price": price,
         "shares": shares,
         "entry_date": today_str,
         "score": round(score, 2),
+        "multiplier": round(mult, 2),
+        "currency": ccy,
         "target_pct": algo["target_pct"],
         "stop_pct": algo["stop_pct"],
         "trail_pct": algo["trail_pct"],
@@ -283,22 +349,29 @@ def open_position(algo: dict, ticker: str, price: float, today_str: str,
         "shares": shares,
         "date": today_str,
         "score": round(score, 2),
+        "multiplier": round(mult, 2),
+        "currency": ccy,
         "pnl": None,
         "return_pct": None,
     })
-    print(f"  BUY  {ticker} @ {price:.2f} x{shares}  score={score:.1f}  algo={algo['name']}")
+    sym = "¥" if ccy == "JPY" else "$"
+    print(f"  BUY  {ticker} @ {price:,.0f}{sym}  x{shares}  score={score:.1f}  mult={mult:.1f}x  algo={algo['name']}")
 
 
 def close_position(algo: dict, ticker: str, price: float, today_str: str,
                    reason: str, positions: dict, logs: list):
     aid = str(algo["id"])
     pos = positions[aid]["open"].pop(ticker)
-    proceeds = pos["shares"] * price * (1 - COMMISSION_RATE)
-    cost_basis = pos["shares"] * pos["entry_price"] * (1 + COMMISSION_RATE)
+    ccy = pos.get("currency", "USD")
+    comm = commission_for(ticker)
+    cap_key = capital_key_for(ticker)
+    pnl_key = pnl_key_for(ticker)
+    proceeds = pos["shares"] * price * (1 - comm)
+    cost_basis = pos["shares"] * pos["entry_price"] * (1 + comm)
     pnl = proceeds - cost_basis
     ret_pct = (price / pos["entry_price"] - 1) * 100
-    positions[aid]["capital_remaining"] += proceeds
-    positions[aid]["closed_pnl"] += pnl
+    positions[aid][cap_key] += proceeds
+    positions[aid][pnl_key] += pnl
     positions[aid]["total_trades"] += 1
     if pnl > 0:
         positions[aid]["winning_trades"] += 1
@@ -311,11 +384,14 @@ def close_position(algo: dict, ticker: str, price: float, today_str: str,
         "shares": pos["shares"],
         "date": today_str,
         "score": None,
+        "multiplier": pos.get("multiplier"),
+        "currency": ccy,
         "pnl": round(pnl, 2),
         "return_pct": round(ret_pct, 2),
         "reason": reason,
     })
-    print(f"  SELL {ticker} @ {price:.2f}  pnl={pnl:+.0f}  ret={ret_pct:+.1f}%  [{reason}]  algo={algo['name']}")
+    sym = "¥" if ccy == "JPY" else "$"
+    print(f"  SELL {ticker} @ {price:,.0f}{sym}  pnl={pnl:+,.0f}{sym}  ret={ret_pct:+.1f}%  [{reason}]  algo={algo['name']}")
 
 
 def check_exits(algo: dict, price_data: dict, today_str: str,
@@ -329,7 +405,6 @@ def check_exits(algo: dict, price_data: dict, today_str: str,
         ret = (current - entry) / entry
         days_held = (date.fromisoformat(today_str) - date.fromisoformat(pos["entry_date"])).days
 
-        # Update trailing stop high watermark
         if pos["max_price"] < current:
             pos["max_price"] = current
 
@@ -340,11 +415,9 @@ def check_exits(algo: dict, price_data: dict, today_str: str,
             reason = "stop"
         elif pos["trail_pct"]:
             trail_drop = (pos["max_price"] - current) / pos["max_price"]
-            if trail_drop >= pos["trail_pct"] and ret < 0:
-                reason = "trail_stop"
-            elif trail_drop >= pos["trail_pct"]:
-                reason = "trail"
-        elif days_held >= algo["max_hold_days"]:
+            if trail_drop >= pos["trail_pct"]:
+                reason = "trail" if ret >= 0 else "trail_stop"
+        if reason is None and days_held >= algo["max_hold_days"]:
             reason = "max_hold"
 
         if reason:
@@ -359,11 +432,13 @@ def run_daily(dry_run: bool = False):
     positions = json.loads((TRADING_DIR / "positions.json").read_text())
     logs = json.loads((TRADING_DIR / "trade_log.json").read_text())
 
-    print("Fetching price data...")
-    price_data = fetch_prices(US_TICKERS, days=320)
-    print(f"Fetched {len(price_data)} tickers")
+    print("Fetching price data (days=450 for 52WK indicator warmup)...")
+    price_data = fetch_prices(ALL_TICKERS, days=450)
+    print(f"Fetched {len(price_data)} tickers "
+          f"(US: {sum(1 for t in price_data if not is_jp(t))}, "
+          f"JP: {sum(1 for t in price_data if is_jp(t))})")
 
-    # Pre-compute indicator scores for all tickers
+    print("Computing indicator scores...")
     ind_scores: dict[str, np.ndarray] = {}
     for ticker, pd_ in price_data.items():
         try:
@@ -375,17 +450,17 @@ def run_daily(dry_run: bool = False):
         aid = str(algo["id"])
         print(f"\n[Algo {aid}] {algo['name']}")
 
-        # 1. Exit checks for existing positions
         check_exits(algo, price_data, today_str, positions, logs)
 
-        # 2. New entry signals
         open_count = len(positions[aid]["open"])
+        jp_open = sum(1 for t in positions[aid]["open"] if is_jp(t))
+
         if open_count >= MAX_POSITIONS:
             print(f"  Max positions reached ({MAX_POSITIONS}), skip entries")
             continue
 
         candidates = []
-        for ticker in US_TICKERS:
+        for ticker in ALL_TICKERS:
             if ticker not in ind_scores:
                 continue
             if ticker in positions[aid]["open"]:
@@ -396,26 +471,48 @@ def run_daily(dry_run: bool = False):
 
         candidates.sort(reverse=True)
         slots = MAX_POSITIONS - open_count
-        for score, ticker in candidates[:slots]:
-            price = price_data[ticker]["last_close"]
+        entered = 0
+        for score, ticker in candidates:
+            if entered >= slots:
+                break
+            if is_jp(ticker) and jp_open >= MAX_JP_POSITIONS:
+                continue
             if not dry_run:
-                open_position(algo, ticker, price, today_str, score, positions, logs)
+                prev_open = len(positions[aid]["open"])
+                open_position(algo, ticker, price_data[ticker]["last_close"],
+                              today_str, score, positions, logs)
+                if len(positions[aid]["open"]) > prev_open:
+                    entered += 1
+                    if is_jp(ticker):
+                        jp_open += 1
             else:
-                print(f"  [DRY] BUY {ticker} @ {price:.2f}  score={score:.1f}")
+                price = price_data[ticker]["last_close"]
+                mult = calc_position_multiplier(score, algo["threshold"])
+                sym = "¥" if is_jp(ticker) else "$"
+                print(f"  [DRY] BUY {ticker} @ {price:,.0f}{sym}  score={score:.1f}  mult={mult:.1f}x")
+                entered += 1
 
-    # Summary
     print("\n=== Summary ===")
     for algo in algos:
         aid = str(algo["id"])
         st = positions[aid]
-        open_val = sum(
+        usd_open = sum(
             price_data[t]["last_close"] * pos["shares"]
             for t, pos in st["open"].items()
-            if t in price_data
+            if t in price_data and not is_jp(t)
         )
-        total_equity = st["capital_remaining"] + open_val
-        pnl = total_equity - 100000.0
-        print(f"  [{aid}] {algo['name']:20s}  equity={total_equity:>10,.0f}  pnl={pnl:+,.0f}  "
+        jpy_open = sum(
+            price_data[t]["last_close"] * pos["shares"]
+            for t, pos in st["open"].items()
+            if t in price_data and is_jp(t)
+        )
+        usd_eq = st["capital_usd"] + usd_open
+        jpy_eq = st["capital_jpy"] + jpy_open
+        usd_pnl = usd_eq - INITIAL_CAPITAL_USD
+        jpy_pnl = (jpy_eq - INITIAL_CAPITAL_JPY) / 1000
+        print(f"  [{aid}] {algo['name']:20s}  "
+              f"USD eq={usd_eq:>8,.0f}({usd_pnl:+,.0f})  "
+              f"JPY eq={jpy_eq:>10,.0f}({jpy_pnl:+,.0f}k)  "
               f"open={len(st['open'])}  trades={st['total_trades']}")
 
     if not dry_run:
