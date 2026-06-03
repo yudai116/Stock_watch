@@ -46,24 +46,54 @@ def grade(v: float, good: float, warn: float, higher_is_better: bool = True) -> 
 
 
 def normalize(d: dict) -> dict:
-    """旧フォーマット(summary)と新フォーマット(holdout_stats等)を統一する。"""
-    sm = d.get("summary", {})
-    if not d.get("holdout_stats") and sm:
-        top = (d.get("top100") or [{}])[0]
-        d = dict(d)
-        d["holdout_stats"] = {
-            "sharpe":   sm.get("best_sharpe", 0.),
-            "n_trades": top.get("n_trades", 0),
-            "win_rate": top.get("win_rate", 0.),
-            "max_dd":   top.get("max_dd", 0.),
-        }
-        d.setdefault("best_sell_rule", sm.get("best_sell_rule"))
-        d.setdefault("best_threshold", sm.get("best_threshold"))
-        d.setdefault("best_weights",   sm.get("best_weights", {}))
-        d.setdefault("wf_stability",   sm.get("wf_stability"))
-        d.setdefault("overfit_ratio",  sm.get("overfit_ratio"))
-        d["avg_oos_sharpe"] = sm.get("avg_oos_sharpe")
-        d["_legacy_format"] = True
+    """旧/新フォーマットを統一して holdout_stats・portfolio_sim・wf_stability を揃える。
+
+    フォーマット判別:
+      v8+  : result_version >= 8 → walk_forward / portfolio_simulation キーを使用
+      旧   : summary キーのみ → summary + top100 から補完
+    """
+    d = dict(d)
+    sm  = d.get("summary", {})
+    wf  = d.get("walk_forward", {})
+    ver = d.get("result_version") or d.get("version") or 0
+
+    # ── wf_stability / overfit_ratio / avg_oos_sharpe の統一 ──
+    d.setdefault("wf_stability",  wf.get("wf_stability")  or sm.get("wf_stability"))
+    d.setdefault("overfit_ratio", wf.get("overfit_ratio") or sm.get("overfit_ratio"))
+    d.setdefault("avg_oos_sharpe", wf.get("avg_oos_sharpe") or sm.get("avg_oos_sharpe"))
+
+    # ── best_sell_rule / threshold / weights の統一 ──
+    d.setdefault("best_sell_rule", sm.get("best_sell_rule"))
+    d.setdefault("best_threshold", sm.get("best_threshold"))
+    d.setdefault("best_weights",   sm.get("best_weights", {}))
+
+    # ── holdout_stats の統一 ──
+    if not d.get("holdout_stats"):
+        if wf.get("test_sharpe") is not None:
+            # v8+ フォーマット: walk_forward に正式OOS統計あり
+            d["holdout_stats"] = {
+                "sharpe":   wf.get("test_sharpe", 0.),
+                "n_trades": wf.get("test_n_trades", 0),
+                "win_rate": wf.get("test_win_rate", 0.),
+                "max_dd":   wf.get("test_max_dd", 0.),
+            }
+        elif sm:
+            # 旧フォーマット: summary + top100 から補完
+            top = (d.get("top100") or [{}])[0]
+            d["holdout_stats"] = {
+                "sharpe":   sm.get("best_sharpe", 0.),
+                "n_trades": top.get("n_trades", 0),
+                "win_rate": top.get("win_rate", 0.),
+                "max_dd":   top.get("max_dd", 0.),
+            }
+            d["_legacy_format"] = True
+
+    # ── portfolio_sim の統一 ──
+    if not d.get("portfolio_sim"):
+        ps = d.get("portfolio_simulation")  # v8+ キー名
+        if ps:
+            d["portfolio_sim"] = ps
+
     return d
 
 
