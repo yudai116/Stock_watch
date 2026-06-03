@@ -194,6 +194,19 @@ IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "Stoch", "RVOL", "CCI", "VWAP"]
 
 BUY_THRESHOLDS = [45, 50, 55, 60, 65, 70]
 
+# ── 相場レジーム ─────────────────────────────────────────────────────────────
+# 実現ボラティリティのパーセンタイルで3分類する
+#   0=低ボラ (risk-on/トレンド相場)
+#   1=中ボラ (通常相場)
+#   2=高ボラ (risk-off/地政学リスク/急落相場)
+REGIME_NAMES   = {0: "低ボラ(risk-on)", 1: "中ボラ(通常)", 2: "高ボラ(risk-off)"}
+# スイング: 60 1hバー=約9取引日, デイ: 60 10minバー=10時間=約1.5取引日
+REGIME_WINDOW  = 60
+
+# ── 多基準評価ウェイト ────────────────────────────────────────────────────────
+# アセンブル時のtop100再ランキングに使用 (GAの進化ループ自体はSharpeのみ維持)
+MULTI_CRIT_W   = {"sharpe": 0.40, "calmar": 0.35, "profit_factor": 0.25}
+
 MAX_HOLD_BARS_SWING = 130  # 1h足: 最大20取引日 (20 × 6.5h)
 MAX_HOLD_BARS_DAY   = 39   # 10分足: 最大1取引日 (6.5h × 6本/h)
 
@@ -801,7 +814,8 @@ def detailed_eval_single(ticker_data: dict, w: np.ndarray, sell_name: str,
 def collect_trade_records(ticker_data: dict, w: np.ndarray, sell_name: str,
                            threshold: int, t_start: int, t_end: int,
                            crossover_only: bool = True) -> list[dict]:
-    """ポートフォリオシミュレーション用の個別取引記録を収集する。"""
+    """ポートフォリオシミュレーション用の個別取引記録を収集する。
+    各取引に相場レジーム (0=低ボラ, 1=中ボラ, 2=高ボラ) を付与する。"""
     records = []
     wm = w.reshape(1, 8).astype(np.float32)
     for ticker, td in ticker_data.items():
@@ -818,6 +832,10 @@ def collect_trade_records(ticker_data: dict, w: np.ndarray, sell_name: str,
             mask = above & ~prev_above & valid
         else:
             mask = (comp >= threshold) & valid
+
+        # 相場レジームをエントリーバー時点で付与
+        regime_arr = compute_vol_regime(td["closes"][t_start:t_end])
+
         bar_indices = np.where(mask)[0]
         for bar_idx in bar_indices:
             ret = float(sout[bar_idx])
@@ -827,9 +845,83 @@ def collect_trade_records(ticker_data: dict, w: np.ndarray, sell_name: str,
                     "ticker": ticker,
                     "score":  float(comp[bar_idx]),
                     "return": ret,
+                    "regime": int(regime_arr[bar_idx]),
                 })
     records.sort(key=lambda x: x["bar"])
     return records
+
+
+def compute_vol_regime(closes: np.ndarray, window: int = REGIME_WINDOW) -> np.ndarray:
+    """
+    各バーのボラティリティレジームを返す (0=低ボラ, 1=中ボラ, 2=高ボラ)。
+    実現ボラティリティ (ローリング対数リターン標準偏差) のパーセンタイル分類。
+    """
+    T   = len(closes)
+    eps = 1e-10
+    lr  = np.log(np.maximum(closes[1:], eps) / np.maximum(closes[:-1], eps))
+    rv  = np.full(T, np.nan)
+    for i in range(window - 1, len(lr)):
+        rv[i + 1] = lr[i - window + 1:i + 1].std()
+    valid = rv[~np.isnan(rv)]
+    if len(valid) < 10:
+        return np.ones(T, dtype=np.int8)
+    p33, p67 = np.percentile(valid, 33), np.percentile(valid, 67)
+    regime = np.where(np.isnan(rv), 1,
+             np.where(rv < p33, 0,
+             np.where(rv < p67, 1, 2))).astype(np.int8)
+    return regime
+
+
+def compute_profit_factor(records: list[dict]) -> float:
+    """
+    Profit Factor = 総利益 / 総損失 (絶対値)。
+    取引がない or 損失ゼロ の場合は 0 を返す。
+    """
+    gross_win  = sum(r["return"] for r in records if r["return"] > 0)
+    gross_loss = sum(-r["return"] for r in records if r["return"] < 0)
+    return round(gross_win / gross_loss, 4) if gross_loss > 1e-10 else 0.
+
+
+def regime_stats(records: list[dict]) -> dict:
+    """
+    取引記録を相場レジーム別に集計して統計を返す。
+    records の各要素は {"regime": int, "return": float, ...} を持つこと。
+    """
+    buckets: dict[int, list[float]] = {0: [], 1: [], 2: []}
+    for r in records:
+        rg = r.get("regime", 1)
+        buckets[rg].append(r["return"])
+    out = {}
+    for rg, rets in buckets.items():
+        if not rets:
+            out[REGIME_NAMES[rg]] = {"n_trades": 0}
+            continue
+        arr = np.array(rets)
+        wins = int((arr > 0).sum())
+        out[REGIME_NAMES[rg]] = {
+            "n_trades":     len(rets),
+            "win_rate":     round(wins / len(rets), 4),
+            "avg_return":   round(float(arr.mean()) * 100, 3),
+            "profit_factor": compute_profit_factor([{"return": r} for r in rets]),
+        }
+    return out
+
+
+def multi_criteria_score(sim_result: dict, records: list[dict]) -> float:
+    """
+    Sharpe + Calmar比 + Profit Factor の加重スコアを返す。
+    アセンブルフェーズでtop候補の再ランキングに使用。
+    """
+    sharpe = sim_result.get("sharpe", 0.)
+    ret    = sim_result.get("total_return_pct", 0.)
+    dd     = max(sim_result.get("max_drawdown_pct", 0.1), 0.1)
+    calmar = ret / dd
+    pf     = compute_profit_factor(records)
+    w      = MULTI_CRIT_W
+    # 各指標を同等スケールに正規化してから加重和
+    # Sharpe: そのまま, Calmar: /10 (典型値1-5), PF: /3 (典型値1-3)
+    score  = w["sharpe"] * sharpe + w["calmar"] * (calmar / 10.0) + w["profit_factor"] * (pf / 3.0)
+    return round(score, 6)
 
 
 def simulate_portfolio(records: list[dict], threshold: int, method: str,
@@ -1842,14 +1934,20 @@ def run_phase_assemble(mode: str) -> None:
                                       crossover_only=co, bars_per_year=bpy)
     overfit_ratio = round(test_shp / train_shp, 4) if abs(train_shp) > 1e-6 else 0.
 
-    print("  ポートフォリオシミュレーション (均等/スコア比例/ケリー)...")
+    print("  ポートフォリオシミュレーション (均等/スコア比例/ケリー + レジーム分析)...")
     trade_recs = collect_trade_records(ticker_data, best_w, best_sell, best_thresh,
                                         t_holdout, T_min, crossover_only=co)
+    sim_equal      = simulate_portfolio(trade_recs, best_thresh, "equal")
+    sim_score_prop = simulate_portfolio(trade_recs, best_thresh, "score_prop")
+    sim_kelly      = simulate_portfolio(trade_recs, best_thresh, "frac_kelly")
     port_sim = {
-        "n_trades":   len(trade_recs),
-        "equal":      simulate_portfolio(trade_recs, best_thresh, "equal"),
-        "score_prop": simulate_portfolio(trade_recs, best_thresh, "score_prop"),
-        "frac_kelly": simulate_portfolio(trade_recs, best_thresh, "frac_kelly"),
+        "n_trades":        len(trade_recs),
+        "profit_factor":   compute_profit_factor(trade_recs),
+        "regime_stats":    regime_stats(trade_recs),
+        "equal":           sim_equal,
+        "score_prop":      sim_score_prop,
+        "frac_kelly":      sim_kelly,
+        "multi_crit_score": multi_criteria_score(sim_score_prop, trade_recs),
     }
 
     print("  売りルールランキング評価中...")
@@ -1877,21 +1975,29 @@ def run_phase_assemble(mode: str) -> None:
         })
     sell_stats.sort(key=lambda x: x["best_sharpe"], reverse=True)
 
-    print("  top100 詳細評価中...")
+    print("  top100 詳細評価 + 多基準スコア算出中...")
     top100_out: list[dict] = []
     for r in top100:
-        ds = detailed_eval_single(ticker_data, r["weights"], best_sell, r["thr"], hb, 0, t_holdout,
-                                  crossover_only=co, bars_per_year=bpy)
+        ds  = detailed_eval_single(ticker_data, r["weights"], best_sell, r["thr"], hb, 0, t_holdout,
+                                   crossover_only=co, bars_per_year=bpy)
+        recs_mc = collect_trade_records(ticker_data, r["weights"], best_sell, r["thr"],
+                                         0, t_holdout, crossover_only=co)
+        sim_mc  = simulate_portfolio(recs_mc, r["thr"], "score_prop")
+        mc_s    = multi_criteria_score(sim_mc, recs_mc)
         top100_out.append({
-            "buy_weights":   {nm: round(float(r["weights"][i]), 3) for i, nm in enumerate(ind_names)},
-            "buy_threshold": r["thr"],
-            "sell_rule":     best_sell,
-            "sharpe":        ds["sharpe"],
-            "n_trades":      ds["n_trades"],
-            "win_rate":      ds["win_rate"],
-            "avg_return":    ds["avg_return"],
-            "max_dd":        ds["max_dd"],
+            "buy_weights":      {nm: round(float(r["weights"][i]), 3) for i, nm in enumerate(ind_names)},
+            "buy_threshold":    r["thr"],
+            "sell_rule":        best_sell,
+            "sharpe":           ds["sharpe"],
+            "n_trades":         ds["n_trades"],
+            "win_rate":         ds["win_rate"],
+            "avg_return":       ds["avg_return"],
+            "max_dd":           ds["max_dd"],
+            "profit_factor":    compute_profit_factor(recs_mc),
+            "multi_crit_score": mc_s,
         })
+    # 多基準スコアで再ランキング
+    top100_out.sort(key=lambda x: x["multi_crit_score"], reverse=True)
 
     ga_all_sells_summary = {}
     for sname, gr in all_ga_results_raw.items():
@@ -1931,13 +2037,14 @@ def run_phase_assemble(mode: str) -> None:
                       f"Sharpe={s['sharpe']:.3f}")
 
     result = {
-        "version":       7,
+        "version":       8,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
         "data_source":   "price_data_intraday.json (1h足)" if mode == "swing" else "price_data_10min.json (10分足)",
         "n_tickers":     len(ticker_data),
         "tickers":       list(ticker_data.keys()),
         "n_evaluated":   len(all_results),
+        "multi_crit_weights": MULTI_CRIT_W,
         "transaction_costs": {"US_pct": round(US_COST * 100, 2), "JP_pct": round(JP_COST * 100, 2)},
         "lookahead_bias_fixed": True,
         "entry_price":   "open of bar t+1 (signal at close of bar t)",

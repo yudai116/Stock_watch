@@ -60,9 +60,9 @@ const USE_ALPACA    = (INTRADAY || DAY) && !!ALPACA_KEY && !!ALPACA_SECRET;
 // Alpaca IEX feed の最古取得可能日
 const ALPACA_START = "2016-01-01";
 
-// ── 50銘柄リスト ────────────────────────────────────────────────────────────
+// ── 50銘柄リスト (US のみ) ────────────────────────────────────────────────────
 const US_TICKERS = [
-  // ── 半導体 (15社) ─────────────────────────────────────────────────────────
+  // ── 半導体・製造装置 (15社) ───────────────────────────────────────────────
   "NVDA",    // NVIDIA — GPU/AI加速器
   "AMD",     // Advanced Micro Devices — CPU/GPU
   "INTC",    // Intel — CPU/ファウンドリ転換中
@@ -109,6 +109,24 @@ const US_TICKERS = [
   "NXPI",    // NXP Semiconductors — 車載/IoT半導体
   "ON",      // ON Semiconductor — パワー半導体 (EV向け)
   "ACLS",    // Axcelis Technologies — イオン注入装置
+
+  // ── 宇宙・次世代モビリティ (4社) ─────────────────────────────────────────
+  "RKLB",    // Rocket Lab USA — 小型ロケット+衛星バス (2021上場)
+  "ASTS",    // AST SpaceMobile — 衛星直接スマホ接続 (2020上場)
+  "SMR",     // NuScale Power — 小型モジュール炉 (SMR) (2022上場)
+  "JOBY",    // Joby Aviation — eVTOL電動航空 (2021上場)
+
+  // ── 半導体・先端製造 追加 (5社) ──────────────────────────────────────────
+  "ARM",     // Arm Holdings — チップアーキテクチャ (2023上場)
+  "WOLF",    // Wolfspeed — SiCパワー半導体 (EV/産業)
+  "MCHP",    // Microchip Technology — マイコン/組込
+  "SWKS",    // Skyworks Solutions — 5G RFフロントエンド
+  "AMKR",    // Amkor Technology — 半導体後工程(OSAT)パッケージング
+
+  // ── 量子コンピュータ・AI新興 (3社) ───────────────────────────────────────
+  "RGTI",    // Rigetti Computing — 量子コンピュータ (2022上場)
+  "APP",     // AppLovin — AI広告・モバイルゲーム
+  "DELL",    // Dell Technologies — AIサーバー/PCインフラ
 ];
 
 const JP_TICKERS = [
