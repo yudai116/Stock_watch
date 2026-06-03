@@ -1,1 +1,8 @@
-TRIGGER_PLACEHOLDER
+{
+  "ga_l2_lambda": 0.75,
+  "threshold_offset": -5,
+  "mode": "both",
+  "triggered_at": "2026-06-03 17:00:00",
+  "run_count": 1,
+  "reason": "取引数不足 → 閾値オフセット 0→-5 / 過学習 → L2=0.50→0.75"
+}
