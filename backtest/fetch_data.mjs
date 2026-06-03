@@ -438,6 +438,28 @@ async function main() {
       }
     }
 
+    // 全銘柄を共通開始日で揃える (AlpacaのUS株10年 vs Yahoo JP株2年の混在を防ぐ)
+    if (Object.keys(result).length > 0) {
+      const firstDates = Object.entries(result).map(([t, d]) => ({
+        ticker: t,
+        date: d[0].date.slice(0, 10),
+      }));
+      firstDates.sort((a, b) => a.date < b.date ? 1 : -1);
+      const latestTicker = firstDates[0];
+      const commonStart  = latestTicker.date;
+      console.log(`\n時系列アライメント: 共通開始日 = ${commonStart} (${latestTicker.ticker} の開始日)`);
+      for (const ticker of Object.keys(result)) {
+        const before = result[ticker].length;
+        result[ticker] = result[ticker].filter(r => r.date.slice(0, 10) >= commonStart);
+        if (before !== result[ticker].length)
+          console.log(`  ${ticker}: ${before} → ${result[ticker].length} bars`);
+        if (result[ticker].length < 300) {
+          console.log(`  ${ticker}: skipped after alignment (${result[ticker].length} bars < 300)`);
+          delete result[ticker];
+        }
+      }
+    }
+
     const out = path.join(dir, "price_data_intraday.json");
     writeFileSync(out, JSON.stringify(result, null, 0));
     console.log(`\n保存完了 → price_data_intraday.json`);
@@ -446,7 +468,9 @@ async function main() {
     const jpCount = Object.keys(result).filter(t => t.endsWith(".T")).length;
     console.log(`  US: ${usCount}社  JP: ${jpCount}社`);
     for (const [t, d] of Object.entries(result)) {
-      console.log(`  ${t}: ${d.length} 1h bars`);
+      const first = d[0]?.date?.slice(0, 10);
+      const last  = d[d.length - 1]?.date?.slice(0, 10);
+      console.log(`  ${t}: ${d.length} 1h bars (${first} → ${last})`);
     }
 
   } else {
