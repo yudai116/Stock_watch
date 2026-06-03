@@ -23,6 +23,7 @@ STATE_F    = HERE / "pdca_state.json"
 SWING_F    = HERE / "strategy_results_swing.json"
 DAY_F      = HERE / "strategy_results_day.json"
 REPORT_F   = HERE / "pdca_log.md"
+TRIGGER_F  = HERE / "pdca_trigger.json"
 
 # ── 実用水準目標 ──────────────────────────────────────────────────────────────
 TARGETS = {
@@ -279,6 +280,15 @@ def run(dry_run: bool = False) -> dict:
 
     if not dry_run:
         STATE_F.write_text(json.dumps(state, ensure_ascii=False, indent=2))
+        # pdca_trigger.json を書き出す → push で workflow_dispatch の代わりに起動
+        TRIGGER_F.write_text(json.dumps({
+            "ga_l2_lambda":    new_params["ga_l2_lambda"],
+            "threshold_offset": new_params["threshold_offset"],
+            "mode":            new_params["mode"],
+            "triggered_at":    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "run_count":       run_num + 1,
+            "reason":          reason,
+        }, ensure_ascii=False, indent=2))
 
     # ── 結果出力 ───────────────────────────────────────────────────────────────
     swing_pass_str = f"{_passed_count(swing_m)}/5" if swing_m else "未実行"

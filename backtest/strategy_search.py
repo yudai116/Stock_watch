@@ -73,7 +73,17 @@ GA_ELITE = 40     # エリート保存数
 GA_TOURN = 7      # トーナメントサイズ
 GA_SIGMA = 0.10   # Gaussian突然変異σ
 GA_MPROB = 0.25   # 突然変異確率
-GA_L2_LAMBDA = float(os.environ.get("GA_L2_LAMBDA", "0.5"))  # L2正則化強度: 1指標への過度な集中を抑制しOOS汎化性を向上
+# pdca_trigger.json があれば読み込む (push トリガー時の自動パラメータ渡し)
+_trigger_f = Path(__file__).parent / "pdca_trigger.json"
+if _trigger_f.exists():
+    try:
+        _trig = json.loads(_trigger_f.read_text())
+        os.environ.setdefault("GA_L2_LAMBDA",     str(_trig.get("ga_l2_lambda", 0.5)))
+        os.environ.setdefault("THRESHOLD_OFFSET", str(_trig.get("threshold_offset", 0)))
+    except Exception:
+        pass
+
+GA_L2_LAMBDA = float(os.environ.get("GA_L2_LAMBDA", "0.5"))  # L2正則化強度
 
 # ── 取引コスト (往復) ────────────────────────────────────────────────────────
 JP_COST = 0.0030   # 東証: 0.30%
