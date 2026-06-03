@@ -3,7 +3,7 @@
 strategy_search.py v4 — DOE (Taguchi L18) → GA × 全売りルール → Walk-Forward 6折
 
 【モード】
-  --swing : スイング (1h足2年, RSI14/MACD12-26/BB20/EMA1300/MOM3M(410bar)/Stoch14/CCI20/52WK, 50銘柄)
+  --swing : スイング (1h足10年, RSI14/MACD12-26/BB20/EMA1300/MOM3M(410bar)/Stoch14/CCI20/52WK, US38銘柄+JP OOSテスト)
   --day   : デイトレ (10分足, RSI9/MACD5-13/BB10/EMA9-21/Stoch5/RVOL20/CCI14/VWAP偏差, 38銘柄US)
   --both  : 両方順番に実行
 
@@ -36,6 +36,7 @@ import numpy as np
 HERE          = Path(__file__).parent
 DATA_FILE_SWING = HERE / "price_data_intraday.json"  # 1時間足 2年
 DATA_FILE_DAY   = HERE / "price_data_10min.json"     # 10分足 US株
+DATA_FILE_SWING_JP = HERE / "price_data_intraday_jp.json"  # JP株 1h足 2年 (OOSテスト用)
 RESULTS_SWING = HERE / "strategy_results_swing.json"
 RESULTS_DAY   = HERE / "strategy_results_day.json"
 ARTIFACTS_DIR = HERE / "phase_artifacts"
@@ -877,6 +878,58 @@ def simulate_portfolio(records: list[dict], threshold: int, method: str,
         "n_trades":          n,
         "sharpe":            round(sharpe, 4),
         "curve":             curve[::max(1, len(curve) // 200)],  # 最大200点に間引き
+    }
+
+
+def eval_jp_stocks(best_w: np.ndarray, best_sell: str, best_thresh: int) -> dict | None:
+    """US最適化ウェイトをJP株2年データで汎化性テスト。ファイルがなければNoneを返す。"""
+    if not DATA_FILE_SWING_JP.exists():
+        return None
+
+    print("  JP株 OOSテスト (US最適化ウェイトを適用中)...")
+    raw = json.loads(DATA_FILE_SWING_JP.read_text())
+    jp_ticker_data: dict = {}
+    for tkr, rows in raw.items():
+        if len(rows) < 300:
+            print(f"    SKIP {tkr}: {len(rows)} bars < 300"); continue
+        td = {
+            "closes":  np.array([r["close"]           for r in rows], dtype=np.float64),
+            "opens":   np.array([r["open"]            for r in rows], dtype=np.float64),
+            "highs":   np.array([r["high"]            for r in rows], dtype=np.float64),
+            "lows":    np.array([r["low"]             for r in rows], dtype=np.float64),
+            "volumes": np.array([r.get("volume", 0)   for r in rows], dtype=np.float64),
+            "dates":   [r["date"] for r in rows],
+            "cost":    cost_rate(tkr),
+        }
+        print(f"    {tkr}: 指標計算...", end="", flush=True)
+        ind_scores = compute_ind_scores(td, "swing")
+        vol_ok     = vol_ok_mask(td["volumes"])
+        sell_out   = precompute_sell_outcomes(
+            td["closes"], td["opens"], td["highs"], td["lows"], td["cost"],
+            SWING_SELL_RULES, MAX_HOLD_BARS_SWING,
+        )
+        print(" done")
+        jp_ticker_data[tkr] = {"ind_scores": ind_scores, "sell_outcomes": sell_out, "vol_ok": vol_ok}
+
+    if not jp_ticker_data:
+        return None
+
+    T_jp = min(len(td["ind_scores"][0]) for td in jp_ticker_data.values())
+    trade_recs = collect_trade_records(
+        jp_ticker_data, best_w, best_sell, best_thresh, 0, T_jp, crossover_only=True
+    )
+    print(f"    JP取引数: {len(trade_recs)}件  (全期間OOS)")
+
+    if not trade_recs:
+        return {"n_trades": 0, "tickers": list(jp_ticker_data.keys()),
+                "note": "JP株でシグナルなし — 閾値を下げるか確認"}
+
+    return {
+        "n_trades":   len(trade_recs),
+        "tickers":    list(jp_ticker_data.keys()),
+        "equal":      simulate_portfolio(trade_recs, best_thresh, "equal"),
+        "score_prop": simulate_portfolio(trade_recs, best_thresh, "score_prop"),
+        "frac_kelly": simulate_portfolio(trade_recs, best_thresh, "frac_kelly"),
     }
 
 
@@ -1815,6 +1868,18 @@ def run_phase_assemble(mode: str) -> None:
                 "final":        final_ic,
             }
 
+    # JP株 OOSテスト (swing のみ、price_data_intraday_jp.json が存在する場合)
+    jp_oos = None
+    if mode == "swing":
+        jp_oos = eval_jp_stocks(best_w, best_sell, best_thresh)
+        if jp_oos and jp_oos.get("n_trades", 0) > 0:
+            for method in ["equal", "score_prop", "frac_kelly"]:
+                s = jp_oos[method]
+                print(f"  [JP OOS {method:10s}] 最終値={s['final_value']:.2f} "
+                      f"リターン={s['total_return_pct']:+.1f}%  "
+                      f"最大DD={s['max_drawdown_pct']:.1f}%  "
+                      f"Sharpe={s['sharpe']:.3f}")
+
     result = {
         "version":       7,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
@@ -1860,6 +1925,7 @@ def run_phase_assemble(mode: str) -> None:
             "convergence":            [round(v, 4) for v in convergence],
         },
         "portfolio_simulation": port_sim,
+        "jp_oos_test": jp_oos,
         "ic_lift_results": ic_lift_results,
         "walk_forward": {
             "n_folds":         n_wf_folds,

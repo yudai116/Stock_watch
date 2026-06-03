@@ -41,22 +41,30 @@ jobs:
           cache: 'npm'
       - name: npm install
         run: npm ci
-      - name: 1時間足データ取得 (Alpaca優先/最大10年, フォールバックYahoo730日) — スイング用
+      - name: US 1時間足データ取得 (Alpaca優先/最大10年, US38銘柄) — スイング最適化用
         run: node backtest/fetch_data.mjs --intraday
         env:
           ALPACA_API_KEY:    ${{ secrets.ALPACA_API_KEY }}
           ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+      - name: JP 1時間足データ取得 (Yahoo/730日, JP12銘柄) — JP OOSテスト用
+        run: node backtest/fetch_data.mjs --intraday-jp
       - name: 10分足データ取得 (Alpaca/最大10年, US株のみ) — デイトレ用
         if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' || github.event.inputs.mode == '' }}
         run: node backtest/fetch_data.mjs --day
         env:
           ALPACA_API_KEY:    ${{ secrets.ALPACA_API_KEY }}
           ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
-      - name: スイング用データをアーティファクトとして保存 (1時間足)
+      - name: スイング用データをアーティファクトとして保存 (US 1時間足)
         uses: actions/upload-artifact@v4
         with:
           name: price-data-swing
           path: backtest/price_data_intraday.json
+          retention-days: 1
+      - name: JP OOSテスト用データをアーティファクトとして保存 (JP 1時間足)
+        uses: actions/upload-artifact@v4
+        with:
+          name: price-data-swing-jp
+          path: backtest/price_data_intraday_jp.json
           retention-days: 1
       - name: デイトレ用データをアーティファクトとして保存 (10分足)
         uses: actions/upload-artifact@v4
@@ -804,11 +812,17 @@ jobs:
         with:
           name: final-swing
           path: backtest/phase_artifacts/
+      - name: JP OOSテスト用データを取得
+        uses: actions/download-artifact@v4
+        with:
+          name: price-data-swing-jp
+          path: backtest/
+        continue-on-error: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: pip install numpy --quiet
-      - name: スイング アセンブル実行
+      - name: スイング アセンブル実行 (JP OOSテスト含む)
         run: python3 backtest/strategy_search.py --phase assemble --mode swing
       - uses: actions/upload-artifact@v4
         with:
