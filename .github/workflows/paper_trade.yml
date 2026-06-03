@@ -1,0 +1,35 @@
+name: ペーパートレード日次実行
+
+on:
+  schedule:
+    - cron: '0 23 * * 1-5'  # 毎営業日 UTC 23:00 (= JST 翌 8:00, 米国市場クローズ後)
+  workflow_dispatch:
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install numpy yfinance
+
+      - name: Run signal generator
+        run: python trading/signal_generator.py
+
+      - name: Push updated positions
+        run: |
+          git config user.email "action@github.com"
+          git config user.name "GitHub Actions"
+          git add trading/positions.json trading/trade_log.json
+          git diff --staged --quiet || git commit -m "📈 paper trade update $(date +%Y-%m-%d)"
+          git push

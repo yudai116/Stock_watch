@@ -27,6 +27,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <a href="/backtest" className="text-xs text-gray-400 hover:text-white transition-colors">
                 バックテスト結果
               </a>
+              <a href="/paper-trading" className="text-xs text-gray-400 hover:text-white transition-colors">
+                ペーパートレード
+              </a>
               <span className="text-xs text-gray-600">Powered by Yahoo Finance</span>
             </div>
           </div>

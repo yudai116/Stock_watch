@@ -9,7 +9,7 @@ export const SWING_WEIGHTS: Record<string, number> = {
   MOM3M: 1.0571,
   Stoch: 0.0,
   CCI: 0.5987,
-  52WK: 0.5243,
+  "52WK": 0.5243,
 };
 
 export const SWING_META = {
