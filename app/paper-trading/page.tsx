@@ -133,7 +133,7 @@ function AlgoCard({ algo, state }: { algo: Algorithm; state: AlgoState }) {
     : null;
 
   const sellLabel = algo.target_pct
-    ? `+${(algo.target_pct * 100).toFixed(0)}% / -${(algo.stop_pct! * 100).toFixed(0)}%`
+    ? `+${(algo.target_pct * 100).toFixed(0)}% / -${((algo.stop_pct ?? 0) * 100).toFixed(0)}%`
     : algo.trail_pct
     ? `トレール ${(algo.trail_pct * 100).toFixed(0)}%`
     : algo.sell_rule;

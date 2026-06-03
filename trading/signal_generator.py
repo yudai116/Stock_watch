@@ -8,7 +8,6 @@ US株: USD資金プール / JP株: JPY資金プール — 別管理。
 
 import json
 import math
-import subprocess
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -245,16 +244,29 @@ def score_52wk_trend(c: np.ndarray, h: np.ndarray, lo: np.ndarray,
 # ── Core logic ────────────────────────────────────────────────────────────────
 
 def fetch_prices(tickers: list[str], days: int = 450) -> dict:
-    """days=450 calendar days ≈ 321 trading days — ensures 52WK(252) and EMA200 warmup."""
+    """Batch download all tickers in one yfinance call (parallel internally).
+    days=450 calendar ≈ 321 trading days — ensures 52WK(252) and EMA200 warmup."""
     end = datetime.today()
     start = end - timedelta(days=days)
+    start_str = start.strftime("%Y-%m-%d")
+    end_str = end.strftime("%Y-%m-%d")
     result = {}
+    try:
+        raw = yf.download(
+            tickers, start=start_str, end=end_str,
+            auto_adjust=True, progress=False,
+            group_by="ticker", threads=True,
+        )
+    except Exception as e:
+        print(f"  [BATCH ERROR] {e}")
+        return result
+
     for ticker in tickers:
         try:
-            df = yf.download(ticker, start=start.strftime("%Y-%m-%d"),
-                             end=end.strftime("%Y-%m-%d"), progress=False, auto_adjust=True)
-            if df is None or len(df) < 60:
-                print(f"  [SKIP] {ticker}: insufficient data ({len(df) if df is not None else 0} rows)")
+            df = raw[ticker] if len(tickers) > 1 else raw
+            df = df.dropna(how="all")
+            if len(df) < 60:
+                print(f"  [SKIP] {ticker}: insufficient data ({len(df)} rows)")
                 continue
             last_date = date.fromisoformat(str(df.index[-1])[:10])
             if (date.today() - last_date).days > 4:
@@ -519,28 +531,9 @@ def run_daily(dry_run: bool = False):
         (TRADING_DIR / "positions.json").write_text(json.dumps(positions, indent=2))
         (TRADING_DIR / "trade_log.json").write_text(json.dumps(logs, indent=2))
         print("\nSaved positions.json and trade_log.json")
-        commit_results()
+        print("Git commit/push is handled by GitHub Actions workflow.")
     else:
         print("\n[DRY RUN] No files written.")
-
-
-def commit_results():
-    try:
-        subprocess.run(["git", "config", "user.email", "action@github.com"], cwd=BASE_DIR, check=True)
-        subprocess.run(["git", "config", "user.name", "GitHub Actions"], cwd=BASE_DIR, check=True)
-        subprocess.run(["git", "add",
-                        "trading/positions.json",
-                        "trading/trade_log.json"], cwd=BASE_DIR, check=True)
-        result = subprocess.run(["git", "diff", "--staged", "--quiet"], cwd=BASE_DIR)
-        if result.returncode != 0:
-            msg = f"📈 paper trade update {date.today().isoformat()}"
-            subprocess.run(["git", "commit", "-m", msg], cwd=BASE_DIR, check=True)
-            subprocess.run(["git", "push"], cwd=BASE_DIR, check=True)
-            print("Committed and pushed.")
-        else:
-            print("No changes to commit.")
-    except subprocess.CalledProcessError as e:
-        print(f"Git error: {e}")
 
 
 if __name__ == "__main__":
