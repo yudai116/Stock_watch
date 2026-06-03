@@ -1,14 +1,45 @@
 {
-  "run_count": 0,
+  "run_count": 1,
   "stop_requested": false,
   "current_params": {
-    "ga_l2_lambda": 0.5,
-    "threshold_offset": 0,
+    "ga_l2_lambda": 0.75,
+    "threshold_offset": -5,
     "mode": "both"
   },
-  "history": [],
+  "history": [
+    {
+      "ts": "2026-06-03 16:15:06",
+      "run": 0,
+      "params": {
+        "ga_l2_lambda": 0.5,
+        "threshold_offset": 0,
+        "mode": "both"
+      },
+      "swing": {
+        "sharpe": 1.4088,
+        "n_trades": 314,
+        "win_rate": 0.6401,
+        "max_dd": -7.3,
+        "wf_stability": -2.0292,
+        "overfit_ratio": 4.9346,
+        "profit_factor": 0.0
+      },
+      "day": {
+        "sharpe": 0.0,
+        "n_trades": 8,
+        "win_rate": 0.375,
+        "max_dd": -0.55,
+        "wf_stability": -3.2717,
+        "overfit_ratio": 0.0,
+        "profit_factor": 0.0
+      },
+      "swing_passed": 2,
+      "day_passed": 0,
+      "decision": "取引数不足 → 閾値オフセット 0→-5 / 過学習 → L2=0.50→0.75"
+    }
+  ],
   "best": {
-    "swing_sharpe": 0.0,
+    "swing_sharpe": 1.4088,
     "day_sharpe": 0.0
   },
   "no_improve_streak": 0
