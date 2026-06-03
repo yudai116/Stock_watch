@@ -90,6 +90,13 @@ const TICKERS = [
 const DAILY_START = "2015-01-01";
 const DAILY_END   = "2025-12-31";
 
+// IPO/上場日フィルタ: この日付以前のデータはSPAC前別会社データのため除外
+const IPO_FILTER = {
+  "SOUN": "2022-04-13",  // SoundHound AI (SPAC merger)
+  "IONQ": "2021-10-01",  // IonQ (SPAC merger)
+  "ARM":  "2023-09-14",  // Arm Holdings IPO
+};
+
 // Intraday 1h: Yahoo Finance allows up to 730 days back
 // Use 2 years ago from today minus 1 week safety margin
 function getIntradayRange() {
@@ -110,6 +117,7 @@ async function fetchTickerDaily(ticker) {
       period2:  DAILY_END,
       interval: "1d",
     });
+    const ipoStart = IPO_FILTER[ticker] ?? DAILY_START;
     const filtered = rows
       .filter(r => r.close != null && r.close > 0)
       .map(r => ({
@@ -119,7 +127,8 @@ async function fetchTickerDaily(ticker) {
         high:   Math.round((r.high  ?? r.close) * 10000) / 10000,
         low:    Math.round((r.low   ?? r.close) * 10000) / 10000,
         volume: r.volume ?? 0,
-      }));
+      }))
+      .filter(r => r.date >= ipoStart);  // IPO前のSPACデータを除外
     console.log(`    ${ticker}: ${filtered.length} bars (${filtered[0]?.date} → ${filtered[filtered.length-1]?.date})`);
     return filtered;
   } catch (e) {
@@ -277,6 +286,26 @@ async function main() {
         console.log(`    ${ticker}: skipped (${data?.length ?? 0} bars < 100)`);
       }
     }
+
+    // 全銘柄の最新の開始日を揃える（時系列アライメント）
+    // 各銘柄の最初の日付を取得し、最も遅い日付を共通開始日とする
+    if (Object.keys(result).length > 0) {
+      const firstDates = Object.entries(result).map(([t, d]) => ({ ticker: t, date: d[0].date }));
+      firstDates.sort((a, b) => a.date < b.date ? 1 : -1);
+      const commonStart = firstDates[0].date;  // 最も遅い開始日
+      console.log(`\n時系列アライメント: 共通開始日 = ${commonStart} (${firstDates[0].ticker} のIPO/開始日)`);
+      for (const ticker of Object.keys(result)) {
+        const before = result[ticker].length;
+        result[ticker] = result[ticker].filter(r => r.date >= commonStart);
+        if (before !== result[ticker].length)
+          console.log(`  ${ticker}: ${before} → ${result[ticker].length} bars (${commonStart}以前を除外)`);
+        if (result[ticker].length < 300) {
+          console.log(`  ${ticker}: skipped after alignment (${result[ticker].length} bars < 300)`);
+          delete result[ticker];
+        }
+      }
+    }
+
     const out = path.join(dir, "price_data.json");
     writeFileSync(out, JSON.stringify(result, null, 0));
     console.log(`\nSaved ${Object.keys(result).length} tickers → price_data.json`);

@@ -2722,51 +2722,33 @@
     "test_max_dd": -7.16
   },
   "portfolio_simulation": {
-    "n_trades": 5,
+    "n_trades": 0,
     "equal": {
-      "final_value": 96.4709,
-      "total_return_pct": -3.53,
-      "max_drawdown_pct": 2.83,
-      "n_trades": 5,
+      "final_value": 100.0,
+      "total_return_pct": 0.0,
+      "max_drawdown_pct": 0.0,
+      "n_trades": 0,
       "sharpe": 0.0,
-      "curve": [
-        100.0,
-        99.284,
-        98.5731,
-        97.8673,
-        97.1666,
-        96.4709
-      ]
+      "cagr": 0.0,
+      "curve": []
     },
     "score_prop": {
-      "final_value": 97.9665,
-      "total_return_pct": -2.03,
-      "max_drawdown_pct": 1.68,
-      "n_trades": 5,
-      "sharpe": -14.6962,
-      "curve": [
-        100.0,
-        99.6376,
-        99.2452,
-        98.8492,
-        98.3242,
-        97.9665
-      ]
+      "final_value": 100.0,
+      "total_return_pct": 0.0,
+      "max_drawdown_pct": 0.0,
+      "n_trades": 0,
+      "sharpe": 0.0,
+      "cagr": 0.0,
+      "curve": []
     },
     "frac_kelly": {
-      "final_value": 97.5812,
-      "total_return_pct": -2.42,
-      "max_drawdown_pct": 2.0,
-      "n_trades": 5,
-      "sharpe": -12.8631,
-      "curve": [
-        100.0,
-        99.5763,
-        99.1118,
-        98.6426,
-        97.9982,
-        97.5812
-      ]
+      "final_value": 100.0,
+      "total_return_pct": 0.0,
+      "max_drawdown_pct": 0.0,
+      "n_trades": 0,
+      "sharpe": 0.0,
+      "cagr": 0.0,
+      "curve": []
     }
   }
 }
