@@ -8,11 +8,19 @@
  *     → スイングトレードバックテストが参照
  *
  *   node backtest/fetch_data.mjs --intraday
- *     → 1時間足を取得
+ *     → 1時間足を取得 (スイングトレード用)
  *     → US株: Alpaca Markets (最大10年, ALPACA_API_KEY が必要)
  *            ALPACA_API_KEY 未設定時は Yahoo Finance フォールバック (最大730日)
  *     → JP株: Yahoo Finance (最大730日)
  *     → backtest/price_data_intraday.json に保存
+ *     → スイングトレードバックテストが参照
+ *
+ *   node backtest/fetch_data.mjs --day
+ *     → 10分足を取得 (デイトレード用, US株のみ)
+ *     → US株: Alpaca Markets (最大10年, ALPACA_API_KEY が必要)
+ *            ALPACA_API_KEY 未設定時は Yahoo Finance フォールバック (最大60日のみ)
+ *     → JP株: 非対応 (Yahoo Finance 10分足は最大60日のみのため除外)
+ *     → backtest/price_data_10min.json に保存 (.gitignore対象、大容量)
  *     → デイトレードバックテストが参照
  *
  * ■ ネットワーク注意
@@ -36,11 +44,12 @@ const YFClass = require("yahoo-finance2").default;
 const yf = new YFClass();
 
 const INTRADAY = process.argv.includes("--intraday");
+const DAY      = process.argv.includes("--day");
 
 // Alpaca credentials (GitHub Secrets 経由で設定)
 const ALPACA_KEY    = process.env.ALPACA_API_KEY    ?? "";
 const ALPACA_SECRET = process.env.ALPACA_API_SECRET ?? "";
-const USE_ALPACA    = INTRADAY && !!ALPACA_KEY && !!ALPACA_SECRET;
+const USE_ALPACA    = (INTRADAY || DAY) && !!ALPACA_KEY && !!ALPACA_SECRET;
 
 // Alpaca IEX feed の最古取得可能日
 const ALPACA_START = "2016-01-01";
@@ -261,11 +270,133 @@ async function fetchAlpacaIntraday(ticker) {
   return rows;
 }
 
+// ── 取得関数: Alpaca Markets 10分足 (US株のみ、最大10年) ──────────────────────
+async function fetchAlpacaDay(ticker) {
+  const end = new Date().toISOString().split("T")[0];
+  console.log(`  Fetching ${ticker} (10min, Alpaca ${ALPACA_START}→${end}) ...`);
+
+  const allBars = [];
+  let pageToken = null;
+  do {
+    const params = new URLSearchParams({
+      timeframe: "10Min",
+      start:     ALPACA_START,
+      end,
+      feed:      "iex",
+      limit:     "10000",
+    });
+    if (pageToken) params.set("page_token", pageToken);
+
+    let res;
+    try {
+      res = await fetch(
+        `https://data.alpaca.markets/v2/stocks/${ticker}/bars?${params}`,
+        { headers: {
+            "APCA-API-KEY-ID":     ALPACA_KEY,
+            "APCA-API-SECRET-KEY": ALPACA_SECRET,
+        }},
+      );
+    } catch (e) {
+      console.error(`    ${ticker}: network error — ${e.message}`);
+      return null;
+    }
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`    ${ticker}: Alpaca ${res.status} — ${text.slice(0, 120)}`);
+      return null;
+    }
+
+    const json = await res.json();
+    allBars.push(...(json.bars ?? []));
+    pageToken = json.next_page_token ?? null;
+    if (pageToken) await new Promise(r => setTimeout(r, 300));
+  } while (pageToken);
+
+  if (allBars.length === 0) {
+    console.log(`    ${ticker}: no data from Alpaca`);
+    return null;
+  }
+
+  const rows = allBars.map(b => ({
+    date:   b.t,
+    close:  Math.round(b.c * 10000) / 10000,
+    open:   Math.round(b.o * 10000) / 10000,
+    high:   Math.round(b.h * 10000) / 10000,
+    low:    Math.round(b.l * 10000) / 10000,
+    volume: b.v ?? 0,
+  }));
+
+  console.log(`    ${ticker}: ${rows.length} 10min bars (${rows[0]?.date?.slice(0,10)} → ${rows[rows.length-1]?.date?.slice(0,10)})`);
+  return rows;
+}
+
 // ── メイン ────────────────────────────────────────────────────────────────────
 async function main() {
   const dir = path.dirname(fileURLToPath(import.meta.url));
 
-  if (INTRADAY) {
+  if (DAY) {
+    // ── 10分足: US=Alpaca(10年) → price_data_10min.json (JP非対応) ──────────
+    const result = {};
+
+    if (USE_ALPACA) {
+      console.log(`\n[US株] Alpaca 10min足 (${US_TICKERS.length}社, 最大10年) ...`);
+      for (const ticker of US_TICKERS) {
+        const data = await fetchAlpacaDay(ticker);
+        if (data && data.length >= 300) {
+          result[ticker] = data;
+        } else {
+          console.log(`    ${ticker}: skipped (${data?.length ?? 0} bars < 300)`);
+        }
+      }
+    } else {
+      const { start, end } = getIntradayRange();
+      console.log(`\n[US株] ALPACA_API_KEY 未設定 → Yahoo Finance fallback (10min, ${start}〜${end}) ...`);
+      console.log(`       ※ Yahoo Finance の10分足は最大60日のみ。バックテストには不十分です。`);
+      for (const ticker of US_TICKERS) {
+        try {
+          const result_yf = await yf.chart(ticker, {
+            period1:  start,
+            period2:  end,
+            interval: "10m",
+          });
+          const quotes = result_yf?.quotes ?? [];
+          const filtered = quotes
+            .filter(r => r.close != null && r.close > 0)
+            .map(r => {
+              const dt = r.date instanceof Date ? r.date : new Date(r.date);
+              return {
+                date:   dt.toISOString(),
+                close:  Math.round(r.close  * 10000) / 10000,
+                open:   Math.round((r.open  ?? r.close) * 10000) / 10000,
+                high:   Math.round((r.high  ?? r.close) * 10000) / 10000,
+                low:    Math.round((r.low   ?? r.close) * 10000) / 10000,
+                volume: r.volume ?? 0,
+              };
+            });
+          if (filtered.length >= 100) {
+            result[ticker] = filtered;
+            console.log(`    ${ticker}: ${filtered.length} 10min bars`);
+          } else {
+            console.log(`    ${ticker}: skipped (${filtered.length} bars < 100)`);
+          }
+        } catch (e) {
+          console.error(`    ${ticker}: FAILED — ${e.message}`);
+        }
+      }
+    }
+
+    const out = path.join(dir, "price_data_10min.json");
+    writeFileSync(out, JSON.stringify(result, null, 0));
+    console.log(`\n保存完了 → price_data_10min.json`);
+    console.log(`  取得銘柄数: ${Object.keys(result).length}/${US_TICKERS.length} (US株のみ)`);
+    for (const [t, d] of Object.entries(result)) {
+      const first = d[0]?.date?.slice(0, 10);
+      const last  = d[d.length - 1]?.date?.slice(0, 10);
+      console.log(`  ${t}: ${d.length} 10min bars (${first} → ${last})`);
+    }
+
+  } else if (INTRADAY) {
     // ── 1時間足: US=Alpaca(10年) / JP=Yahoo(730日) → price_data_intraday.json ──
     const result = {};
 

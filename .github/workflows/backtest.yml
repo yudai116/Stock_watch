@@ -41,24 +41,28 @@ jobs:
           cache: 'npm'
       - name: npm install
         run: npm ci
-      - name: 1時間足データ取得 (Alpaca優先/最大10年, フォールバックYahoo730日) — デイトレ用
+      - name: 1時間足データ取得 (Alpaca優先/最大10年, フォールバックYahoo730日) — スイング用
         run: node backtest/fetch_data.mjs --intraday
         env:
           ALPACA_API_KEY:    ${{ secrets.ALPACA_API_KEY }}
           ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
-      - name: 日足データ取得 (10年, 25銘柄) — スイング用
-        run: node backtest/fetch_data.mjs
-      - name: デイトレ用データをアーティファクトとして保存
-        uses: actions/upload-artifact@v4
-        with:
-          name: price-data
-          path: backtest/price_data_intraday.json
-          retention-days: 1
-      - name: スイング用データをアーティファクトとして保存
+      - name: 10分足データ取得 (Alpaca/最大10年, US株のみ) — デイトレ用
+        if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' || github.event.inputs.mode == '' }}
+        run: node backtest/fetch_data.mjs --day
+        env:
+          ALPACA_API_KEY:    ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+      - name: スイング用データをアーティファクトとして保存 (1時間足)
         uses: actions/upload-artifact@v4
         with:
           name: price-data-swing
-          path: backtest/price_data.json
+          path: backtest/price_data_intraday.json
+          retention-days: 1
+      - name: デイトレ用データをアーティファクトとして保存 (10分足)
+        uses: actions/upload-artifact@v4
+        with:
+          name: price-data-day
+          path: backtest/price_data_10min.json
           retention-days: 1
 
   # ── Job 2: スイング DOE ────────────────────────────────────────────────────
@@ -96,7 +100,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: price-data
+          name: price-data-day
           path: backtest/
       - uses: actions/setup-python@v5
         with:
@@ -443,7 +447,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: price-data
+          name: price-data-day
           path: backtest/
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_0
       - uses: actions/download-artifact@v4
@@ -489,7 +493,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: price-data
+          name: price-data-day
           path: backtest/
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_1
       - uses: actions/download-artifact@v4
@@ -535,7 +539,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: price-data
+          name: price-data-day
           path: backtest/
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_2
       - uses: actions/download-artifact@v4
@@ -581,7 +585,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: price-data
+          name: price-data-day
           path: backtest/
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_3
       - uses: actions/download-artifact@v4
@@ -627,7 +631,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: price-data
+          name: price-data-day
           path: backtest/
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_4
       - uses: actions/download-artifact@v4
@@ -673,7 +677,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: price-data
+          name: price-data-day
           path: backtest/
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_5
       - uses: actions/download-artifact@v4
@@ -719,7 +723,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: price-data
+          name: price-data-day
           path: backtest/
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_final
       - uses: actions/download-artifact@v4
@@ -822,7 +826,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: price-data
+          name: price-data-day
           path: backtest/
       - run: mkdir -p backtest/phase_artifacts
       - uses: actions/download-artifact@v4

@@ -20,3 +20,6 @@ next-env.d.ts
 
 # Claude Code internal
 .claude/
+
+# 大容量バックテストデータ (GitHub Actions で実行時に生成)
+backtest/price_data_10min.json

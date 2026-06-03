@@ -3,8 +3,8 @@
 strategy_search.py v4 — DOE (Taguchi L18) → GA × 全売りルール → Walk-Forward 6折
 
 【モード】
-  --swing : スイング (日足10年, RSI14/MACD12-26/BB20/EMA200/MOM3M(63日)/Stoch14/CCI20/52WK, 47銘柄)
-  --day   : デイトレ (1h足, RSI9/MACD5-13/BB10/EMA9-21/Stoch5/RVOL20/CCI14/VWAP偏差, 38銘柄US)
+  --swing : スイング (1h足2年, RSI14/MACD12-26/BB20/EMA1300/MOM3M(410bar)/Stoch14/CCI20/52WK, 50銘柄)
+  --day   : デイトレ (10分足, RSI9/MACD5-13/BB10/EMA9-21/Stoch5/RVOL20/CCI14/VWAP偏差, 38銘柄US)
   --both  : 両方順番に実行
 
 【パイプライン】
@@ -34,24 +34,24 @@ from pathlib import Path
 import numpy as np
 
 HERE          = Path(__file__).parent
-DATA_FILE_SWING = HERE / "price_data.json"           # 日足 10年
-DATA_FILE_DAY   = HERE / "price_data_intraday.json"  # 1時間足 2年
+DATA_FILE_SWING = HERE / "price_data_intraday.json"  # 1時間足 2年
+DATA_FILE_DAY   = HERE / "price_data_10min.json"     # 10分足 US株
 RESULTS_SWING = HERE / "strategy_results_swing.json"
 RESULTS_DAY   = HERE / "strategy_results_day.json"
 ARTIFACTS_DIR = HERE / "phase_artifacts"
 
 MIN_TRADES     = 30   # 訓練期間の最小取引数
 MIN_TRADES_OOS = 5    # OOS/ホールドアウト評価の最小取引数（短い窓でも記録する）
-BARS_PER_YEAR_DAY   = 1500  # 1h bars/year (US+JP平均)
-BARS_PER_YEAR_SWING = 252   # daily bars/year
+BARS_PER_YEAR_DAY   = 9828  # 10min bars/year (252 × 6.5h × 6本/h)
+BARS_PER_YEAR_SWING = 1638  # 1h bars/year (252 × 6.5h)
 
 # スイング専用パラメータ
 SWING_MIN_TRADES      = 10   # OOS最小トレード数（高閾値でトレード数減少に対応）
 SWING_BUY_THRESHOLDS  = [55, 60, 65, 70, 75]  # 閾値を下げてシグナル数を増やす
 
 # IC+Lift スイング専用パラメータ (GAの代替)
-SWING_IC_WIN        = 120   # ローリングIC窓サイズ (日足: 約6ヶ月)
-SWING_IC_STEP       = 30    # ローリングICスライドステップ (日足: 約1ヶ月)
+SWING_IC_WIN        = 780   # ローリングIC窓サイズ (1h足: 120日 × 6.5h)
+SWING_IC_STEP       = 195   # ローリングICスライドステップ (1h足: 30日 × 6.5h)
 SWING_IC_MIN_ICIR   = 0.05        # 最小IC情報比: 0.03→0.05に戻す（品質優先）
 SWING_LIFT_SIGNAL   = 12.0        # シグナルゾーン下限
 SWING_LIFT_TARGET   = 0.02        # Lift対象リターン: 0.5%→2%（スイング水準に合わせる）
@@ -59,7 +59,7 @@ SWING_LIFT_MIN      = 1.05        # 最小Lift比率: 1.02→1.05（品質優先
 SWING_IC_MIN_VALID  = 3           # 有効指標の最低採用数（厳格化のため4→3）
 SWING_IC_TREND_INDS = {"MACD", "EMA200", "MOM3M"}  # トレンド系指標: 必ず1件以上採用
 # チェックポイントバージョン: アルゴリズムやパラメータ変更時にインクリメント→旧キャッシュ無効化
-SWING_IC_CKPT_VER   = 8     # 7→8: 閾値引下げ(55-75)/RVOL導入/WF6折/銘柄48本
+SWING_IC_CKPT_VER   = 9     # 8→9: スイング1h足移行/EMA1300/52WK1640/MOM3M410
 # 注: per-sell-rule IC+Lift — 各売りルールの実現損益でICを計算するため
 # SWING_FORWARD_KEY は廃止 (run_ic_lift_sell_probe 内で sell_outcomes[sname] を直接使用)
 
@@ -143,9 +143,14 @@ DAY_SELL_RULES: dict[str, dict] = {
 }
 
 SWING_SELL_HOLD = {
-    "target5_stop3": 15, "target10_stop5": 25, "target15_stop5": 35,
-    "target20_stop7": 45, "target15_stop7": 35, "target25_stop10": 60,
-    "trail_5pct": 30,
+    # 1h足換算: 日足の日数 × 6.5h
+    "target5_stop3":   98,   # 15日 × 6.5
+    "target10_stop5": 163,   # 25日 × 6.5
+    "target15_stop5": 228,   # 35日 × 6.5
+    "target20_stop7": 293,   # 45日 × 6.5
+    "target15_stop7": 228,   # 35日 × 6.5
+    "target25_stop10": 390,  # 60日 × 6.5
+    "trail_5pct":     195,   # 30日 × 6.5
 }
 
 DAY_SELL_HOLD = {
@@ -167,19 +172,19 @@ SWING_SELL_JA = {
 }
 
 DAY_SELL_JA = {
-    "hold_2b":        "固定保有 2h",
-    "hold_4b":        "固定保有 4h",
-    "hold_6b":        "固定保有 6h",
-    "hold_8b":        "固定保有 8h",
+    "hold_1b":        "固定保有 10分",
+    "hold_2b":        "固定保有 20分",
+    "hold_4b":        "固定保有 40分",
+    "hold_6b":        "固定保有 1時間",
+    "hold_8b":        "固定保有 80分",
+    "target2_stop1":  "利確+2% / ストップ-1%",
     "target3_stop2":  "利確+3% / ストップ-2%",
     "target5_stop3":  "利確+5% / ストップ-3%",
     "target7_stop4":  "利確+7% / ストップ-4%",
     "target10_stop5": "利確+10% / ストップ-5%",
+    "trail_1pct":     "トレーリングストップ 1%",
     "trail_2pct":     "トレーリングストップ 2%",
     "trail_3pct":     "トレーリングストップ 3%",
-    "hold_1b":       "固定保有 1h",
-    "target2_stop1": "利確+2% / ストップ-1%",
-    "trail_1pct":    "トレーリングストップ 1%",
 }
 
 IND_NAMES_SWING = ["RSI", "MACD", "BB", "EMA200", "MOM3M", "Stoch", "CCI", "52WK"]
@@ -187,8 +192,8 @@ IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "Stoch", "RVOL", "CCI", "VWAP"]
 
 BUY_THRESHOLDS = [45, 50, 55, 60, 65, 70]
 
-MAX_HOLD_BARS_SWING = 60   # 日足: 最大60取引日 (約3ヶ月)
-MAX_HOLD_BARS_DAY   = 20
+MAX_HOLD_BARS_SWING = 130  # 1h足: 最大20取引日 (20 × 6.5h)
+MAX_HOLD_BARS_DAY   = 39   # 10分足: 最大1取引日 (6.5h × 6本/h)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 1. データ読み込み
@@ -196,7 +201,7 @@ MAX_HOLD_BARS_DAY   = 20
 
 def load_data(mode: str) -> dict[str, dict]:
     data_file = DATA_FILE_SWING if mode == "swing" else DATA_FILE_DAY
-    fetch_cmd = "node backtest/fetch_data.mjs" if mode == "swing" else "node backtest/fetch_data.mjs --intraday"
+    fetch_cmd = "node backtest/fetch_data.mjs --intraday" if mode == "swing" else "node backtest/fetch_data.mjs --day"
     if not data_file.exists() or data_file.stat().st_size < 100:
         print(f"ERROR: {data_file.name} が見つかりません。")
         print(f"  {fetch_cmd}  を実行してください")
@@ -551,15 +556,16 @@ def compute_ind_scores(td: dict, mode: str) -> np.ndarray:
         rsi_v      = calc_rsi(c, 14)
         ml, sl, hl = calc_macd(c, 12, 26, 9)
         pb         = calc_bb(c, 20)
-        ema200     = _ema(c, 200)
+        # 1h足換算: 200日EMA → 1300bar (200 × 6.5h)
+        ema200     = _ema(c, 1300)
         sk, sd     = calc_stoch(c, h, lo, 14, 3)
         cci        = calc_cci(c, h, lo, 20)
-        # 中長期指標: EMA200乖離, 3ヶ月モメンタム, 52週レンジポジション
+        # 中長期指標: EMA乖離, 3ヶ月モメンタム(410bar=63日), 52週レンジ(1640bar=252日)
         return np.stack([
-            score_rsi(rsi_v),    score_macd(ml, sl, hl),
-            score_bb(pb),        score_ema200(c, ema200),
-            score_mom3m(c, 63),  score_stoch(sk, sd),
-            score_cci(cci),      score_52wk(c, h, lo, 252),
+            score_rsi(rsi_v),      score_macd(ml, sl, hl),
+            score_bb(pb),          score_ema200(c, ema200),
+            score_mom3m(c, 410),   score_stoch(sk, sd),
+            score_cci(cci),        score_52wk(c, h, lo, 1640),
         ], axis=0)
     else:  # day
         rsi_v            = calc_rsi(c, 9)
@@ -1813,7 +1819,7 @@ def run_phase_assemble(mode: str) -> None:
         "version":       7,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
-        "data_source":   "price_data.json (日足)" if mode == "swing" else "price_data_intraday.json (1h足)",
+        "data_source":   "price_data_intraday.json (1h足)" if mode == "swing" else "price_data_10min.json (10分足)",
         "n_tickers":     len(ticker_data),
         "tickers":       list(ticker_data.keys()),
         "n_evaluated":   len(all_results),
@@ -2074,7 +2080,7 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
         "version":       6,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
-        "data_source":   "price_data.json (日足)" if mode == "swing" else "price_data_intraday.json (1h足)",
+        "data_source":   "price_data_intraday.json (1h足)" if mode == "swing" else "price_data_10min.json (10分足)",
         "n_tickers":     len(ticker_data),
         "tickers":       list(ticker_data.keys()),
         "n_evaluated":   len(all_results),
