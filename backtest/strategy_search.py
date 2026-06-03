@@ -740,6 +740,140 @@ def detailed_eval_single(ticker_data: dict, w: np.ndarray, sell_name: str,
         "max_dd":      round((min_ret if min_ret < np.inf else 0.) * 100, 3),
     }
 
+
+def collect_trade_records(ticker_data: dict, w: np.ndarray, sell_name: str,
+                           threshold: int, t_start: int, t_end: int,
+                           crossover_only: bool = True) -> list[dict]:
+    """ポートフォリオシミュレーション用の個別取引記録を収集する。"""
+    records = []
+    wm = w.reshape(1, 8).astype(np.float32)
+    for ticker, td in ticker_data.items():
+        ind   = td["ind_scores"][:, t_start:t_end].astype(np.float32)
+        sout  = td["sell_outcomes"][sell_name][t_start:t_end].astype(np.float32)
+        vmask = td["vol_ok"][t_start:t_end]
+        if "edge_bar" in td:
+            vmask = vmask & ~td["edge_bar"][t_start:t_end]
+        valid = ~np.isnan(sout) & vmask
+        comp  = (wm @ ind)[0]
+        if crossover_only:
+            above = comp >= threshold
+            prev_above = np.roll(above, 1); prev_above[0] = False
+            mask = above & ~prev_above & valid
+        else:
+            mask = (comp >= threshold) & valid
+        bar_indices = np.where(mask)[0]
+        for bar_idx in bar_indices:
+            ret = float(sout[bar_idx])
+            if not np.isnan(ret):
+                records.append({
+                    "bar":    int(t_start + bar_idx),
+                    "ticker": ticker,
+                    "score":  float(comp[bar_idx]),
+                    "return": ret,
+                })
+    records.sort(key=lambda x: x["bar"])
+    return records
+
+
+def simulate_portfolio(records: list[dict], threshold: int, method: str,
+                        initial: float = 100.0) -> dict:
+    """
+    3手法でポートフォリオ成長をシミュレートする。
+      equal      : 全トレード均等サイズ (ベースライン)
+      score_prop : スコア比例 (閾値=0.5x → スコア100=2x)
+      frac_kelly : 分数ケリー基準 (kelly_f=0.35, max_position=0.50)
+
+    リスク制御:
+      - max_position=0.50 : 1トレードの最大ポジション比率50%
+      - dd_brake: ドローダウン>20%時にポジション半減 (破滅的損失防止)
+    """
+    MAX_POSITION = 0.50
+    DD_BRAKE_THRESHOLD = 0.20
+    DD_BRAKE_FACTOR = 0.50
+    KELLY_F = 0.35
+    BASE_FRACTION = 0.10
+
+    if not records:
+        return {"final_value": initial, "total_return_pct": 0., "max_drawdown_pct": 0.,
+                "n_trades": 0, "sharpe": 0., "cagr": 0., "curve": []}
+
+    portfolio = initial
+    peak = initial
+    max_dd = 0.
+    returns_list: list[float] = []
+    curve: list[float] = [round(initial, 4)]
+
+    # group by bar to handle same-bar entries (apply them sequentially)
+    from itertools import groupby
+    for _bar, group in groupby(records, key=lambda x: x["bar"]):
+        trades = list(group)
+        for rec in trades:
+            score = rec["score"]
+            trade_ret = rec["return"]   # fractional return, e.g. 0.15 = +15%
+
+            # drawdown brake
+            dd = (peak - portfolio) / peak if peak > 0 else 0.
+            max_dd = max(max_dd, dd)
+            brake = DD_BRAKE_FACTOR if dd >= DD_BRAKE_THRESHOLD else 1.0
+
+            if method == "equal":
+                fraction = BASE_FRACTION * brake
+
+            elif method == "score_prop":
+                # 閾値でBASE_FRACTION × 0.5x, スコア100で BASE_FRACTION × 2x
+                score_range = max(100.0 - threshold, 1.0)
+                norm = (score - threshold) / score_range
+                norm = max(0.0, min(1.0, norm))
+                multiplier = 0.5 + 1.5 * norm   # 0.5x → 2.0x
+                fraction = BASE_FRACTION * multiplier * brake
+
+            elif method == "frac_kelly":
+                # ケリー公式近似: f = (p*(b+1) - 1) / b
+                # ここでは b=avg_win/avg_loss の代わりに score正規化を使用
+                # win_prob ≈ 0.5 + 0.5*(score-threshold)/(100-threshold)
+                score_range = max(100.0 - threshold, 1.0)
+                norm = (score - threshold) / score_range
+                norm = max(0.0, min(1.0, norm))
+                p = 0.50 + 0.35 * norm   # win_prob 0.50~0.85
+                b = 1.5                   # 想定ペイオフ比 (avg win / avg loss)
+                kelly_raw = (p * (b + 1) - 1) / b if b > 0 else 0.
+                fraction = max(0., KELLY_F * kelly_raw) * brake
+
+            else:
+                fraction = BASE_FRACTION * brake
+
+            fraction = min(fraction, MAX_POSITION)
+            pnl = portfolio * fraction * trade_ret
+            portfolio += pnl
+            portfolio = max(portfolio, 0.001)   # 破産フロア
+
+            if portfolio > peak:
+                peak = portfolio
+            returns_list.append(pnl / (portfolio - pnl) if abs(portfolio - pnl) > 1e-10 else 0.)
+            curve.append(round(portfolio, 4))
+
+    total_return = (portfolio - initial) / initial * 100.0
+    n = len(returns_list)
+    if n > 1:
+        arr = np.array(returns_list)
+        avg_r = float(arr.mean())
+        std_r = float(arr.std())
+        # annualize by sqrt(n) capped at sqrt(252) — avoids blow-up with few trades
+        ann_factor = np.sqrt(min(n, 252))
+        sharpe = avg_r / std_r * ann_factor if std_r > 1e-10 else 0.
+    else:
+        sharpe = 0.
+
+    return {
+        "final_value":       round(portfolio, 4),
+        "total_return_pct":  round(total_return, 2),
+        "max_drawdown_pct":  round(max_dd * 100, 2),
+        "n_trades":          n,
+        "sharpe":            round(sharpe, 4),
+        "curve":             curve[::max(1, len(curve) // 200)],  # 最大200点に間引き
+    }
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # 8. DOE 主効果分析 (Taguchi L18)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1599,6 +1733,16 @@ def run_phase_assemble(mode: str) -> None:
                                       crossover_only=co, bars_per_year=bpy)
     overfit_ratio = round(test_shp / train_shp, 4) if abs(train_shp) > 1e-6 else 0.
 
+    print("  ポートフォリオシミュレーション (均等/スコア比例/ケリー)...")
+    trade_recs = collect_trade_records(ticker_data, best_w, best_sell, best_thresh,
+                                        t_holdout, T_min, crossover_only=co)
+    port_sim = {
+        "n_trades":   len(trade_recs),
+        "equal":      simulate_portfolio(trade_recs, best_thresh, "equal"),
+        "score_prop": simulate_portfolio(trade_recs, best_thresh, "score_prop"),
+        "frac_kelly": simulate_portfolio(trade_recs, best_thresh, "frac_kelly"),
+    }
+
     print("  売りルールランキング評価中...")
     sell_stats: list[dict] = []
     for sname in sell_rules:
@@ -1709,6 +1853,7 @@ def run_phase_assemble(mode: str) -> None:
             "best_threshold":         best_thresh,
             "convergence":            [round(v, 4) for v in convergence],
         },
+        "portfolio_simulation": port_sim,
         "ic_lift_results": ic_lift_results,
         "walk_forward": {
             "n_folds":         n_wf_folds,
