@@ -48,12 +48,20 @@ jobs:
           ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
       - name: JP 1時間足データ取得 (Yahoo/730日, JP12銘柄) — JP OOSテスト用
         run: node backtest/fetch_data.mjs --intraday-jp
-      - name: 10分足データ取得 (Alpaca/最大10年, US株のみ) — デイトレ用
+      - name: 10分足データ取得 US (Alpaca/最大10年) — デイトレ用
         if: ${{ github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' || github.event.inputs.mode == '' }}
         run: node backtest/fetch_data.mjs --day
         env:
           ALPACA_API_KEY:    ${{ secrets.ALPACA_API_KEY }}
           ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+      - name: 10分足データ取得 JP (J-Quants/2年) — デイトレ用 (JQUANTS_EMAIL 設定時のみ)
+        if: ${{ (github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' || github.event.inputs.mode == '') && secrets.JQUANTS_EMAIL != '' }}
+        run: |
+          pip install requests --quiet
+          python backtest/fetch_data_jquants.py
+        env:
+          JQUANTS_EMAIL:    ${{ secrets.JQUANTS_EMAIL }}
+          JQUANTS_PASSWORD: ${{ secrets.JQUANTS_PASSWORD }}
       - name: スイング用データをアーティファクトとして保存 (US 1時間足)
         uses: actions/upload-artifact@v4
         with:
@@ -66,12 +74,19 @@ jobs:
           name: price-data-swing-jp
           path: backtest/price_data_intraday_jp.json
           retention-days: 1
-      - name: デイトレ用データをアーティファクトとして保存 (10分足)
+      - name: デイトレ用データをアーティファクトとして保存 (US 10分足)
         uses: actions/upload-artifact@v4
         with:
           name: price-data-day
           path: backtest/price_data_10min.json
           retention-days: 1
+      - name: デイトレ用データをアーティファクトとして保存 (JP 10分足, 存在する場合)
+        uses: actions/upload-artifact@v4
+        with:
+          name: price-data-day-jp
+          path: backtest/price_data_10min_jp.json
+          retention-days: 1
+        continue-on-error: true
 
   # ── Job 2: スイング DOE ────────────────────────────────────────────────────
   swing-doe:
@@ -110,6 +125,12 @@ jobs:
         with:
           name: price-data-day
           path: backtest/
+      - name: JP 10分足データを取得 (存在する場合)
+        uses: actions/download-artifact@v4
+        with:
+          name: price-data-day-jp
+          path: backtest/
+        continue-on-error: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -457,6 +478,12 @@ jobs:
         with:
           name: price-data-day
           path: backtest/
+      - name: JP 10分足データを取得 (存在する場合)
+        uses: actions/download-artifact@v4
+        with:
+          name: price-data-day-jp
+          path: backtest/
+        continue-on-error: true
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_0
       - uses: actions/download-artifact@v4
         with:
@@ -503,6 +530,12 @@ jobs:
         with:
           name: price-data-day
           path: backtest/
+      - name: JP 10分足データを取得 (存在する場合)
+        uses: actions/download-artifact@v4
+        with:
+          name: price-data-day-jp
+          path: backtest/
+        continue-on-error: true
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_1
       - uses: actions/download-artifact@v4
         with:
@@ -549,6 +582,12 @@ jobs:
         with:
           name: price-data-day
           path: backtest/
+      - name: JP 10分足データを取得 (存在する場合)
+        uses: actions/download-artifact@v4
+        with:
+          name: price-data-day-jp
+          path: backtest/
+        continue-on-error: true
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_2
       - uses: actions/download-artifact@v4
         with:
@@ -595,6 +634,12 @@ jobs:
         with:
           name: price-data-day
           path: backtest/
+      - name: JP 10分足データを取得 (存在する場合)
+        uses: actions/download-artifact@v4
+        with:
+          name: price-data-day-jp
+          path: backtest/
+        continue-on-error: true
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_3
       - uses: actions/download-artifact@v4
         with:
@@ -641,6 +686,12 @@ jobs:
         with:
           name: price-data-day
           path: backtest/
+      - name: JP 10分足データを取得 (存在する場合)
+        uses: actions/download-artifact@v4
+        with:
+          name: price-data-day-jp
+          path: backtest/
+        continue-on-error: true
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_4
       - uses: actions/download-artifact@v4
         with:
@@ -687,6 +738,12 @@ jobs:
         with:
           name: price-data-day
           path: backtest/
+      - name: JP 10分足データを取得 (存在する場合)
+        uses: actions/download-artifact@v4
+        with:
+          name: price-data-day-jp
+          path: backtest/
+        continue-on-error: true
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_5
       - uses: actions/download-artifact@v4
         with:
@@ -733,6 +790,12 @@ jobs:
         with:
           name: price-data-day
           path: backtest/
+      - name: JP 10分足データを取得 (存在する場合)
+        uses: actions/download-artifact@v4
+        with:
+          name: price-data-day-jp
+          path: backtest/
+        continue-on-error: true
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_final
       - uses: actions/download-artifact@v4
         with:
@@ -875,6 +938,12 @@ jobs:
         with:
           name: final-day
           path: backtest/phase_artifacts/
+      - name: JP 10分足データを取得 (存在する場合)
+        uses: actions/download-artifact@v4
+        with:
+          name: price-data-day-jp
+          path: backtest/
+        continue-on-error: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'

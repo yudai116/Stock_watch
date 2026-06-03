@@ -34,9 +34,10 @@ from pathlib import Path
 import numpy as np
 
 HERE          = Path(__file__).parent
-DATA_FILE_SWING = HERE / "price_data_intraday.json"  # 1時間足 2年
-DATA_FILE_DAY   = HERE / "price_data_10min.json"     # 10分足 US株
-DATA_FILE_SWING_JP = HERE / "price_data_intraday_jp.json"  # JP株 1h足 2年 (OOSテスト用)
+DATA_FILE_SWING    = HERE / "price_data_intraday.json"     # 1時間足 US株 (スイング最適化用)
+DATA_FILE_DAY      = HERE / "price_data_10min.json"        # 10分足 US株 (デイトレ用)
+DATA_FILE_DAY_JP   = HERE / "price_data_10min_jp.json"     # 10分足 JP株 (デイトレ用, J-Quants)
+DATA_FILE_SWING_JP = HERE / "price_data_intraday_jp.json"  # 1時間足 JP株 (スイングOOSテスト用)
 RESULTS_SWING = HERE / "strategy_results_swing.json"
 RESULTS_DAY   = HERE / "strategy_results_day.json"
 ARTIFACTS_DIR = HERE / "phase_artifacts"
@@ -201,25 +202,74 @@ MAX_HOLD_BARS_DAY   = 39   # 10分足: 最大1取引日 (6.5h × 6本/h)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def load_data(mode: str) -> dict[str, dict]:
-    data_file = DATA_FILE_SWING if mode == "swing" else DATA_FILE_DAY
-    fetch_cmd = "node backtest/fetch_data.mjs --intraday" if mode == "swing" else "node backtest/fetch_data.mjs --day"
-    if not data_file.exists() or data_file.stat().st_size < 100:
-        print(f"ERROR: {data_file.name} が見つかりません。")
-        print(f"  {fetch_cmd}  を実行してください")
+    if mode == "swing":
+        if not DATA_FILE_SWING.exists() or DATA_FILE_SWING.stat().st_size < 100:
+            print("ERROR: price_data_intraday.json が見つかりません。")
+            print("  node backtest/fetch_data.mjs --intraday  を実行してください")
+            sys.exit(1)
+        raw = json.loads(DATA_FILE_SWING.read_text())
+        result = {}
+        for ticker, rows in raw.items():
+            if len(rows) < 300:
+                print(f"  SKIP {ticker}: {len(rows)} bars < 300")
+                continue
+            result[ticker] = {
+                "closes":  np.array([r["close"]          for r in rows], dtype=np.float64),
+                "opens":   np.array([r["open"]           for r in rows], dtype=np.float64),
+                "highs":   np.array([r["high"]           for r in rows], dtype=np.float64),
+                "lows":    np.array([r["low"]            for r in rows], dtype=np.float64),
+                "volumes": np.array([r.get("volume", 0)  for r in rows], dtype=np.float64),
+                "dates":   [r["date"] for r in rows],
+                "cost":    cost_rate(ticker),
+            }
+        return result
+
+    # day モード: US株 (Alpaca/最大10年) + JP株 (J-Quants/2年) を結合
+    # US と JP では取得期間が異なるため、最も遅い開始日に揃えてから使用する。
+    if not DATA_FILE_DAY.exists() or DATA_FILE_DAY.stat().st_size < 100:
+        print("ERROR: price_data_10min.json が見つかりません。")
+        print("  node backtest/fetch_data.mjs --day  を実行してください")
         sys.exit(1)
-    raw = json.loads(data_file.read_text())
+
+    raw_us = json.loads(DATA_FILE_DAY.read_text())
+    raw_jp: dict = {}
+    if DATA_FILE_DAY_JP.exists() and DATA_FILE_DAY_JP.stat().st_size > 100:
+        raw_jp = json.loads(DATA_FILE_DAY_JP.read_text())
+        print(f"  JP株データ読み込み: {len(raw_jp)} 銘柄 (price_data_10min_jp.json)")
+    else:
+        print("  price_data_10min_jp.json が見つかりません → US株のみでデイトレ最適化を行います")
+        print("  JP株を含めるには: python backtest/fetch_data_jquants.py を実行してください")
+
+    raw_all = {**raw_us, **raw_jp}
+
+    # 各ティッカーの開始日を収集し、最も遅い日を共通開始日とする
+    # (Alpaca US は2016〜, J-Quants JP は2年分のため混在すると時刻がずれる)
+    start_dates: dict[str, str] = {}
+    for ticker, rows in raw_all.items():
+        if len(rows) >= 300:
+            start_dates[ticker] = rows[0]["date"][:10]
+
+    if not start_dates:
+        print("ERROR: 有効なデータがありません")
+        sys.exit(1)
+
+    common_start = max(start_dates.values())
+    print(f"  共通開始日: {common_start} (最も遅いティッカーに揃えた)")
+
     result = {}
-    for ticker, rows in raw.items():
-        if len(rows) < 300:
-            print(f"  SKIP {ticker}: {len(rows)} bars < 300")
+    for ticker, rows in raw_all.items():
+        # 共通開始日以降のバーのみ使用
+        trimmed = [r for r in rows if r["date"][:10] >= common_start]
+        if len(trimmed) < 300:
+            print(f"  SKIP {ticker}: トリム後 {len(trimmed)} bars < 300")
             continue
         result[ticker] = {
-            "closes":  np.array([r["close"]  for r in rows], dtype=np.float64),
-            "opens":   np.array([r["open"]   for r in rows], dtype=np.float64),
-            "highs":   np.array([r["high"]   for r in rows], dtype=np.float64),
-            "lows":    np.array([r["low"]    for r in rows], dtype=np.float64),
-            "volumes": np.array([r.get("volume", 0) for r in rows], dtype=np.float64),
-            "dates":   [r["date"] for r in rows],
+            "closes":  np.array([r["close"]          for r in trimmed], dtype=np.float64),
+            "opens":   np.array([r["open"]           for r in trimmed], dtype=np.float64),
+            "highs":   np.array([r["high"]           for r in trimmed], dtype=np.float64),
+            "lows":    np.array([r["low"]            for r in trimmed], dtype=np.float64),
+            "volumes": np.array([r.get("volume", 0)  for r in trimmed], dtype=np.float64),
+            "dates":   [r["date"] for r in trimmed],
             "cost":    cost_rate(ticker),
         }
     return result
