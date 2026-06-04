@@ -1,0 +1,161 @@
+name: PDCAループ 検証役＋チェッカー自動実行
+
+# バックテスト完了後に自動トリガー
+on:
+  workflow_run:
+    workflows: ["バックテスト実行（実データ・22ジョブ並列）"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+
+  # ── バックテスト成功時のみ実行 ─────────────────────────────────────────────
+  verify-and-improve:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Python セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 依存ライブラリインストール
+        run: pip install numpy anthropic --quiet
+
+      - name: Node.js セットアップ（Claude Code CLI用）
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Claude Code CLI インストール
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: 結果ファイル確認
+        run: |
+          echo "=== 利用可能な結果ファイル ==="
+          ls -la backtest/strategy_results_*.json 2>/dev/null || echo "結果ファイルなし"
+          ls -la backtest/pdca_state.json 2>/dev/null || echo "pdca_state.json なし"
+
+      # ── Step 1: チェッカー実行（改善前の現状を確認）─────────────────────────
+      - name: チェッカー実行（実装の整合性確認）
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_MAX_OUTPUT_TOKENS: "8000"
+        run: |
+          echo "=== チェッカー起動 (claude-opus-4-8) ==="
+          claude --model claude-opus-4-8 \
+                 --print "$(cat backtest/VERIFICATION_CHECKER.md)" \
+                 --allowedTools "Bash,Read" \
+                 --no-interactive \
+            > /tmp/checker_result.txt 2>&1 || true
+          cat /tmp/checker_result.txt
+          echo "CHECKER_DONE=1" >> $GITHUB_ENV
+
+      # ── Step 2: 検証役実行（改善案を提案・実装）──────────────────────────────
+      - name: 検証役実行（改善案の提案と実装）
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_MAX_OUTPUT_TOKENS: "16000"
+        run: |
+          echo "=== 検証役起動 (claude-opus-4-8) ==="
+          CHECKER_OUT=$(cat /tmp/checker_result.txt)
+          SPEC=$(cat backtest/VERIFICATION_SPEC.md)
+          STATE=$(cat backtest/pdca_state.json 2>/dev/null || echo '{}')
+
+          PROMPT="${SPEC}
+
+---
+
+## 今回の指示
+
+上記の仕様書に従って、以下の順番で作業してください。
+
+### 現在のチェッカー結果
+\`\`\`
+${CHECKER_OUT}
+\`\`\`
+
+### 現在の実験状態
+\`\`\`json
+${STATE}
+\`\`\`
+
+1. \`backtest/strategy_search.py\` を読む
+2. 上記チェッカー結果と実験状態から問題点を特定する
+3. VERIFICATION_SPEC.md の Step 3 フォーマットで改善案を立案する
+4. \`backtest/strategy_search.py\` に改善を実装する（コードを直接編集すること）
+5. 編集が完了したら「実装完了」と報告する
+
+重要: コードを実際に編集すること。提案だけでは不十分。"
+
+          claude --model claude-opus-4-8 \
+                 --print "$PROMPT" \
+                 --allowedTools "Bash,Read,Edit,Write" \
+                 --no-interactive \
+            > /tmp/verify_result.txt 2>&1 || true
+          cat /tmp/verify_result.txt
+
+      # ── Step 3: チェッカー再実行（改善後の確認）──────────────────────────────
+      - name: チェッカー再実行（改善後の確認）
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_MAX_OUTPUT_TOKENS: "8000"
+        run: |
+          echo "=== チェッカー再実行 ==="
+          claude --model claude-opus-4-8 \
+                 --print "$(cat backtest/VERIFICATION_CHECKER.md)" \
+                 --allowedTools "Bash,Read" \
+                 --no-interactive \
+            > /tmp/checker_result2.txt 2>&1 || true
+          cat /tmp/checker_result2.txt
+
+          # PASS/FAIL 判定
+          if grep -q "RESULT: PASS" /tmp/checker_result2.txt; then
+            echo "CHECKER_PASS=1" >> $GITHUB_ENV
+            echo "✅ チェッカー: PASS"
+          elif grep -q "RESULT: WARN" /tmp/checker_result2.txt; then
+            echo "CHECKER_PASS=1" >> $GITHUB_ENV
+            echo "⚠️ チェッカー: WARN（プッシュ続行）"
+          else
+            echo "CHECKER_PASS=0" >> $GITHUB_ENV
+            echo "❌ チェッカー: FAIL"
+          fi
+
+      # ── Step 4: 改善をコミット & プッシュ ─────────────────────────────────────
+      - name: 改善をコミット & プッシュ
+        if: ${{ env.CHECKER_PASS == '1' }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add backtest/strategy_search.py
+          git diff --staged --quiet && echo "変更なし（改善不要）" || (
+            VERIFY_SUMMARY=$(grep -A3 "改善案 #" /tmp/verify_result.txt | head -10 | tr '\n' ' ' | cut -c1-100)
+            git commit -m "improve: 検証役による自動改善 — ${VERIFY_SUMMARY}" &&
+            for i in 1 2 3 4 5; do
+              git pull --rebase origin main && git push origin main && break
+              echo "Push retry $i/5, waiting $((i*3))s..." && sleep $((i*3))
+            done &&
+            echo "✅ 改善をプッシュしました（次のバックテストで検証されます）"
+          )
+
+      # ── Step 5: レポートをアーティファクトとして保存 ─────────────────────────
+      - name: 検証レポートを保存
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdca-verify-report
+          path: |
+            /tmp/checker_result.txt
+            /tmp/verify_result.txt
+            /tmp/checker_result2.txt
+          retention-days: 7
