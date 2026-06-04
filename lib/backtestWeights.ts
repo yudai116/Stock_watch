@@ -20,22 +20,22 @@ export const SWING_META = {
   version: 15,
 };
 
-// day v15: 2026-06-04 11:11  (VWAP excluded — not computable from daily bars)
+// day v15: 2026-06-04 11:53  (VWAP excluded — not computable from daily bars)
 export const DAY_WEIGHTS: Record<string, number> = {
-  RSI: 0.1711,
-  MACD: 0.0059,
-  BB: 0.5015,
-  MA: 0.1082,
-  RVOL: 0.9243,
-  VWAP_B: 0.2085,
-  ORB: 0.8004,
-  MOM3B: 1.2802,
+  RSI: 0.0405,
+  MACD: 0.0787,
+  BB: 0.388,
+  MA: 0.5445,
+  RVOL: 1.1885,
+  VWAP_B: 0.0539,
+  ORB: 0.0281,
+  MOM3B: 1.6778,
 };
 
 export const DAY_META = {
-  generatedAt: "2026-06-04 11:11",
-  bestSharpe: 36.5558,
-  avgOosSharpe: -0.4384,
+  generatedAt: "2026-06-04 11:53",
+  bestSharpe: 47.3182,
+  avgOosSharpe: 10.7914,
   bestSellRule: "hold_2b",
   version: 15,
 };
