@@ -647,12 +647,12 @@ def score_rsi_bull(r: np.ndarray) -> np.ndarray:
     過学習防止: ピーク幅±15(35-70)を広くとり急峻な山を避ける。
     設計根拠: RSI>50=強気トレンド継続, 50-70=モメンタムゾーン, >75=過熱リスク。"""
     s = np.where(r < 35,  0.,
-        np.where(r < 50, (r - 35) / 15 * 10.,
-        np.where(r < 65, 10. + (r - 50) / 15 * 5.,
-        np.where(r < 70, 15.,
-        np.where(r < 80, 15. - (r - 70) / 10 * 12.,
-        np.maximum(0., 3. - (r - 80) / 10 * 3.))))))
-    return np.clip(np.where(np.isnan(r), 0., s), 0., 15.)
+        np.where(r < 50, (r - 35) / 15 * 17.,
+        np.where(r < 65, 17. + (r - 50) / 15 * 8.,
+        np.where(r < 70, 25.,
+        np.where(r < 80, 25. - (r - 70) / 10 * 20.,
+        np.maximum(0., 5. - (r - 80) / 10 * 5.))))))
+    return np.clip(np.where(np.isnan(r), 0., s), 0., 25.)
 
 
 def score_bb_bull(pb: np.ndarray) -> np.ndarray:
@@ -661,12 +661,12 @@ def score_bb_bull(pb: np.ndarray) -> np.ndarray:
     過学習防止: 0.3-0.8 の広い範囲を優遇、上限帯(>0.85)は急落。
     設計根拠: 上位バンド近く(>0.8)は過熱、下位(<0.3)はORBと矛盾。"""
     s = np.where(pb < 0.1,  0.,
-        np.where(pb < 0.4,  (pb - 0.1) / 0.3 * 10.,
-        np.where(pb < 0.6,  10. + (pb - 0.4) / 0.2 * 5.,
-        np.where(pb < 0.75, 15.,
-        np.where(pb < 0.85, 15. - (pb - 0.75) / 0.1 * 10.,
-        np.maximum(0., 5. - (pb - 0.85) / 0.15 * 5.))))))
-    return np.clip(np.where(np.isnan(pb), 0., s), 0., 15.)
+        np.where(pb < 0.4,  (pb - 0.1) / 0.3 * 17.,
+        np.where(pb < 0.6,  17. + (pb - 0.4) / 0.2 * 8.,
+        np.where(pb < 0.75, 25.,
+        np.where(pb < 0.85, 25. - (pb - 0.75) / 0.1 * 17.,
+        np.maximum(0., 8. - (pb - 0.85) / 0.15 * 8.))))))
+    return np.clip(np.where(np.isnan(pb), 0., s), 0., 25.)
 
 
 def score_relvol(volumes: np.ndarray, period: int = 20) -> np.ndarray:
@@ -674,8 +674,8 @@ def score_relvol(volumes: np.ndarray, period: int = 20) -> np.ndarray:
     sma_v = _sma(volumes, period)
     valid = ~np.isnan(sma_v) & (sma_v > 0)
     rvol  = np.where(valid, volumes / np.where(sma_v > 0, sma_v, 1.), np.nan)
-    s = np.where(rvol > 3.0, 22.,
-        np.where(rvol > 2.0, 16. + (rvol - 2.0) * 6.,
+    s = np.where(rvol > 3.0, 25.,
+        np.where(rvol > 2.0, 16. + (rvol - 2.0) * 9.,
         np.where(rvol > 1.5, 11. + (rvol - 1.5) / 0.5 * 5.,
         np.where(rvol > 1.0,  7. + (rvol - 1.0) / 0.5 * 4.,
         np.where(rvol > 0.7,  3. + (rvol - 0.7) / 0.3 * 4.,
@@ -962,8 +962,9 @@ def detailed_eval_single(ticker_data: dict, w: np.ndarray, sell_name: str,
                           t_start: int, t_end: int,
                           crossover_only: bool = False,
                           bars_per_year: int = BARS_PER_YEAR_DAY) -> dict:
-    """単一重みベクトルの詳細評価 (n_trades / win_rate / avg_return / max_dd)"""
+    """単一重みベクトルの詳細評価 (n_trades / win_rate / avg_return / max_dd / profit_factor)"""
     n = 0; s = 0.; sq = 0.; wins = 0; min_ret = np.inf
+    gross_win = 0.; gross_loss = 0.
     wm = w.reshape(1, 8).astype(np.float32)
     for td in ticker_data.values():
         ind   = td["ind_scores"][:, t_start:t_end].astype(np.float32)
@@ -987,19 +988,23 @@ def detailed_eval_single(ticker_data: dict, w: np.ndarray, sell_name: str,
         sq   += float((tr**2).sum())
         wins += int((tr > 0).sum())
         min_ret = min(min_ret, float(tr.min()))
+        gross_win  += float(tr[tr > 0].sum()) if (tr > 0).any() else 0.
+        gross_loss += float(abs(tr[tr < 0].sum())) if (tr < 0).any() else 0.
     if n == 0:
-        return {"sharpe": 0., "n_trades": 0, "win_rate": 0., "avg_return": 0., "max_dd": 0.}
+        return {"sharpe": 0., "n_trades": 0, "win_rate": 0., "avg_return": 0., "max_dd": 0., "profit_factor": 0.}
     avg = s / n
     var = sq / n - avg**2
     std = np.sqrt(max(var, 0.))
     factor = np.sqrt(bars_per_year / max(hold_bars, 1))
     sharpe = (avg / std * factor) if std > 1e-10 else 0.
+    pf = round(gross_win / gross_loss, 4) if gross_loss > 1e-8 else (9.999 if gross_win > 0 else 0.)
     return {
-        "sharpe":      round(float(sharpe), 4),
-        "n_trades":    n,
-        "win_rate":    round(wins / n, 4),
-        "avg_return":  round(avg * 100, 3),
-        "max_dd":      round((min_ret if min_ret < np.inf else 0.) * 100, 3),
+        "sharpe":        round(float(sharpe), 4),
+        "n_trades":      n,
+        "win_rate":      round(wins / n, 4),
+        "avg_return":    round(avg * 100, 3),
+        "max_dd":        round((min_ret if min_ret < np.inf else 0.) * 100, 3),
+        "profit_factor": pf,
     }
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -2000,11 +2005,12 @@ def run_phase_assemble(mode: str) -> None:
             "train_bars":      t_holdout,
             "test_bars":       T_min - t_holdout,
             "train_sharpe":    round(train_shp, 4),
-            "test_sharpe":     round(test_shp, 4),
-            "test_win_rate":   round(test_stats["win_rate"], 4),
-            "test_n_trades":   test_stats["n_trades"],
-            "test_avg_return": round(test_stats["avg_return"], 3),
-            "test_max_dd":     round(test_stats["max_dd"], 3),
+            "test_sharpe":        round(test_shp, 4),
+            "test_win_rate":      round(test_stats["win_rate"], 4),
+            "test_n_trades":      test_stats["n_trades"],
+            "test_avg_return":    round(test_stats["avg_return"], 3),
+            "test_max_dd":        round(test_stats["max_dd"], 3),
+            "test_profit_factor": round(test_stats.get("profit_factor", 0.), 4),
         },
     }
     out_file.write_text(json.dumps(result, ensure_ascii=False, indent=2))

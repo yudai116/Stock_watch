@@ -1,76 +1,15 @@
 {
-  "run_count": 2,
+  "run_count": 0,
   "stop_requested": false,
   "current_params": {
-    "ga_l2_lambda": 2.25,
-    "threshold_offset": -20,
+    "ga_l2_lambda": 1.0,
+    "threshold_offset": 0,
     "mode": "both"
   },
-  "history": [
-    {
-      "ts": "2026-06-04 10:18:52",
-      "run": 0,
-      "params": {
-        "ga_l2_lambda": 1.0,
-        "threshold_offset": -10,
-        "mode": "both"
-      },
-      "swing": {
-        "sharpe": 1.3217,
-        "n_trades": 293,
-        "win_rate": 0.6416,
-        "max_dd": -7.3,
-        "wf_stability": -1.6214,
-        "overfit_ratio": 4.3165,
-        "profit_factor": 0.0
-      },
-      "day": {
-        "sharpe": 0.0,
-        "n_trades": 4,
-        "win_rate": 0.25,
-        "max_dd": -1.012,
-        "wf_stability": -5.0322,
-        "overfit_ratio": 0.0,
-        "profit_factor": 0.0
-      },
-      "swing_passed": 2,
-      "day_passed": 0,
-      "decision": "取引数不足 → 閾値オフセット -10→-15 / 過学習 → L2=1.00→1.50"
-    },
-    {
-      "ts": "2026-06-04 10:34:58",
-      "run": 1,
-      "params": {
-        "ga_l2_lambda": 1.5,
-        "threshold_offset": -15,
-        "mode": "both"
-      },
-      "swing": {
-        "sharpe": 1.3217,
-        "n_trades": 293,
-        "win_rate": 0.6416,
-        "max_dd": -7.3,
-        "wf_stability": -1.6214,
-        "overfit_ratio": 4.3165,
-        "profit_factor": 0.0
-      },
-      "day": {
-        "sharpe": 0.0,
-        "n_trades": 4,
-        "win_rate": 0.25,
-        "max_dd": -1.012,
-        "wf_stability": -5.0322,
-        "overfit_ratio": 0.0,
-        "profit_factor": 0.0
-      },
-      "swing_passed": 2,
-      "day_passed": 0,
-      "decision": "取引数不足 → 閾値オフセット -15→-20 / 過学習 → L2=1.50→2.25"
-    }
-  ],
+  "history": [],
   "best": {
-    "swing_sharpe": 1.3217,
+    "swing_sharpe": 0.0,
     "day_sharpe": 0.0
   },
-  "no_improve_streak": 1
+  "no_improve_streak": 0
 }
