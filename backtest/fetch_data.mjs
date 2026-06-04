@@ -1,43 +1,13 @@
 /**
- * 株価データ取得スクリプト
+ * Fetch real OHLCV data for backtest using yahoo-finance2 (Node.js).
  *
- * ■ データ取得先と保存先
- *   node backtest/fetch_data.mjs
- *     → 日足 (2015〜) を Yahoo Finance から取得
- *     → backtest/price_data.json に保存
- *     → スイングトレードバックテストが参照
+ * Usage:
+ *   node backtest/fetch_data.mjs              # daily (2015-2025) → price_data.json
+ *   node backtest/fetch_data.mjs --intraday   # 1h bars → price_data_intraday.json
  *
- *   node backtest/fetch_data.mjs --intraday
- *     → US株 1時間足を取得 (スイングトレード最適化用、US38銘柄のみ)
- *     → US株: Alpaca Markets (最大10年, ALPACA_API_KEY が必要)
- *            ALPACA_API_KEY 未設定時は Yahoo Finance フォールバック (最大730日)
- *     → backtest/price_data_intraday.json に保存
- *     → スイングトレードバックテスト最適化が参照
- *
- *   node backtest/fetch_data.mjs --intraday-jp
- *     → JP株 1時間足を取得 (US最適化ウェイトのOOSテスト用)
- *     → JP株: Yahoo Finance (最大730日)
- *     → backtest/price_data_intraday_jp.json に保存
- *     → スイングバックテストのJP OOSテストが参照 (最適化には使わない)
- *
- *   node backtest/fetch_data.mjs --day
- *     → 10分足を取得 (デイトレード用, US株のみ)
- *     → US株: Alpaca Markets (最大10年, ALPACA_API_KEY が必要)
- *            ALPACA_API_KEY 未設定時は Yahoo Finance フォールバック (最大60日のみ)
- *     → JP株: 非対応 (Yahoo Finance 10分足は最大60日のみのため除外)
- *     → backtest/price_data_10min.json に保存 (.gitignore対象、大容量)
- *     → デイトレードバックテストが参照
- *
- * ■ ネットワーク注意
- *   Yahoo Finance / Alpaca はローカル開発環境ではネットワーク制限で
- *   ブロックされる場合があります。GitHub Actions 上では制限なく動作します。
- *   データ取得は GitHub Actions (backtest.yml) 経由で実行してください。
- *
- * ■ 銘柄数: 50社 (US 38社 + JP 12社)
- *   - 半導体 (US 15社 + JP 10社)
- *   - AI/クラウド/セキュリティ (US 13社)
- *   - 核融合・原子力・エネルギー (US 5社 + JP 2社)
- *   - 高ボラ/新興 (US 5社)
+ * Intraday data source priority:
+ *   1. Alpaca Markets (env: ALPACA_API_KEY + ALPACA_API_SECRET) — US株のみ, 最大10年
+ *   2. Yahoo Finance フォールバック — 全銘柄(日本株含む), 最大730日
  */
 import { createRequire } from "module";
 import { writeFileSync } from "fs";
@@ -48,141 +18,98 @@ const require = createRequire(import.meta.url);
 const YFClass = require("yahoo-finance2").default;
 const yf = new YFClass();
 
-const INTRADAY    = process.argv.includes("--intraday");
-const INTRADAY_JP = process.argv.includes("--intraday-jp");
-const DAY         = process.argv.includes("--day");
+const INTRADAY = process.argv.includes("--intraday");
 
 // Alpaca credentials (GitHub Secrets 経由で設定)
 const ALPACA_KEY    = process.env.ALPACA_API_KEY    ?? "";
 const ALPACA_SECRET = process.env.ALPACA_API_SECRET ?? "";
-const USE_ALPACA    = (INTRADAY || DAY) && !!ALPACA_KEY && !!ALPACA_SECRET;
+const USE_ALPACA    = INTRADAY && !!ALPACA_KEY && !!ALPACA_SECRET;
 
-// Alpaca IEX feed の最古取得可能日
+// Alpaca で取得できる最古の日付 (IEX feed)
 const ALPACA_START = "2016-01-01";
 
-// ── 50銘柄リスト (US のみ) ────────────────────────────────────────────────────
-const US_TICKERS = [
-  // ── 半導体・製造装置 (15社) ───────────────────────────────────────────────
-  "NVDA",    // NVIDIA — GPU/AI加速器
-  "AMD",     // Advanced Micro Devices — CPU/GPU
-  "INTC",    // Intel — CPU/ファウンドリ転換中
-  "TSM",     // TSMC ADR — 世界最大ファウンドリ
-  "ASML",    // ASML — EUV露光装置独占
-  "AMAT",    // Applied Materials — 成膜・エッチング装置
-  "LRCX",    // Lam Research — エッチング装置
-  "KLAC",    // KLA Corp — 検査・計測装置
-  "MU",      // Micron Technology — DRAM/NAND
-  "TXN",     // Texas Instruments — アナログ半導体
-  "ADI",     // Analog Devices — 混合信号半導体
-  "AVGO",    // Broadcom — ネットワーク/AI ASIC
-  "QCOM",    // Qualcomm — モバイル/車載半導体
-  "MRVL",    // Marvell Technology — データセンター半導体
-  "MPWR",    // Monolithic Power Systems — パワー半導体
-
-  // ── AI・クラウド・ソフトウェア (9社) ──────────────────────────────────────
-  "MSFT",    // Microsoft — Azure/OpenAI
-  "META",    // Meta Platforms — AI/メタバース
-  "GOOGL",   // Alphabet — Gemini/GCP
-  "AMZN",    // Amazon — AWS/AI
-  "ORCL",    // Oracle — クラウドDB/AI
-  "PLTR",    // Palantir — AI/データ分析
-  "SMCI",    // Super Micro Computer — AIサーバー
-  "ANET",    // Arista Networks — データセンターNW
-  "NOW",     // ServiceNow — エンタープライズAI
-
-  // ── セキュリティ・データ (4社) ────────────────────────────────────────────
-  "CRWD",    // CrowdStrike — AI-SecOps
-  "PANW",    // Palo Alto Networks — ゼロトラスト
-  "DDOG",    // Datadog — 可観測性/AI
-  "ZS",      // Zscaler — クラウドセキュリティ
-
-  // ── 核融合・原子力・エネルギー (5社) ─────────────────────────────────────
-  "BWXT",    // BWX Technologies — 核燃料・原子炉コンポーネント製造
-  "CCJ",     // Cameco — 世界最大級ウラン採掘
-  "LEU",     // Centrus Energy — 濃縮ウラン (次世代炉向け HALEU)
-  "CEG",     // Constellation Energy — 米最大原子力発電事業者 (2022年スピンオフ)
-  "VST",     // Vistra — 原子力・天然ガス発電 (AI電力需要受益)
-
-  // ── 高ボラティリティ・新興 (5社) ─────────────────────────────────────────
-  "SOUN",    // SoundHound AI — 音声AI (SPAC上場 2022)
-  "IONQ",    // IonQ — 量子コンピュータ (SPAC上場 2021)
-  "NXPI",    // NXP Semiconductors — 車載/IoT半導体
-  "ON",      // ON Semiconductor — パワー半導体 (EV向け)
-  "ACLS",    // Axcelis Technologies — イオン注入装置
-
-  // ── 宇宙・次世代モビリティ (4社) ─────────────────────────────────────────
-  "RKLB",    // Rocket Lab USA — 小型ロケット+衛星バス (2021上場)
-  "ASTS",    // AST SpaceMobile — 衛星直接スマホ接続 (2020上場)
-  "SMR",     // NuScale Power — 小型モジュール炉 (SMR) (2022上場)
-  "JOBY",    // Joby Aviation — eVTOL電動航空 (2021上場)
-
-  // ── 半導体・先端製造 追加 (5社) ──────────────────────────────────────────
-  "ARM",     // Arm Holdings — チップアーキテクチャ (2023上場)
-  "WOLF",    // Wolfspeed — SiCパワー半導体 (EV/産業)
-  "MCHP",    // Microchip Technology — マイコン/組込
-  "SWKS",    // Skyworks Solutions — 5G RFフロントエンド
-  "AMKR",    // Amkor Technology — 半導体後工程(OSAT)パッケージング
-
-  // ── 量子コンピュータ・AI新興 (3社) ───────────────────────────────────────
-  "RGTI",    // Rigetti Computing — 量子コンピュータ (2022上場)
-  "APP",     // AppLovin — AI広告・モバイルゲーム
-  "DELL",    // Dell Technologies — AIサーバー/PCインフラ
+// 47 tickers — semiconductor / AI / cloud tech focus
+const TICKERS = [
+  // ── US 大型半導体・AI ──────────────────────────────────────────
+  "NVDA",    // NVIDIA (GPU/AI)
+  "ASML",    // ASML (半導体露光装置)
+  "MSFT",    // Microsoft (クラウド/AI)
+  "AMD",     // AMD (CPU/GPU)
+  "AVGO",    // Broadcom (半導体/ネットワーク)
+  "QCOM",    // Qualcomm (モバイル半導体)
+  "MU",      // Micron Technology (DRAM/NAND)
+  "TSM",     // TSMC ADR (ファウンドリ)
+  "ARM",     // Arm Holdings (チップIP, IPO 2023)
+  "INTC",    // Intel Corp
+  "TXN",     // Texas Instruments
+  // ── US 製造装置・EDA ─────────────────────────────────────────
+  "AMAT",    // Applied Materials
+  "LRCX",    // Lam Research
+  "KLAC",    // KLA Corp
+  "ENTG",    // Entegris (半導体材料・クリーニング)
+  "ACLS",    // Axcelis Technologies (イオン注入装置)
+  // ── US アナログ・混合信号半導体 ──────────────────────────────
+  "ADI",     // Analog Devices
+  "NXPI",    // NXP Semiconductors (自動車/IoT)
+  "MCHP",    // Microchip Technology (マイコン)
+  "ON",      // ON Semiconductor (パワー半導体)
+  "MPWR",    // Monolithic Power Systems
+  "SWKS",    // Skyworks Solutions (RF半導体)
+  // ── US AI・クラウド成長株 ─────────────────────────────────────
+  "MRVL",    // Marvell Technology
+  "CRWD",    // CrowdStrike (セキュリティ)
+  "PLTR",    // Palantir (AI/データ分析)
+  "SMCI",    // Super Micro Computer
+  "META",    // Meta Platforms (AI/メタバース)
+  "GOOGL",   // Alphabet (AI/クラウド)
+  "AMZN",    // Amazon (AWS/AI)
+  "ORCL",    // Oracle (クラウドDB/AI)
+  "ANET",    // Arista Networks (データセンターネットワーク)
+  "NOW",     // ServiceNow (AI/エンタープライズSaaS)
+  // ── US セキュリティ・データ ───────────────────────────────────
+  "PANW",    // Palo Alto Networks (AI-SecOps)
+  "DDOG",    // Datadog (可観測性/AI)
+  "ZS",      // Zscaler (ゼロトラスト)
+  // ── US 小型・高ボラ ───────────────────────────────────────────
+  "SOUN",    // SoundHound AI (SPAC 2022)
+  "IONQ",    // IonQ (量子コンピュータ, SPAC 2021)
+  // ── JP 半導体・電子部品 ────────────────────────────────────────
+  "8035.T",  // 東京エレクトロン
+  "6857.T",  // アドバンテスト
+  "6723.T",  // ルネサスエレクトロニクス
+  "4063.T",  // 信越化学工業
+  "6963.T",  // ローム
+  "6920.T",  // レーザーテック
+  "6146.T",  // ディスコ
+  "6981.T",  // 村田製作所 (電子部品)
+  "6762.T",  // TDK (電子部品)
+  "6902.T",  // デンソー (車載半導体)
 ];
 
-const JP_TICKERS = [
-  // ── 半導体・電子部品 (10社) ───────────────────────────────────────────────
-  "8035.T",  // 東京エレクトロン — 半導体製造装置世界3位
-  "6857.T",  // アドバンテスト — 半導体テスト装置世界首位
-  "6723.T",  // ルネサスエレクトロニクス — 車載マイコン
-  "4063.T",  // 信越化学工業 — シリコンウェーハ世界首位
-  "6963.T",  // ローム — パワー半導体
-  "6920.T",  // レーザーテック — EUVマスク欠陥検査装置独占
-  "6146.T",  // ディスコ — ダイシング・研削装置
-  "6981.T",  // 村田製作所 — 積層セラミックコンデンサ
-  "6762.T",  // TDK — 電子部品・エネルギー
-  "6902.T",  // デンソー — 車載半導体・EV部品
-
-  // ── 核融合・重工業 (2社) ──────────────────────────────────────────────────
-  "6501.T",  // 日立製作所 — 原子力プラント・社会インフラ (ITER参画)
-  "7011.T",  // 三菱重工業 — 核融合炉コンポーネント (ITER真空容器)
-];
-
-const TICKERS = [...US_TICKERS, ...JP_TICKERS];
-
-// ── IPOフィルタ ─────────────────────────────────────────────────────────────
-// Yahoo Finance は SPAC上場前の「別会社」データを同一ティッカーで返すことがある。
-// このフィルタにより実際の上場日以前のデータを除外する。
-const IPO_FILTER = {
-  "SOUN": "2022-04-26",  // SoundHound AI (SPAC merger with ATSP)
-  "IONQ": "2021-10-01",  // IonQ (SPAC merger with dMY Technology IV)
-  "CEG":  "2022-02-02",  // Constellation Energy (Exelon spin-off)
-};
-
-// ── 日足: 2015〜現在 ─────────────────────────────────────────────────────────
+// Daily: 10 years of history
 const DAILY_START = "2015-01-01";
-const DAILY_END   = "2026-12-31";
+const DAILY_END   = "2025-12-31";
 
-// ── 1時間足: Yahoo Finance は最大730日 ────────────────────────────────────────
+// Intraday: Alpaca=10min(10年), Yahoo fallback=1h(730日)
+// Yahoo Finance: 30min は60日上限、1h は730日が利用可能。フォールバックは1hで多めの履歴を確保。
 function getIntradayRange() {
   const end = new Date();
   const start = new Date();
-  start.setDate(start.getDate() - 720);
+  start.setDate(start.getDate() - 720); // ~2 years, safely within Yahoo 730-day (1h) limit
   return {
     start: start.toISOString().split("T")[0],
     end:   end.toISOString().split("T")[0],
   };
 }
 
-// ── 取得関数: Yahoo Finance 日足 ──────────────────────────────────────────────
 async function fetchTickerDaily(ticker) {
-  console.log(`  Fetching ${ticker} (daily, Yahoo Finance) ...`);
+  console.log(`  Fetching ${ticker} (daily) ...`);
   try {
     const rows = await yf.historical(ticker, {
       period1:  DAILY_START,
       period2:  DAILY_END,
       interval: "1d",
     });
-    const ipoStart = IPO_FILTER[ticker] ?? DAILY_START;
     const filtered = rows
       .filter(r => r.close != null && r.close > 0)
       .map(r => ({
@@ -192,8 +119,7 @@ async function fetchTickerDaily(ticker) {
         high:   Math.round((r.high  ?? r.close) * 10000) / 10000,
         low:    Math.round((r.low   ?? r.close) * 10000) / 10000,
         volume: r.volume ?? 0,
-      }))
-      .filter(r => r.date >= ipoStart);
+      }));
     console.log(`    ${ticker}: ${filtered.length} bars (${filtered[0]?.date} → ${filtered[filtered.length-1]?.date})`);
     return filtered;
   } catch (e) {
@@ -202,10 +128,10 @@ async function fetchTickerDaily(ticker) {
   }
 }
 
-// ── 取得関数: Yahoo Finance 1時間足 ──────────────────────────────────────────
 async function fetchTickerIntraday(ticker, start, end) {
-  console.log(`  Fetching ${ticker} (1h, Yahoo Finance) ...`);
+  console.log(`  Fetching ${ticker} (1h) ...`);
   try {
+    // yahoo-finance2 chart() supports intraday intervals
     const result = await yf.chart(ticker, {
       period1:  start,
       period2:  end,
@@ -215,9 +141,10 @@ async function fetchTickerIntraday(ticker, start, end) {
     const filtered = quotes
       .filter(r => r.close != null && r.close > 0)
       .map(r => {
+        // chart() returns Date objects; format as ISO datetime
         const dt = r.date instanceof Date ? r.date : new Date(r.date);
         return {
-          date:   dt.toISOString(),
+          date:   dt.toISOString(),  // keep full timestamp for intraday
           close:  Math.round(r.close  * 10000) / 10000,
           open:   Math.round((r.open  ?? r.close) * 10000) / 10000,
           high:   Math.round((r.high  ?? r.close) * 10000) / 10000,
@@ -233,20 +160,21 @@ async function fetchTickerIntraday(ticker, start, end) {
   }
 }
 
-// ── 取得関数: Alpaca Markets 1時間足 (US株のみ、最大10年) ─────────────────────
+// ── Alpaca Markets API (US株のみ, 10min足, 最大10年) ─────────────────────────────
 async function fetchAlpacaIntraday(ticker) {
   const end = new Date().toISOString().split("T")[0];
-  console.log(`  Fetching ${ticker} (1h, Alpaca ${ALPACA_START}→${end}) ...`);
+  console.log(`  Fetching ${ticker} (Alpaca 10min, ${ALPACA_START} → ${end}) ...`);
 
   const allBars = [];
   let pageToken = null;
+
   do {
     const params = new URLSearchParams({
-      timeframe: "1Hour",
+      timeframe: "10Min",  // v11: 1Hour→10Min (6倍の密度でシグナル数増加)
       start:     ALPACA_START,
       end,
-      feed:      "iex",
-      limit:     "10000",
+      feed:      "iex",   // 無料プラン (IEX Realtime Feed)
+      limit:     "10000", // 1リクエスト最大10,000本
     });
     if (pageToken) params.set("page_token", pageToken);
 
@@ -273,16 +201,18 @@ async function fetchAlpacaIntraday(ticker) {
     const json = await res.json();
     allBars.push(...(json.bars ?? []));
     pageToken = json.next_page_token ?? null;
+
+    // レート制限 (無料プラン ~200 req/min) を考慮して少し待つ
     if (pageToken) await new Promise(r => setTimeout(r, 300));
   } while (pageToken);
 
   if (allBars.length === 0) {
-    console.log(`    ${ticker}: no data from Alpaca`);
+    console.log(`    ${ticker}: no data returned`);
     return null;
   }
 
   const rows = allBars.map(b => ({
-    date:   b.t,
+    date:   b.t,                               // ISO 8601 UTC タイムスタンプ
     close:  Math.round(b.c * 10000) / 10000,
     open:   Math.round(b.o * 10000) / 10000,
     high:   Math.round(b.h * 10000) / 10000,
@@ -294,162 +224,19 @@ async function fetchAlpacaIntraday(ticker) {
   return rows;
 }
 
-// ── 取得関数: Alpaca Markets 10分足 (US株のみ、最大10年) ──────────────────────
-async function fetchAlpacaDay(ticker) {
-  const end = new Date().toISOString().split("T")[0];
-  console.log(`  Fetching ${ticker} (10min, Alpaca ${ALPACA_START}→${end}) ...`);
-
-  const allBars = [];
-  let pageToken = null;
-  do {
-    const params = new URLSearchParams({
-      timeframe: "10Min",
-      start:     ALPACA_START,
-      end,
-      feed:      "iex",
-      limit:     "10000",
-    });
-    if (pageToken) params.set("page_token", pageToken);
-
-    let res;
-    try {
-      res = await fetch(
-        `https://data.alpaca.markets/v2/stocks/${ticker}/bars?${params}`,
-        { headers: {
-            "APCA-API-KEY-ID":     ALPACA_KEY,
-            "APCA-API-SECRET-KEY": ALPACA_SECRET,
-        }},
-      );
-    } catch (e) {
-      console.error(`    ${ticker}: network error — ${e.message}`);
-      return null;
-    }
-
-    if (!res.ok) {
-      const text = await res.text();
-      console.error(`    ${ticker}: Alpaca ${res.status} — ${text.slice(0, 120)}`);
-      return null;
-    }
-
-    const json = await res.json();
-    allBars.push(...(json.bars ?? []));
-    pageToken = json.next_page_token ?? null;
-    if (pageToken) await new Promise(r => setTimeout(r, 300));
-  } while (pageToken);
-
-  if (allBars.length === 0) {
-    console.log(`    ${ticker}: no data from Alpaca`);
-    return null;
-  }
-
-  const rows = allBars.map(b => ({
-    date:   b.t,
-    close:  Math.round(b.c * 10000) / 10000,
-    open:   Math.round(b.o * 10000) / 10000,
-    high:   Math.round(b.h * 10000) / 10000,
-    low:    Math.round(b.l * 10000) / 10000,
-    volume: b.v ?? 0,
-  }));
-
-  console.log(`    ${ticker}: ${rows.length} 10min bars (${rows[0]?.date?.slice(0,10)} → ${rows[rows.length-1]?.date?.slice(0,10)})`);
-  return rows;
-}
-
-// ── メイン ────────────────────────────────────────────────────────────────────
 async function main() {
   const dir = path.dirname(fileURLToPath(import.meta.url));
 
-  if (DAY) {
-    // ── 10分足: US=Alpaca(10年) → price_data_10min.json (JP非対応) ──────────
+  if (INTRADAY) {
     const result = {};
 
     if (USE_ALPACA) {
-      console.log(`\n[US株] Alpaca 10min足 (${US_TICKERS.length}社, 最大10年) ...`);
-      for (const ticker of US_TICKERS) {
-        const data = await fetchAlpacaDay(ticker);
-        if (data && data.length >= 300) {
-          result[ticker] = data;
-        } else {
-          console.log(`    ${ticker}: skipped (${data?.length ?? 0} bars < 300)`);
-        }
-      }
-    } else {
-      const { start, end } = getIntradayRange();
-      console.log(`\n[US株] ALPACA_API_KEY 未設定 → Yahoo Finance fallback (10min, ${start}〜${end}) ...`);
-      console.log(`       ※ Yahoo Finance の10分足は最大60日のみ。バックテストには不十分です。`);
-      for (const ticker of US_TICKERS) {
-        try {
-          const result_yf = await yf.chart(ticker, {
-            period1:  start,
-            period2:  end,
-            interval: "10m",
-          });
-          const quotes = result_yf?.quotes ?? [];
-          const filtered = quotes
-            .filter(r => r.close != null && r.close > 0)
-            .map(r => {
-              const dt = r.date instanceof Date ? r.date : new Date(r.date);
-              return {
-                date:   dt.toISOString(),
-                close:  Math.round(r.close  * 10000) / 10000,
-                open:   Math.round((r.open  ?? r.close) * 10000) / 10000,
-                high:   Math.round((r.high  ?? r.close) * 10000) / 10000,
-                low:    Math.round((r.low   ?? r.close) * 10000) / 10000,
-                volume: r.volume ?? 0,
-              };
-            });
-          if (filtered.length >= 100) {
-            result[ticker] = filtered;
-            console.log(`    ${ticker}: ${filtered.length} 10min bars`);
-          } else {
-            console.log(`    ${ticker}: skipped (${filtered.length} bars < 100)`);
-          }
-        } catch (e) {
-          console.error(`    ${ticker}: FAILED — ${e.message}`);
-        }
-      }
-    }
+      // ── Alpaca: US株のみ (日本株は Alpaca 非対応なので除外) ──────────────
+      const usTickers = TICKERS.filter(t => !t.endsWith(".T"));
+      console.log(`Alpaca 10min足取得 (US株 ${usTickers.length}銘柄, ${ALPACA_START}〜) ...`);
+      console.log(`※ 日本株 (.T) はAlpaca非対応のため今回スキップ\n`);
 
-    const out = path.join(dir, "price_data_10min.json");
-    writeFileSync(out, JSON.stringify(result, null, 0));
-    console.log(`\n保存完了 → price_data_10min.json`);
-    console.log(`  取得銘柄数: ${Object.keys(result).length}/${US_TICKERS.length} (US株のみ)`);
-    for (const [t, d] of Object.entries(result)) {
-      const first = d[0]?.date?.slice(0, 10);
-      const last  = d[d.length - 1]?.date?.slice(0, 10);
-      console.log(`  ${t}: ${d.length} 10min bars (${first} → ${last})`);
-    }
-
-  } else if (INTRADAY_JP) {
-    // ── JP株 1時間足: Yahoo Finance(730日) → price_data_intraday_jp.json ────────
-    // US最適化ウェイトの汎化性テスト用。スイング最適化本体とは別ファイル。
-    const result = {};
-    const { start, end } = getIntradayRange();
-    console.log(`\n[JP株] Yahoo Finance 1h足 (${JP_TICKERS.length}社, ${start}〜${end}) ...`);
-    console.log(`       ※ Yahoo Finance の1時間足は最大730日のみ取得可能`);
-    for (const ticker of JP_TICKERS) {
-      const data = await fetchTickerIntraday(ticker, start, end);
-      if (data && data.length >= 100) {
-        result[ticker] = data;
-        console.log(`    ${ticker}: ${data.length} bars`);
-      } else {
-        console.log(`    ${ticker}: skipped (${data?.length ?? 0} bars < 100)`);
-      }
-    }
-
-    const out = path.join(dir, "price_data_intraday_jp.json");
-    writeFileSync(out, JSON.stringify(result, null, 0));
-    console.log(`\n保存完了 → price_data_intraday_jp.json`);
-    console.log(`  取得銘柄数: ${Object.keys(result).length}/${JP_TICKERS.length} (JP株のみ)`);
-
-  } else if (INTRADAY) {
-    // ── US株 1時間足: Alpaca(最大10年) → price_data_intraday.json ──────────────
-    // スイングトレードバックテスト最適化用 (US38銘柄のみ)
-    const result = {};
-
-    if (USE_ALPACA) {
-      console.log(`\n[US株] Alpaca 1h足 (${US_TICKERS.length}社, 最大10年) ...`);
-      for (const ticker of US_TICKERS) {
+      for (const ticker of usTickers) {
         const data = await fetchAlpacaIntraday(ticker);
         if (data && data.length >= 300) {
           result[ticker] = data;
@@ -458,9 +245,12 @@ async function main() {
         }
       }
     } else {
+      // ── Yahoo Finance フォールバック (全銘柄, 730日) ──────────────────────
       const { start, end } = getIntradayRange();
-      console.log(`\n[US株] ALPACA_API_KEY 未設定 → Yahoo Finance fallback (${start}〜${end}) ...`);
-      for (const ticker of US_TICKERS) {
+      console.log(`ALPACA_API_KEY 未設定 → Yahoo Finance フォールバック (${start} → ${end})`);
+      console.log(`Fetching ${TICKERS.length} tickers — 1h bars ...\n`);
+
+      for (const ticker of TICKERS) {
         const data = await fetchTickerIntraday(ticker, start, end);
         if (data && data.length >= 100) {
           result[ticker] = data;
@@ -472,17 +262,12 @@ async function main() {
 
     const out = path.join(dir, "price_data_intraday.json");
     writeFileSync(out, JSON.stringify(result, null, 0));
-    console.log(`\n保存完了 → price_data_intraday.json`);
-    console.log(`  取得銘柄数: ${Object.keys(result).length}/${US_TICKERS.length} (US株のみ)`);
+    console.log(`\nSaved ${Object.keys(result).length} tickers → price_data_intraday.json`);
     for (const [t, d] of Object.entries(result)) {
-      const first = d[0]?.date?.slice(0, 10);
-      const last  = d[d.length - 1]?.date?.slice(0, 10);
-      console.log(`  ${t}: ${d.length} 1h bars (${first} → ${last})`);
+      console.log(`  ${t}: ${d.length} 1h bars`);
     }
-
   } else {
-    // ── 日足: 全銘柄 Yahoo Finance (10年) → price_data.json ─────────────────
-    console.log(`\n[全銘柄] Yahoo Finance 日足 (${TICKERS.length}社, ${DAILY_START}〜${DAILY_END}) ...`);
+    console.log(`Fetching ${TICKERS.length} tickers (${DAILY_START} → ${DAILY_END}) ...`);
     const result = {};
     for (const ticker of TICKERS) {
       const data = await fetchTickerDaily(ticker);
@@ -492,37 +277,11 @@ async function main() {
         console.log(`    ${ticker}: skipped (${data?.length ?? 0} bars < 100)`);
       }
     }
-
-    // 全銘柄の時系列を共通開始日で揃える
-    // (SPAC上場後の銘柄が最も遅い開始日になるので、それに全銘柄を合わせる)
-    if (Object.keys(result).length > 0) {
-      const firstDates = Object.entries(result).map(([t, d]) => ({ ticker: t, date: d[0].date }));
-      firstDates.sort((a, b) => a.date < b.date ? 1 : -1);
-      const latestTicker = firstDates[0];
-      const commonStart  = latestTicker.date;
-      console.log(`\n時系列アライメント: 共通開始日 = ${commonStart} (${latestTicker.ticker} の上場日)`);
-      for (const ticker of Object.keys(result)) {
-        const before = result[ticker].length;
-        result[ticker] = result[ticker].filter(r => r.date >= commonStart);
-        if (before !== result[ticker].length)
-          console.log(`  ${ticker}: ${before} → ${result[ticker].length} bars`);
-        if (result[ticker].length < 300) {
-          console.log(`  ${ticker}: skipped after alignment (${result[ticker].length} bars < 300)`);
-          delete result[ticker];
-        }
-      }
-    }
-
     const out = path.join(dir, "price_data.json");
     writeFileSync(out, JSON.stringify(result, null, 0));
-    console.log(`\n保存完了 → price_data.json`);
-    console.log(`  取得銘柄数: ${Object.keys(result).length}/${TICKERS.length}`);
-    const usCount = Object.keys(result).filter(t => !t.endsWith(".T")).length;
-    const jpCount = Object.keys(result).filter(t => t.endsWith(".T")).length;
-    console.log(`  US: ${usCount}社  JP: ${jpCount}社`);
-    if (Object.keys(result).length > 0) {
-      const sample = Object.values(result)[0];
-      console.log(`  期間: ${sample[0].date} → ${sample[sample.length-1].date}`);
+    console.log(`\nSaved ${Object.keys(result).length} tickers → price_data.json`);
+    for (const [t, d] of Object.entries(result)) {
+      console.log(`  ${t}: ${d.length} bars`);
     }
   }
 }

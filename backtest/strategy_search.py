@@ -67,8 +67,8 @@ BARS_PER_YEAR_SWING = 252   # daily bars/year
 # スイング専用パラメータ
 SWING_MIN_TRADES      = 15   # OOS最小トレード数（v9: 10→15 品質向上）
 _TOFF = int(os.environ.get("THRESHOLD_OFFSET", "0"))
-_TOFF_CLAMPED = max(-5, _TOFF)  # v14: 大きな負値でBUY_THRESHOLDSが崩壊するのを防ぐ
-SWING_BUY_THRESHOLDS  = [max(20, t + _TOFF_CLAMPED) for t in [30, 35, 40, 45, 50]]  # v9: 大幅引き下げでホールドアウトのトレード数を確保
+_TOFF_CLAMPED = max(-8, _TOFF)  # v15: クランプを-5→-8に緩和（閾値引き下げ幅を拡大）
+SWING_BUY_THRESHOLDS  = [max(10, t + _TOFF_CLAMPED) for t in [12, 17, 22, 28, 35]]  # v15: 基準値を大幅引き下げ（トレード数不足を解消）
 
 # IC+Lift スイング専用パラメータ (GAの代替)
 SWING_IC_WIN        = 120   # ローリングIC窓サイズ (日足: 約6ヶ月)
@@ -98,7 +98,7 @@ GA_L2_LAMBDA = float(os.environ.get("GA_L2_LAMBDA", "0.5"))  # swing L2正則化
 GA_POP_DAY       = 300   # 個体数 (swing=2000の1/7)
 GA_GENS_DAY      = 100   # 世代数 (swing=500の1/5)
 GA_ELITE_DAY     = 15    # エリート保存数
-GA_L2_LAMBDA_DAY = 2.0   # L2強度: ORBへの単一指標集中を抑制
+GA_L2_LAMBDA_DAY = 0.5   # v15: 2.0→0.5に引き下げ（L2過大でGA重みが縮退→取引数激減を修正）
 
 # スイング WF フォルド用: 7フォルド×7売りルール = 49 GA 走行。時間制約を満たすため縮小
 GA_POP_SWING_WF  = 500   # 個体数 (swing=2000の1/4)
@@ -209,7 +209,7 @@ DAY_SELL_JA = {
 IND_NAMES_SWING = ["RSI", "MACD", "BB", "EMA200", "MOM3M", "Stoch", "CCI", "52WK"]
 IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "RVOL", "VWAP_B", "ORB", "MOM3B"]
 
-BUY_THRESHOLDS = [max(3, t + _TOFF_CLAMPED) for t in [5, 8, 10, 12, 15]]   # v14: _TOFF_CLAMPEDで崩壊防止
+BUY_THRESHOLDS = [max(2, t + _TOFF_CLAMPED) for t in [3, 5, 7, 10, 14]]   # v15: 基準値を引き下げ・床を2に緩和（デイトレ取引数不足を解消）
 
 MAX_HOLD_BARS_SWING = 60   # 日足: 最大60取引日 (約3ヶ月)
 MAX_HOLD_BARS_DAY   = 78   # 10min足×78 = 13h ≈ 2取引日
