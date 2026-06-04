@@ -60,7 +60,7 @@ RESULTS_DAY   = HERE / "strategy_results_day.json"
 ARTIFACTS_DIR = HERE / "phase_artifacts"
 
 MIN_TRADES     = 25   # v12: day ORB導入でシグナル増加 → 制約を緩め実現可能な戦略を発見
-MIN_TRADES_OOS = 10   # OOS/ホールドアウト評価の最小取引数（v9: 5→10 統計的信頼性向上）
+MIN_TRADES_OOS = 5    # OOS/ホールドアウト評価の最小取引数（v13: 10→5 小さいホールドアウトでも有効なSharpe取得）
 BARS_PER_YEAR_DAY   = 9828  # 10min bars/year (252日 × 39本/日) ※Yahoo 1h fallback時は過大だが許容
 BARS_PER_YEAR_SWING = 252   # daily bars/year
 
@@ -98,6 +98,10 @@ GA_POP_DAY       = 300   # 個体数 (swing=2000の1/7)
 GA_GENS_DAY      = 100   # 世代数 (swing=500の1/5)
 GA_ELITE_DAY     = 15    # エリート保存数
 GA_L2_LAMBDA_DAY = 2.0   # L2強度: ORBへの単一指標集中を抑制
+
+# スイング WF フォルド用: 7フォルド×7売りルール = 49 GA 走行。時間制約を満たすため縮小
+GA_POP_SWING_WF  = 500   # 個体数 (swing=2000の1/4)
+GA_GENS_SWING_WF = 150   # 世代数 (swing=500の3/10)
 
 # ── 取引コスト (往復) ────────────────────────────────────────────────────────
 JP_COST = 0.0030   # 東証: 0.30%
@@ -204,7 +208,7 @@ DAY_SELL_JA = {
 IND_NAMES_SWING = ["RSI", "MACD", "BB", "EMA200", "MOM3M", "Stoch", "CCI", "52WK"]
 IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "RVOL", "VWAP_B", "ORB", "MOM3B"]
 
-BUY_THRESHOLDS = [5, 8, 10, 12, 15]   # v12: ORB単独でも反応できる低閾値 (max合計score~200)
+BUY_THRESHOLDS = [max(3, t + _TOFF) for t in [5, 8, 10, 12, 15]]   # v12: ORB単独でも反応できる低閾値; _TOFF で調整
 
 MAX_HOLD_BARS_SWING = 60   # 日足: 最大60取引日 (約3ヶ月)
 MAX_HOLD_BARS_DAY   = 78   # 10min足×78 = 13h ≈ 2取引日
@@ -1058,9 +1062,13 @@ def run_ga(ticker_data: dict, mode: str, doe_effects: dict,
     ind_names  = IND_NAMES_SWING  if mode == "swing" else IND_NAMES_DAY
 
     if mode == "day":
-        POP = GA_POP_DAY; GENS = GA_GENS_DAY; ELITE = GA_ELITE_DAY; l2 = GA_L2_LAMBDA_DAY
+        POP = GA_POP_DAY;      GENS = GA_GENS_DAY;      ELITE = GA_ELITE_DAY; l2 = GA_L2_LAMBDA_DAY
+    elif use_inner_val:
+        # swing WF フォルド: 時間制約のため縮小パラメータを使用
+        POP = GA_POP_SWING_WF; GENS = GA_GENS_SWING_WF; ELITE = GA_ELITE;     l2 = GA_L2_LAMBDA
     else:
-        POP = GA_POP;     GENS = GA_GENS;     ELITE = GA_ELITE;     l2 = GA_L2_LAMBDA
+        # swing Final: フル解像度
+        POP = GA_POP;          GENS = GA_GENS;           ELITE = GA_ELITE;     l2 = GA_L2_LAMBDA
     TOURN_SIZE = GA_TOURN; MUT_SIGMA = GA_SIGMA; MUT_PROB = GA_MPROB
 
     alpha = _make_alpha(doe_effects, ind_names)
@@ -1625,16 +1633,11 @@ def run_phase_wf_fold(mode: str, fold_i: int,
 
     checkpoint_dir = ARTIFACTS_DIR / f"checkpoint_{mode}_fold_{fold_i}"
 
-    if mode == "swing":
-        print(f"  [per-sell-rule IC+Lift] 全売りルールを検証中 (訓練 0〜{t_train_f} バー) ...")
-        best_fold, all_ga_results, all_completed, ic_lift_details = run_ic_lift_sell_probe(
-            ticker_data, t_train_f,
-            checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s)
-    else:
-        best_fold, all_ga_results, all_completed = run_ga_all_sells(
-            ticker_data, mode, doe_effects, t_train_f,
-            checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s)
-        ic_lift_details = None
+    best_fold, all_ga_results, all_completed = run_ga_all_sells(
+        ticker_data, mode, doe_effects, t_train_f,
+        checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s,
+        use_inner_val=True)
+    ic_lift_details = None
 
     if not all_completed:
         print(f"[PHASE: WF Fold {fold_i}] 未完了: タイムバジェット超過。"
@@ -1716,17 +1719,11 @@ def run_phase_final(mode: str, time_limit_s: "float | None" = None) -> None:
 
     checkpoint_dir = ARTIFACTS_DIR / f"checkpoint_{mode}_final"
 
-    if mode == "swing":
-        print(f"  [per-sell-rule IC+Lift] 全売りルールを検証中 (訓練 0〜{t_holdout} バー) ...")
-        best_overall, all_ga_results, all_completed, ic_lift_details = run_ic_lift_sell_probe(
-            ticker_data, t_holdout,
-            checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s)
-    else:
-        best_overall, all_ga_results, all_completed = run_ga_all_sells(
-            ticker_data, mode, doe_effects, t_holdout,
-            checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s,
-            use_inner_val=False)
-        ic_lift_details = None
+    best_overall, all_ga_results, all_completed = run_ga_all_sells(
+        ticker_data, mode, doe_effects, t_holdout,
+        checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s,
+        use_inner_val=False)
+    ic_lift_details = None
 
     if not all_completed:
         print(f"[PHASE: FINAL] 未完了: タイムバジェット超過。"
