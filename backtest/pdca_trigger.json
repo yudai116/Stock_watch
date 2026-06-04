@@ -1,8 +1,8 @@
 {
-  "ga_l2_lambda": 1.68,
-  "threshold_offset": -15,
+  "ga_l2_lambda": 2.52,
+  "threshold_offset": -20,
   "mode": "both",
-  "triggered_at": "2026-06-04 00:38:41",
-  "run_count": 3,
-  "reason": "取引数不足 → 閾値オフセット -10→-15 / 過学習 → L2=1.12→1.68"
+  "triggered_at": "2026-06-04 01:13:09",
+  "run_count": 4,
+  "reason": "取引数不足 → 閾値オフセット -15→-20 / 過学習 → L2=1.68→2.52"
 }
