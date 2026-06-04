@@ -1052,7 +1052,8 @@ def _make_alpha(doe_effects: dict, ind_names: list) -> np.ndarray:
 
 def run_ga(ticker_data: dict, mode: str, doe_effects: dict,
            best_sell: str, best_thresh: int,
-           t_train_end: int) -> tuple[np.ndarray, float, list]:
+           t_train_end: int,
+           use_inner_val: bool = True) -> tuple[np.ndarray, float, list]:
     sell_hold  = SWING_SELL_HOLD  if mode == "swing" else DAY_SELL_HOLD
     ind_names  = IND_NAMES_SWING  if mode == "swing" else IND_NAMES_DAY
 
@@ -1071,12 +1072,24 @@ def run_ga(ticker_data: dict, mode: str, doe_effects: dict,
 
     def fitness_batch(wm_: np.ndarray) -> np.ndarray:
         min_t = SWING_MIN_TRADES if mode == "swing" else MIN_TRADES
-        shp = batch_sharpe(ticker_data, wm_, best_sell, thresholds_single, hb, 0, t_train_end,
-                           min_trades=min_t)
-        fit = np.where(np.isnan(shp[:, 0]), -np.inf, shp[:, 0])
+        if use_inner_val:
+            # IS+内部OOS二段階フィットネス: 訓練75%でIS評価、残り25%で汎化性を検証
+            inner_split = int(t_train_end * 0.75)
+            min_t_val = max(3, min_t // 4)
+            shp_is  = batch_sharpe(ticker_data, wm_, best_sell, thresholds_single, hb, 0, inner_split,
+                                   min_trades=min_t)
+            shp_val = batch_sharpe(ticker_data, wm_, best_sell, thresholds_single, hb, inner_split, t_train_end,
+                                   min_trades=min_t_val)
+            fit_is  = np.where(np.isnan(shp_is[:,  0]), -np.inf, shp_is[:,  0])
+            fit_val = np.where(np.isnan(shp_val[:, 0]), 0.0,     shp_val[:, 0])
+            combined = 0.6 * fit_is + 0.4 * fit_val
+        else:
+            shp = batch_sharpe(ticker_data, wm_, best_sell, thresholds_single, hb, 0, t_train_end,
+                               min_trades=min_t)
+            combined = np.where(np.isnan(shp[:, 0]), -np.inf, shp[:, 0])
         # L2正則化: 重みの集中を抑制しOOS汎化性を向上（指標数で正規化）
         n_ind = wm_.shape[1]
-        return fit - l2 * np.sum(wm_**2, axis=1) / n_ind
+        return combined - l2 * np.sum(wm_**2, axis=1) / n_ind
 
     convergence = []
     no_improve = 0
@@ -1145,6 +1158,7 @@ def run_ga_all_sells(ticker_data: dict, mode: str, doe_effects: dict,
                      t_train_end: int,
                      checkpoint_dir: "Path | None" = None,
                      time_limit_s: "float | None" = None,
+                     use_inner_val: bool = True,
                      ) -> "tuple[dict | None, dict, bool]":
     """
     全売りルールそれぞれでGAを走らせ、最良の (sell, weights) を返す。
@@ -1216,7 +1230,8 @@ def run_ga_all_sells(ticker_data: dict, mode: str, doe_effects: dict,
         thresh = best_thresh_per_sell[sname]
         print(f"  [{rule_i}/{n_rules}] 売りルール: {sname} (thresh={thresh})")
         best_w, train_shp, convergence = run_ga(
-            ticker_data, mode, doe_effects, sname, thresh, t_train_end)
+            ticker_data, mode, doe_effects, sname, thresh, t_train_end,
+            use_inner_val=use_inner_val)
 
         ga_result: dict = {
             "weights":      best_w,
@@ -1709,7 +1724,8 @@ def run_phase_final(mode: str, time_limit_s: "float | None" = None) -> None:
     else:
         best_overall, all_ga_results, all_completed = run_ga_all_sells(
             ticker_data, mode, doe_effects, t_holdout,
-            checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s)
+            checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s,
+            use_inner_val=False)
         ic_lift_details = None
 
     if not all_completed:
