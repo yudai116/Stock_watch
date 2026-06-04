@@ -305,7 +305,7 @@ def run(dry_run: bool = False) -> dict:
         "day_passed":       day_pass_str,
         "no_improve_streak": new_streak,
     }
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print(json.dumps(result, ensure_ascii=False))
     return result
 
 
