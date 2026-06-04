@@ -158,37 +158,46 @@ def decide_next_params(
 
     all_issues = set(issues_swing + issues_day)
 
+    # 取引数（swing/day の最小値）
+    trades_min = min(
+        swing_m["n_trades"] if swing_m else 999,
+        day_m["n_trades"]   if day_m   else 999,
+    )
+
     new_l2  = l2
     new_off = off
     reasons = []
 
-    run = state["run_count"]
     streak = state.get("no_improve_streak", 0)
 
     # ── 判断ロジック ──────────────────────────────────────────────────────────
-    # 優先1: 取引数不足 → 閾値を下げる
-    if "low_trades" in all_issues and off > -20:
-        new_off = max(off - 5, -20)
+    # 優先1: 取引数が極端に少ない場合 → L2を下げる（重みが縮退している可能性）
+    # ※ L2過大 → GA重みが0に縮退 → スコア低下 → 閾値超えず → 取引数激減 という正帰還を断ち切る
+    if trades_min < 20 and l2 > 0.5:
+        new_l2 = max(round(l2 * 0.6, 2), 0.5)
+        reasons.append(f"取引数極少({trades_min}件) → L2過大の疑い → L2={l2:.2f}→{new_l2:.2f}")
+
+    # 優先2: 取引数不足（20〜50件）→ 閾値オフセットを下げる
+    elif "low_trades" in all_issues and off > -8:
+        new_off = max(off - 4, -8)
         reasons.append(f"取引数不足 → 閾値オフセット {off}→{new_off}")
 
-    # 優先2: 過学習 → L2強化
-    if "overfit" in all_issues and l2 < MAX_L2_LAMBDA:
-        new_l2 = min(round(l2 * 1.5, 2), MAX_L2_LAMBDA)
-        reasons.append(f"過学習 → L2={l2:.2f}→{new_l2:.2f}")
+    # 優先3: 取引数が十分で過学習 → L2を適度に強化（上限2.0まで）
+    elif "overfit" in all_issues and trades_min >= 30 and l2 < 2.0:
+        new_l2 = min(round(l2 * 1.3, 2), 2.0)
+        reasons.append(f"過学習(取引数={trades_min}件十分) → L2={l2:.2f}→{new_l2:.2f}")
 
-    # 優先3: Sharpe低 + 取引数十分 → 両方調整
-    if "low_sharpe" in all_issues and "low_trades" not in all_issues:
-        if l2 < MAX_L2_LAMBDA:
-            new_l2 = min(round(l2 + 0.3, 2), MAX_L2_LAMBDA)
+    # 優先4: Sharpe低 + 取引数十分 → 軽微なL2調整
+    elif "low_sharpe" in all_issues and "low_trades" not in all_issues:
+        if l2 < 1.5:
+            new_l2 = min(round(l2 + 0.2, 2), 1.5)
             reasons.append(f"Sharpe低 → L2={l2:.2f}→{new_l2:.2f}")
 
-    # 改善が止まった場合: より大胆な調整
+    # 改善が止まった場合: リセット
     if streak >= 3:
-        if new_l2 == l2 and new_off == off:
-            # リセット: デフォルトから再スタート
-            new_l2 = 1.0
-            new_off = -10
-            reasons.append(f"改善停止({streak}回) → パラメータリセット L2=1.0, offset=-10")
+        new_l2  = 0.5
+        new_off = 0
+        reasons = [f"改善停止({streak}回) → パラメータリセット L2=0.5, offset=0"]
 
     # 変更なし → 安定している可能性
     if not reasons:
