@@ -61,18 +61,20 @@ def _load_result(path: Path) -> dict | None:
     if not d.get("holdout_stats"):
         if wf.get("test_sharpe") is not None:
             d["holdout_stats"] = {
-                "sharpe":   wf.get("test_sharpe", 0.),
-                "n_trades": wf.get("test_n_trades", 0),
-                "win_rate": wf.get("test_win_rate", 0.),
-                "max_dd":   wf.get("test_max_dd", 0.),
+                "sharpe":        wf.get("test_sharpe", 0.),
+                "n_trades":      wf.get("test_n_trades", 0),
+                "win_rate":      wf.get("test_win_rate", 0.),
+                "max_dd":        wf.get("test_max_dd", 0.),
+                "profit_factor": wf.get("test_profit_factor", 0.),
             }
         elif sm:
             top = (d.get("top100") or [{}])[0]
             d["holdout_stats"] = {
-                "sharpe":   sm.get("best_sharpe", 0.),
-                "n_trades": top.get("n_trades", 0),
-                "win_rate": top.get("win_rate", 0.),
-                "max_dd":   top.get("max_dd", 0.),
+                "sharpe":        sm.get("best_sharpe", 0.),
+                "n_trades":      top.get("n_trades", 0),
+                "win_rate":      top.get("win_rate", 0.),
+                "max_dd":        top.get("max_dd", 0.),
+                "profit_factor": top.get("profit_factor", 0.),
             }
 
     ps = d.get("portfolio_simulation")
@@ -92,7 +94,7 @@ def _metrics(d: dict) -> dict:
         "max_dd":        hs.get("max_dd", 0.),
         "wf_stability":  d.get("wf_stability", 0.),
         "overfit_ratio": d.get("overfit_ratio", 0.),
-        "profit_factor": ps.get("profit_factor", 0.),
+        "profit_factor": hs.get("profit_factor") or ps.get("profit_factor", 0.),
     }
 
 
