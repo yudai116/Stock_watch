@@ -1,6 +1,6 @@
 {
   "run_count": 2,
-  "stop_requested": false,
+  "stop_requested": true,
   "current_params": {
     "ga_l2_lambda": 2.25,
     "threshold_offset": -20,
