@@ -1,89 +1,103 @@
 #!/usr/bin/env python3
 """
-strategy_search.py v4 — DOE (Taguchi L18) → GA × 全売りルール → Walk-Forward 6折
+strategy_search.py v6 — DOE (Taguchi L18) → IC+Lift/GA × 全売りルール → Walk-Forward 6折
 
 【モード】
-  --swing : スイング (1h足10年, RSI14/MACD12-26/BB20/EMA1300/MOM3M(410bar)/Stoch14/CCI20/52WK, US38銘柄+JP OOSテスト)
-  --day   : デイトレ (10分足, RSI9/MACD5-13/BB10/EMA9-21/Stoch5/RVOL20/CCI14/VWAP偏差, 38銘柄US)
+  --swing : スイング (日足10年, 8指標トレンド+押し目版, 47銘柄)
+  --day   : デイトレ (10min足 Alpaca, ORB30min/MOM3B/VWAP強気/RSI/MACD/BB/MA/RVOL 8指標, 37銘柄US)
   --both  : 両方順番に実行
 
-【パイプライン】
-  1. DOE   (Taguchi L18 直交表) → 指標の主効果ランキング
-  2. WF    (6折拡大窓, 訓練データ内) → 各Fold: 全売りルール × GA (pop=2000, gen=500)
-  3. 最終GA (全売りルール × pop=2000 × gen=500) → best (sell, weights)
-  4. MC最終評価 (5000サンプル) → top100
-  5. ホールドアウト評価 (後ろ20%)
-  ※ --both で約8〜10時間 (swing/dayそれぞれ約4〜5時間)
+【v10改善点】
+  SWING: スコア関数を全面改修 — 「逆張り（極度売られすぎ買い）」から
+         「トレンド+押し目（上昇トレンド中の軽い調整を買う）」へ哲学転換。
+         - EMA200以下は強制0点（下降トレンド・ファンダ問題銘柄を除外）
+         - RSI・Stoch・CCI・BB は「中程度の押し目ゾーン（40〜55/35〜55）」が最高点
+         - MOM3M: -15%〜0%（健全な調整）が最高点。急落（<-25%）は低得点
+         - 52WK: 35〜65%（中間帯、上昇後の押し目）が最高点。安値圏（<15%）は低得点
+         - MACD: ゴールデンクロスシグナルをそのまま維持（転換確認に最適）
+         この変更により 2020-2025 の強気相場でも機能するようになる。
+
+  DAY: トレーリングストップを全廃 (trail_1pct/2pct/3pct)。
+       これらは1h足データで過学習しやすく train Sharpe=16 などの異常値を生む。
+       保有ルールは fixed-hold (2h/4h/6h/8h) と target-stop のみ残す。
+       BUY_THRESHOLDS を [15,20,25,30,35] に引き下げ、MIN_TRADES を 50 に引き上げて
+       GA が「多数の取引で安定した利益」を探すよう強制する。
 
 【その他】
   - 取引コスト: US 0.16% / JP 0.30% (往復)
   - ボリュームフィルター: vol >= 0.7 × SMA(vol,20)
   - エッジバーフィルター: 各日の最初・最後の1hバーは除外 (day モードのみ)
   - エントリー価格: シグナルバー翌バーの始値 (先読みバイアスなし)
-  - SWING 閾値: [55,60,65,70,75] (v8: 引き下げによりシグナル数増加)
-  - DAY 閾値: [45,50,55,60,65,70] (v8: 引き下げによりシグナル数増加)
+  - SWING 閾値: [30,35,40,45,50] (v10: トレンド+押し目スコアに合わせて調整)
+  - DAY 閾値: [15,20,25,30,35] (v10: 大幅引き下げでトレード数を確保)
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
 
-import os
-
 import numpy as np
 
 HERE          = Path(__file__).parent
-DATA_FILE_SWING    = HERE / "price_data_intraday.json"     # 1時間足 US株 (スイング最適化用)
-DATA_FILE_DAY      = HERE / "price_data_10min.json"        # 10分足 US株 (デイトレ用)
-DATA_FILE_DAY_JP   = HERE / "price_data_10min_jp.json"     # 10分足 JP株 (デイトレ用, J-Quants)
-DATA_FILE_SWING_JP = HERE / "price_data_intraday_jp.json"  # 1時間足 JP株 (スイングOOSテスト用)
+
+# pdca_trigger.json があれば読み込む (push トリガー時の自動パラメータ渡し)
+_trigger_f = HERE / "pdca_trigger.json"
+if _trigger_f.exists():
+    try:
+        _trig = json.loads(_trigger_f.read_text())
+        os.environ.setdefault("GA_L2_LAMBDA", str(_trig.get("ga_l2_lambda", 0.5)))
+        os.environ.setdefault("THRESHOLD_OFFSET", str(_trig.get("threshold_offset", 0)))
+    except Exception:
+        pass
+DATA_FILE_SWING = HERE / "price_data.json"           # 日足 10年
+DATA_FILE_DAY   = HERE / "price_data_intraday.json"  # 10min足 (Alpaca優先/Yahoo1hフォールバック)
 RESULTS_SWING = HERE / "strategy_results_swing.json"
 RESULTS_DAY   = HERE / "strategy_results_day.json"
 ARTIFACTS_DIR = HERE / "phase_artifacts"
 
-MIN_TRADES     = 30   # 訓練期間の最小取引数
-MIN_TRADES_OOS = 5    # OOS/ホールドアウト評価の最小取引数（短い窓でも記録する）
-BARS_PER_YEAR_DAY   = 9828  # 10min bars/year (252 × 6.5h × 6本/h)
-BARS_PER_YEAR_SWING = 1638  # 1h bars/year (252 × 6.5h)
+MIN_TRADES     = 25   # v12: day ORB導入でシグナル増加 → 制約を緩め実現可能な戦略を発見
+MIN_TRADES_OOS = 10   # OOS/ホールドアウト評価の最小取引数（v9: 5→10 統計的信頼性向上）
+BARS_PER_YEAR_DAY   = 9828  # 10min bars/year (252日 × 39本/日) ※Yahoo 1h fallback時は過大だが許容
+BARS_PER_YEAR_SWING = 252   # daily bars/year
 
 # スイング専用パラメータ
-SWING_MIN_TRADES      = 10   # OOS最小トレード数（高閾値でトレード数減少に対応）
+SWING_MIN_TRADES      = 15   # OOS最小トレード数（v9: 10→15 品質向上）
+_TOFF = int(os.environ.get("THRESHOLD_OFFSET", "0"))
+SWING_BUY_THRESHOLDS  = [max(20, t + _TOFF) for t in [30, 35, 40, 45, 50]]  # v9: 大幅引き下げでホールドアウトのトレード数を確保
 
 # IC+Lift スイング専用パラメータ (GAの代替)
-SWING_IC_WIN        = 780   # ローリングIC窓サイズ (1h足: 120日 × 6.5h)
-SWING_IC_STEP       = 195   # ローリングICスライドステップ (1h足: 30日 × 6.5h)
-SWING_IC_MIN_ICIR   = 0.05        # 最小IC情報比: 0.03→0.05に戻す（品質優先）
+SWING_IC_WIN        = 120   # ローリングIC窓サイズ (日足: 約6ヶ月)
+SWING_IC_STEP       = 30    # ローリングICスライドステップ (日足: 約1ヶ月)
+SWING_IC_MIN_ICIR   = 0.08        # 最小IC情報比: v9: 0.05→0.08（より厳格な指標選択）
 SWING_LIFT_SIGNAL   = 12.0        # シグナルゾーン下限
-SWING_LIFT_TARGET   = 0.02        # Lift対象リターン: 0.5%→2%（スイング水準に合わせる）
-SWING_LIFT_MIN      = 1.05        # 最小Lift比率: 1.02→1.05（品質優先）
-SWING_IC_MIN_VALID  = 3           # 有効指標の最低採用数（厳格化のため4→3）
+SWING_LIFT_TARGET   = 0.02        # Lift対象リターン: 2%（スイング水準）
+SWING_LIFT_MIN      = 1.08        # 最小Lift比率: v9: 1.05→1.08（品質優先）
+SWING_IC_MIN_VALID  = 2           # 有効指標の最低採用数: v9: 3→2（厳選指標優先）
 SWING_IC_TREND_INDS = {"MACD", "EMA200", "MOM3M"}  # トレンド系指標: 必ず1件以上採用
 # チェックポイントバージョン: アルゴリズムやパラメータ変更時にインクリメント→旧キャッシュ無効化
-SWING_IC_CKPT_VER   = 9     # 8→9: スイング1h足移行/EMA1300/52WK1640/MOM3M410
+SWING_IC_CKPT_VER   = 10    # 9→10: スコア関数全面改修（トレンド+押し目版）
 # 注: per-sell-rule IC+Lift — 各売りルールの実現損益でICを計算するため
 # SWING_FORWARD_KEY は廃止 (run_ic_lift_sell_probe 内で sell_outcomes[sname] を直接使用)
 
 # GA ハイパーパラメータ
-GA_POP   = 2000   # 個体数
-GA_GENS  = 500    # 世代数
-GA_ELITE = 40     # エリート保存数
-GA_TOURN = 7      # トーナメントサイズ
-GA_SIGMA = 0.10   # Gaussian突然変異σ
-GA_MPROB = 0.25   # 突然変異確率
-# pdca_trigger.json があれば読み込む (push トリガー時の自動パラメータ渡し)
-_trigger_f = Path(__file__).parent / "pdca_trigger.json"
-if _trigger_f.exists():
-    try:
-        _trig = json.loads(_trigger_f.read_text())
-        os.environ.setdefault("GA_L2_LAMBDA",     str(_trig.get("ga_l2_lambda", 0.5)))
-        os.environ.setdefault("THRESHOLD_OFFSET", str(_trig.get("threshold_offset", 0)))
-    except Exception:
-        pass
+GA_POP   = 2000   # swing個体数 (10年日足データ向け)
+GA_GENS  = 500    # swing世代数
+GA_ELITE = 40     # swing エリート保存数
+GA_TOURN = 7      # トーナメントサイズ (共通)
+GA_SIGMA = 0.10   # Gaussian突然変異σ (共通)
+GA_MPROB = 0.25   # 突然変異確率 (共通)
+GA_L2_LAMBDA = float(os.environ.get("GA_L2_LAMBDA", "0.5"))  # swing L2正則化強度: 1指標への過度な集中を抑制しOOS汎化性を向上
 
-GA_L2_LAMBDA = float(os.environ.get("GA_L2_LAMBDA", "0.5"))  # L2正則化強度
+# Day mode専用GA (Alpaca ~2年データで過学習しないよう縮小・正則化強化)
+# 2000×500 → 300×100: 評価回数を1/33に削減、過学習ペナルティを4倍強化
+GA_POP_DAY       = 300   # 個体数 (swing=2000の1/7)
+GA_GENS_DAY      = 100   # 世代数 (swing=500の1/5)
+GA_ELITE_DAY     = 15    # エリート保存数
+GA_L2_LAMBDA_DAY = 2.0   # L2強度: ORBへの単一指標集中を抑制
 
 # ── 取引コスト (往復) ────────────────────────────────────────────────────────
 JP_COST = 0.0030   # 東証: 0.30%
@@ -140,6 +154,8 @@ SWING_SELL_RULES: dict[str, dict] = {
 }
 
 DAY_SELL_RULES: dict[str, dict] = {
+    # v10: trailing stop を全廃 (1h足で過学習しやすい。train Sharpe=16 等の異常値の原因)
+    # fixed-hold と target-stop のみ残す → 明確なリスクリワードで汎化性を確保
     "hold_2b":        {"type": "hold",        "bars": 2},
     "hold_4b":        {"type": "hold",        "bars": 4},
     "hold_6b":        {"type": "hold",        "bars": 6},
@@ -148,30 +164,19 @@ DAY_SELL_RULES: dict[str, dict] = {
     "target5_stop3":  {"type": "target_stop", "target": 5,  "stop": 3},
     "target7_stop4":  {"type": "target_stop", "target": 7,  "stop": 4},
     "target10_stop5": {"type": "target_stop", "target": 10, "stop": 5},
-    "trail_2pct":     {"type": "trailing",    "trail": 2},
-    "trail_3pct":     {"type": "trailing",    "trail": 3},
-    "hold_1b":        {"type": "hold",        "bars": 1},
-    "target2_stop1":  {"type": "target_stop", "target": 2,  "stop": 1},
-    "trail_1pct":     {"type": "trailing",    "trail": 1},
 }
 
 SWING_SELL_HOLD = {
-    # 1h足換算: 日足の日数 × 6.5h
-    "target5_stop3":   98,   # 15日 × 6.5
-    "target10_stop5": 163,   # 25日 × 6.5
-    "target15_stop5": 228,   # 35日 × 6.5
-    "target20_stop7": 293,   # 45日 × 6.5
-    "target15_stop7": 228,   # 35日 × 6.5
-    "target25_stop10": 390,  # 60日 × 6.5
-    "trail_5pct":     195,   # 30日 × 6.5
+    "target5_stop3": 15, "target10_stop5": 25, "target15_stop5": 35,
+    "target20_stop7": 45, "target15_stop7": 35, "target25_stop10": 60,
+    "trail_5pct": 30,
 }
 
 DAY_SELL_HOLD = {
+    # v10: trailing stop 全廃
     "hold_2b": 2, "hold_4b": 4, "hold_6b": 6, "hold_8b": 8,
     "target3_stop2": 4,  "target5_stop3": 6,
     "target7_stop4": 8,  "target10_stop5": 10,
-    "trail_2pct": 4,     "trail_3pct": 6,
-    "hold_1b": 1, "target2_stop1": 2, "trail_1pct": 3,
 }
 
 SWING_SELL_JA = {
@@ -185,117 +190,55 @@ SWING_SELL_JA = {
 }
 
 DAY_SELL_JA = {
-    "hold_1b":        "固定保有 10分",
-    "hold_2b":        "固定保有 20分",
-    "hold_4b":        "固定保有 40分",
-    "hold_6b":        "固定保有 1時間",
-    "hold_8b":        "固定保有 80分",
-    "target2_stop1":  "利確+2% / ストップ-1%",
+    # v10: trailing stop 全廃 / v11: 10min足 (2bar=20min, 4bar=40min, 6bar=1h, 8bar=1.5h)
+    "hold_2b":        "固定保有 20min",
+    "hold_4b":        "固定保有 40min",
+    "hold_6b":        "固定保有 1h",
+    "hold_8b":        "固定保有 1.5h",
     "target3_stop2":  "利確+3% / ストップ-2%",
     "target5_stop3":  "利確+5% / ストップ-3%",
     "target7_stop4":  "利確+7% / ストップ-4%",
     "target10_stop5": "利確+10% / ストップ-5%",
-    "trail_1pct":     "トレーリングストップ 1%",
-    "trail_2pct":     "トレーリングストップ 2%",
-    "trail_3pct":     "トレーリングストップ 3%",
 }
 
 IND_NAMES_SWING = ["RSI", "MACD", "BB", "EMA200", "MOM3M", "Stoch", "CCI", "52WK"]
-IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "Stoch", "RVOL", "CCI", "VWAP"]
+IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "RVOL", "VWAP_B", "ORB", "MOM3B"]
 
-_TOFF = int(os.environ.get("THRESHOLD_OFFSET", "0"))
-BUY_THRESHOLDS        = [max(30, t + _TOFF) for t in [45, 50, 55, 60, 65, 70]]
-SWING_BUY_THRESHOLDS  = [max(30, t + _TOFF) for t in [55, 60, 65, 70, 75]]  # 閾値を下げてシグナル数を増やす
+BUY_THRESHOLDS = [5, 8, 10, 12, 15]   # v12: ORB単独でも反応できる低閾値 (max合計score~200)
 
-# ── 相場レジーム ─────────────────────────────────────────────────────────────
-# 実現ボラティリティのパーセンタイルで3分類する
-#   0=低ボラ (risk-on/トレンド相場)
-#   1=中ボラ (通常相場)
-#   2=高ボラ (risk-off/地政学リスク/急落相場)
-REGIME_NAMES   = {0: "低ボラ(risk-on)", 1: "中ボラ(通常)", 2: "高ボラ(risk-off)"}
-# スイング: 60 1hバー=約9取引日, デイ: 60 10minバー=10時間=約1.5取引日
-REGIME_WINDOW  = 60
+MAX_HOLD_BARS_SWING = 60   # 日足: 最大60取引日 (約3ヶ月)
+MAX_HOLD_BARS_DAY   = 78   # 10min足×78 = 13h ≈ 2取引日
 
-# ── 多基準評価ウェイト ────────────────────────────────────────────────────────
-# アセンブル時のtop100再ランキングに使用 (GAの進化ループ自体はSharpeのみ維持)
-MULTI_CRIT_W   = {"sharpe": 0.40, "calmar": 0.35, "profit_factor": 0.25}
-
-MAX_HOLD_BARS_SWING = 130  # 1h足: 最大20取引日 (20 × 6.5h)
-MAX_HOLD_BARS_DAY   = 39   # 10分足: 最大1取引日 (6.5h × 6本/h)
+# Day mode: Alpaca IEX free tierは約2年の10min足しか返さない。
+# IPO直後の銘柄(ARM 2023, SOUN, IONQ)は大幅に短い → T_minを引き下げてWF fold OOS窓が3日になる。
+# 5000バー≈5ヶ月分をフィルター閾値として最近上場銘柄を除外する。
+MIN_BARS_DAY = 5000
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 1. データ読み込み
 # ══════════════════════════════════════════════════════════════════════════════
 
 def load_data(mode: str) -> dict[str, dict]:
-    if mode == "swing":
-        if not DATA_FILE_SWING.exists() or DATA_FILE_SWING.stat().st_size < 100:
-            print("ERROR: price_data_intraday.json が見つかりません。")
-            print("  node backtest/fetch_data.mjs --intraday  を実行してください")
-            sys.exit(1)
-        raw = json.loads(DATA_FILE_SWING.read_text())
-        result = {}
-        for ticker, rows in raw.items():
-            if len(rows) < 300:
-                print(f"  SKIP {ticker}: {len(rows)} bars < 300")
-                continue
-            result[ticker] = {
-                "closes":  np.array([r["close"]          for r in rows], dtype=np.float64),
-                "opens":   np.array([r["open"]           for r in rows], dtype=np.float64),
-                "highs":   np.array([r["high"]           for r in rows], dtype=np.float64),
-                "lows":    np.array([r["low"]            for r in rows], dtype=np.float64),
-                "volumes": np.array([r.get("volume", 0)  for r in rows], dtype=np.float64),
-                "dates":   [r["date"] for r in rows],
-                "cost":    cost_rate(ticker),
-            }
-        return result
-
-    # day モード: US株 (Alpaca/最大10年) + JP株 (J-Quants/2年) を結合
-    # US と JP では取得期間が異なるため、最も遅い開始日に揃えてから使用する。
-    if not DATA_FILE_DAY.exists() or DATA_FILE_DAY.stat().st_size < 100:
-        print("ERROR: price_data_10min.json が見つかりません。")
-        print("  node backtest/fetch_data.mjs --day  を実行してください")
+    data_file = DATA_FILE_SWING if mode == "swing" else DATA_FILE_DAY
+    fetch_cmd = "node backtest/fetch_data.mjs" if mode == "swing" else "node backtest/fetch_data.mjs --intraday"
+    if not data_file.exists() or data_file.stat().st_size < 100:
+        print(f"ERROR: {data_file.name} が見つかりません。")
+        print(f"  {fetch_cmd}  を実行してください")
         sys.exit(1)
-
-    raw_us = json.loads(DATA_FILE_DAY.read_text())
-    raw_jp: dict = {}
-    if DATA_FILE_DAY_JP.exists() and DATA_FILE_DAY_JP.stat().st_size > 100:
-        raw_jp = json.loads(DATA_FILE_DAY_JP.read_text())
-        print(f"  JP株データ読み込み: {len(raw_jp)} 銘柄 (price_data_10min_jp.json)")
-    else:
-        print("  price_data_10min_jp.json が見つかりません → US株のみでデイトレ最適化を行います")
-        print("  JP株を含めるには: python backtest/fetch_data_jquants.py を実行してください")
-
-    raw_all = {**raw_us, **raw_jp}
-
-    # 各ティッカーの開始日を収集し、最も遅い日を共通開始日とする
-    # (Alpaca US は2016〜, J-Quants JP は2年分のため混在すると時刻がずれる)
-    start_dates: dict[str, str] = {}
-    for ticker, rows in raw_all.items():
-        if len(rows) >= 300:
-            start_dates[ticker] = rows[0]["date"][:10]
-
-    if not start_dates:
-        print("ERROR: 有効なデータがありません")
-        sys.exit(1)
-
-    common_start = max(start_dates.values())
-    print(f"  共通開始日: {common_start} (最も遅いティッカーに揃えた)")
-
+    raw = json.loads(data_file.read_text())
     result = {}
-    for ticker, rows in raw_all.items():
-        # 共通開始日以降のバーのみ使用
-        trimmed = [r for r in rows if r["date"][:10] >= common_start]
-        if len(trimmed) < 300:
-            print(f"  SKIP {ticker}: トリム後 {len(trimmed)} bars < 300")
+    min_bars = MIN_BARS_DAY if mode == "day" else 300
+    for ticker, rows in raw.items():
+        if len(rows) < min_bars:
+            print(f"  SKIP {ticker}: {len(rows)} bars < {min_bars}")
             continue
         result[ticker] = {
-            "closes":  np.array([r["close"]          for r in trimmed], dtype=np.float64),
-            "opens":   np.array([r["open"]           for r in trimmed], dtype=np.float64),
-            "highs":   np.array([r["high"]           for r in trimmed], dtype=np.float64),
-            "lows":    np.array([r["low"]            for r in trimmed], dtype=np.float64),
-            "volumes": np.array([r.get("volume", 0)  for r in trimmed], dtype=np.float64),
-            "dates":   [r["date"] for r in trimmed],
+            "closes":  np.array([r["close"]  for r in rows], dtype=np.float64),
+            "opens":   np.array([r["open"]   for r in rows], dtype=np.float64),
+            "highs":   np.array([r["high"]   for r in rows], dtype=np.float64),
+            "lows":    np.array([r["low"]    for r in rows], dtype=np.float64),
+            "volumes": np.array([r.get("volume", 0) for r in rows], dtype=np.float64),
+            "dates":   [r["date"] for r in rows],
             "cost":    cost_rate(ticker),
         }
     return result
@@ -334,16 +277,33 @@ def _load_ticker_data(mode: str) -> tuple[dict, int, int]:
     return ticker_data, T_min, t_holdout
 
 
-def _wf_splits(T_min: int, t_holdout: int) -> list[tuple[int, int]]:
-    """6-fold expanding WF splits within training data [0, t_holdout]."""
-    return [
-        (int(T_min * 0.22), int(T_min * 0.33)),
-        (int(T_min * 0.33), int(T_min * 0.44)),
-        (int(T_min * 0.44), int(T_min * 0.55)),
-        (int(T_min * 0.55), int(T_min * 0.66)),
-        (int(T_min * 0.66), int(T_min * 0.73)),
-        (int(T_min * 0.73), t_holdout),
-    ]
+def _wf_splits(T_min: int, t_holdout: int, mode: str = "swing") -> list[tuple[int, int]]:
+    """Expanding WF splits within training data [0, t_holdout].
+    swing: 8 folds (daily 10年, OOS ≈ 250日/fold)
+    day:   6 folds (10min ~2年, OOS ≈ 22取引日/fold @ T_min=8000)
+    """
+    if mode == "swing":
+        return [
+            (int(T_min * 0.15), int(T_min * 0.25)),  # fold 0
+            (int(T_min * 0.25), int(T_min * 0.35)),  # fold 1
+            (int(T_min * 0.35), int(T_min * 0.45)),  # fold 2
+            (int(T_min * 0.45), int(T_min * 0.55)),  # fold 3
+            (int(T_min * 0.55), int(T_min * 0.64)),  # fold 4
+            (int(T_min * 0.64), int(T_min * 0.73)),  # fold 5
+            (int(T_min * 0.73), int(T_min * 0.77)),  # fold 6
+            (int(T_min * 0.77), t_holdout),            # fold 7
+        ]
+    else:
+        # Day: 6 equally-spaced folds. Alpaca IEX returns ~2yr of 10min data.
+        # With MIN_BARS_DAY=5000 filter, T_min ≈ 8000 → OOS ≈ 960 bars ≈ 24 trading days each.
+        return [
+            (int(T_min * 0.15), int(T_min * 0.27)),  # fold 0
+            (int(T_min * 0.27), int(T_min * 0.39)),  # fold 1
+            (int(T_min * 0.39), int(T_min * 0.51)),  # fold 2
+            (int(T_min * 0.51), int(T_min * 0.63)),  # fold 3
+            (int(T_min * 0.63), int(T_min * 0.72)),  # fold 4
+            (int(T_min * 0.72), t_holdout),            # fold 5
+        ]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -607,6 +567,104 @@ def score_vwap(vwap_dev: np.ndarray) -> np.ndarray:
         np.where(dev_pct < 3.,    1 + (3.-dev_pct)/1.5*2, 0.)))))
     return np.clip(np.where(np.isnan(vwap_dev), 0., s), 0., 25.)
 
+def score_roc5(c: np.ndarray, period: int = 5) -> np.ndarray:
+    """5日リターン(ROC5): -8%〜-2%（軽い短期押し目）が最高点。急落・急騰は低得点。
+    短期スイング日足版で VWAP の代替として使用。"""
+    T = len(c)
+    roc = np.full(T, np.nan)
+    prev = c[:T - period]
+    roc[period:] = np.where(prev > 0, (c[period:] / prev - 1.) * 100., np.nan)
+    s = np.where(roc < -20,  1.,
+        np.where(roc < -10,  8. + (-roc - 10.) / 10. * 10.,
+        np.where(roc <  -4, 18. + (-roc -  4.) /  6. *  7.,
+        np.where(roc <   0, 15. + (-roc) / 4. * 5.,
+        np.where(roc <   5, 10. - roc / 5. * 7.,
+        np.where(roc <  15,  3. - (roc - 5.) / 10. * 3.,
+                              0.))))))
+    return np.clip(np.where(np.isnan(roc), 0., s), 0., 25.)
+
+
+def score_orb(highs: np.ndarray, lows: np.ndarray, closes: np.ndarray,
+              dates: list) -> np.ndarray:
+    """Opening Range Breakout (ORB): 最初30min(3本×10min)レンジ上抜けで高スコア。
+    デイトレの核心シグナル: 出来高が集まる朝一の方向性ブレイクを捕捉。"""
+    T = len(closes)
+    or_high_arr = np.full(T, np.nan)
+    day_starts = [0]
+    for i in range(1, T):
+        if dates[i][:10] != dates[i - 1][:10]:
+            day_starts.append(i)
+    day_starts.append(T)
+    for k in range(len(day_starts) - 1):
+        s = day_starts[k]
+        e = day_starts[k + 1]
+        or_end = min(s + 3, e)
+        if or_end - s < 2:
+            continue
+        oh = float(np.max(highs[s:or_end]))
+        or_high_arr[or_end:e] = oh
+    valid = ~np.isnan(or_high_arr)
+    pct = np.where(valid, (closes - or_high_arr) / np.maximum(or_high_arr, 1e-8), np.nan)
+    return np.where(~valid, 0.,
+           np.where(pct > 0.005, 15.,
+           np.where(pct > 0.001, 10.,
+           np.where(pct > 0.,     7.,
+           np.where(pct > -0.003, 3., 0.)))))
+
+
+def score_vwap_bull(vwap_dev: np.ndarray) -> np.ndarray:
+    """VWAP乖離(強気版): VWAP以上ほど高スコア。ORBブレイクアウトの方向性確認用。
+    従来の score_vwap (逆張り) とは逆向き — day モード専用。"""
+    dev_pct = vwap_dev * 100
+    s = np.where(dev_pct > 2.0,   15.,
+        np.where(dev_pct > 0.5,   10. + (dev_pct - 0.5) / 1.5 * 5.,
+        np.where(dev_pct > 0.,    6.  + dev_pct / 0.5 * 4.,
+        np.where(dev_pct > -1.5,  2.  + (dev_pct + 1.5) / 1.5 * 4.,
+        0.))))
+    return np.clip(np.where(np.isnan(vwap_dev), 0., s), 0., 15.)
+
+
+def score_momentum_3b(c: np.ndarray) -> np.ndarray:
+    """3バー(30min)短期モメンタム: 「株価塗装感」= 強い一方向性トレンドを定量化。
+    +0.3%〜+2%の上昇勢力が最高スコア。急騰・急落は逓減。"""
+    T = len(c)
+    roc = np.zeros(T)
+    roc[3:] = (c[3:] - c[:-3]) / np.maximum(c[:-3], 1e-8) * 100
+    return np.where(roc <= 0., 0.,
+           np.where(roc < 0.2,  roc / 0.2 * 5.,
+           np.where(roc < 0.8,  5. + (roc - 0.2) / 0.6 * 5.,
+           np.where(roc < 2.0,  10.,
+           np.where(roc < 4.0,  10. - (roc - 2.0) / 2.0 * 5., 5.)))))
+
+
+def score_rsi_bull(r: np.ndarray) -> np.ndarray:
+    """RSI モメンタム版 (day専用): RSI 50〜70 でピーク。
+    ORBブレイクアウト後の「上昇モメンタム継続」を確認する指標。
+    過学習防止: ピーク幅±15(35-70)を広くとり急峻な山を避ける。
+    設計根拠: RSI>50=強気トレンド継続, 50-70=モメンタムゾーン, >75=過熱リスク。"""
+    s = np.where(r < 35,  0.,
+        np.where(r < 50, (r - 35) / 15 * 10.,
+        np.where(r < 65, 10. + (r - 50) / 15 * 5.,
+        np.where(r < 70, 15.,
+        np.where(r < 80, 15. - (r - 70) / 10 * 12.,
+        np.maximum(0., 3. - (r - 80) / 10 * 3.))))))
+    return np.clip(np.where(np.isnan(r), 0., s), 0., 15.)
+
+
+def score_bb_bull(pb: np.ndarray) -> np.ndarray:
+    """BB%B ブレイクアウト版 (day専用): BB%B 0.40〜0.75 でピーク。
+    ORB上抜け時に「中間帯〜やや上 = まだ余地がある」ことを確認。
+    過学習防止: 0.3-0.8 の広い範囲を優遇、上限帯(>0.85)は急落。
+    設計根拠: 上位バンド近く(>0.8)は過熱、下位(<0.3)はORBと矛盾。"""
+    s = np.where(pb < 0.1,  0.,
+        np.where(pb < 0.4,  (pb - 0.1) / 0.3 * 10.,
+        np.where(pb < 0.6,  10. + (pb - 0.4) / 0.2 * 5.,
+        np.where(pb < 0.75, 15.,
+        np.where(pb < 0.85, 15. - (pb - 0.75) / 0.1 * 10.,
+        np.maximum(0., 5. - (pb - 0.85) / 0.15 * 5.))))))
+    return np.clip(np.where(np.isnan(pb), 0., s), 0., 15.)
+
+
 def score_relvol(volumes: np.ndarray, period: int = 20) -> np.ndarray:
     """相対出来高 (RVOL): SMA比の出来高。高出来高 = 市場の強い関心・反転確度が高い。"""
     sma_v = _sma(volumes, period)
@@ -621,6 +679,125 @@ def score_relvol(volumes: np.ndarray, period: int = 20) -> np.ndarray:
     return np.clip(np.where(np.isnan(rvol), 0., s), 0., 25.)
 
 # ══════════════════════════════════════════════════════════════════════════════
+# 4b. スイング v10 — トレンド+押し目スコア関数
+#     哲学: 「極度売られすぎ」ではなく「上昇トレンド中の軽い調整」を買う。
+#     EMA200以下はすべて0点（下降トレンド銘柄を完全除外）
+# ══════════════════════════════════════════════════════════════════════════════
+
+def score_rsi_trend(r: np.ndarray) -> np.ndarray:
+    """RSI(14): 40-55 ゾーン（上昇トレンド中の一時的な押し目）が最高点。
+    極度の売られすぎ(<25)は下降トレンドの可能性があり低得点。"""
+    s = np.where(r < 25,  2.,
+        np.where(r < 35,  5. + (r - 25.) / 10. * 10.,
+        np.where(r < 42,  15. + (r - 35.) / 7. * 8.,
+        np.where(r < 52,  23. + (52. - r) / 10. * 2.,
+        np.where(r < 60,  16. + (60. - r) / 8. * 7.,
+        np.where(r < 72,   7. + (72. - r) / 12. * 9.,
+                            0.))))))
+    return np.clip(np.where(np.isnan(r), 0., s), 0., 25.)
+
+
+def score_bb_trend(pb: np.ndarray) -> np.ndarray:
+    """BB %B: 0.25-0.45（下半分の軽い押し目）が最高点。
+    極度の下抜け(<0)は下降トレンドのリスクがあり低得点。"""
+    s = np.where(pb < 0.,   4.,
+        np.where(pb < 0.15,  7. + (0.15 - pb) / 0.15 * 5.,
+        np.where(pb < 0.28, 12. + (0.28 - pb) / 0.13 * 8.,
+        np.where(pb < 0.45, 20. + (0.45 - pb) / 0.17 * 5.,
+        np.where(pb < 0.55, 15.,
+        np.where(pb < 0.72,  8. + (0.72 - pb) / 0.17 * 7.,
+        np.where(pb < 0.87,  3. + (0.87 - pb) / 0.15 * 5.,
+                              0.)))))))
+    return np.clip(np.where(np.isnan(pb), 0., s), 0., 25.)
+
+
+def score_ema200_trend(c: np.ndarray, ema200: np.ndarray) -> np.ndarray:
+    """EMA200: EMA200以下は強制0点（下降トレンド回避）。
+    最も近い位置 0-5% 上方が最高点。EMA200が上向きならボーナス。"""
+    v = ~np.isnan(ema200) & (ema200 > 0)
+    dist = np.where(v, (c / np.where(ema200 > 0, ema200, 1.) - 1.) * 100., 0.)
+    s = np.where(dist < 0,    0.,           # EMA200以下 = 下降トレンド → 完全除外
+        np.where(dist < 3,   22.,           # すぐ上 = 最強サポート付近
+        np.where(dist < 8,   18.,
+        np.where(dist < 15,  12.,
+        np.where(dist < 25,   6.,
+        np.where(dist < 40,   2., 0.))))))  # 大幅上方 = 過熱
+    pema10 = np.roll(ema200, 10)
+    pema10[:10] = ema200[min(10, len(ema200) - 1)]
+    slope_pct = np.where(v & (pema10 > 0), (ema200 - pema10) / pema10 * 100., 0.)
+    slope_bonus = np.clip(slope_pct * 5., 0., 7.)
+    return np.clip(np.where(v, s + slope_bonus, 0.), 0., 25.)
+
+
+def score_mom3m_trend(c: np.ndarray, period: int = 63) -> np.ndarray:
+    """3ヶ月モメンタム: -15%〜0%（健全な調整）が最高点。
+    急落（<-25%）は下降トレンドの可能性があり低得点。
+    上昇中（>+10%）は過熱気味で中得点。"""
+    T = len(c)
+    roc = np.full(T, np.nan)
+    prev = c[:T - period]
+    roc[period:] = np.where(prev > 0, (c[period:] / prev - 1.) * 100., np.nan)
+    s = np.where(roc < -30,  1.,
+        np.where(roc < -20,  7. + (-roc - 20.) / 10. * 7.,
+        np.where(roc < -10, 14. + (-roc - 10.) / 10. * 6.,
+        np.where(roc < 0,   20. + (-roc) / 10. * 5.,
+        np.where(roc < 10,  15. - roc / 10. * 5.,
+        np.where(roc < 20,   8. - (roc - 10.) / 10. * 5.,
+                              2.))))))
+    return np.clip(np.where(np.isnan(roc), 0., s), 0., 25.)
+
+
+def score_52wk_trend(c: np.ndarray, h: np.ndarray, lo: np.ndarray,
+                     period: int = 252) -> np.ndarray:
+    """52週レンジ: 35-65%（中間帯、高値からの押し目）が最高点。
+    安値圏（<15%）は下降トレンドのリスクが高く低得点。"""
+    T = len(c)
+    pos = np.full(T, np.nan)
+    for i in range(period - 1, T):
+        hi52 = h[i - period + 1:i + 1].max()
+        lo52 = lo[i - period + 1:i + 1].min()
+        rng  = hi52 - lo52
+        pos[i] = (c[i] - lo52) / rng if rng > 1e-10 else 0.5
+    s = np.where(pos < 0.15,  1.,
+        np.where(pos < 0.30,  7. + (pos - 0.15) / 0.15 * 9.,
+        np.where(pos < 0.45, 16. + (pos - 0.30) / 0.15 * 6.,
+        np.where(pos < 0.60, 22. + (0.60 - pos) / 0.15 * 3.,
+        np.where(pos < 0.75, 14. + (0.75 - pos) / 0.15 * 8.,
+        np.where(pos < 0.87,  6. + (0.87 - pos) / 0.12 * 8.,
+                               2.))))))
+    return np.clip(np.where(np.isnan(pos), 0., s), 0., 25.)
+
+
+def score_stoch_trend(k: np.ndarray, d: np.ndarray) -> np.ndarray:
+    """Stoch(14/3): 35-55 ゾーン（軽い押し目）が最高点。
+    極度の売られすぎ(<20)は下降トレンドのリスクあり低得点。GCクロス時+4点ボーナス。"""
+    s = np.where(k < 20,   4.,
+        np.where(k < 30,   9. + (k - 20.) / 10. * 8.,
+        np.where(k < 40,  17. + (k - 30.) / 10. * 5.,
+        np.where(k < 55,  22. + (55. - k) / 15. * 3.,
+        np.where(k < 65,  15. + (65. - k) / 10. * 7.,
+        np.where(k < 78,   6. + (78. - k) / 13. * 9.,
+                            0.))))))
+    pk = np.roll(k, 1); pd_ = np.roll(d, 1)
+    gc = ~np.isnan(k) & ~np.isnan(d) & (k > d) & (pk <= pd_)
+    gc[0] = False
+    s = np.where(gc, s + 4., s)
+    return np.clip(np.where(np.isnan(k), 0., s), 0., 25.)
+
+
+def score_cci_trend(cci: np.ndarray) -> np.ndarray:
+    """CCI(20): -75〜0（中程度の軽い売られすぎ）が最高点。
+    極度の売られすぎ（<-200）は下降トレンドのリスクがあり低得点。"""
+    s = np.where(cci < -200,  2.,
+        np.where(cci < -100,  7. + (cci + 200.) / 100. * 8.,
+        np.where(cci < -50,  15. + (cci + 100.) / 50. * 5.,
+        np.where(cci < 0,    20. + cci / 50. * 5.,
+        np.where(cci < 100,  12. + (100. - cci) / 100. * 8.,
+        np.where(cci < 200,   4. + (200. - cci) / 100. * 8.,
+                               0.))))))
+    return np.clip(np.where(np.isnan(cci), 0., s), 0., 25.)
+
+# ══════════════════════════════════════════════════════════════════════════════
 # 5. 指標スコアをまとめて計算
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -633,30 +810,28 @@ def compute_ind_scores(td: dict, mode: str) -> np.ndarray:
         rsi_v      = calc_rsi(c, 14)
         ml, sl, hl = calc_macd(c, 12, 26, 9)
         pb         = calc_bb(c, 20)
-        # 1h足換算: 200日EMA → 1300bar (200 × 6.5h)
-        ema200     = _ema(c, 1300)
+        ema200     = _ema(c, 200)
         sk, sd     = calc_stoch(c, h, lo, 14, 3)
         cci        = calc_cci(c, h, lo, 20)
-        # 中長期指標: EMA乖離, 3ヶ月モメンタム(410bar=63日), 52週レンジ(1640bar=252日)
+        # v10: トレンド+押し目スコア関数を使用 (EMA200以下は強制0点)
         return np.stack([
-            score_rsi(rsi_v),      score_macd(ml, sl, hl),
-            score_bb(pb),          score_ema200(c, ema200),
-            score_mom3m(c, 410),   score_stoch(sk, sd),
-            score_cci(cci),        score_52wk(c, h, lo, 1640),
+            score_rsi_trend(rsi_v),       score_macd(ml, sl, hl),
+            score_bb_trend(pb),           score_ema200_trend(c, ema200),
+            score_mom3m_trend(c, 63),     score_stoch_trend(sk, sd),
+            score_cci_trend(cci),         score_52wk_trend(c, h, lo, 252),
         ], axis=0)
-    else:  # day
-        rsi_v            = calc_rsi(c, 9)
-        ml, sl, hl       = calc_macd(c, 5, 13, 4)
-        pb               = calc_bb(c, 10)
-        ef               = _ema(c, 9); es = _ema(c, 21)
-        sk, sd           = calc_stoch(c, h, lo, 5, 3)
-        cci              = calc_cci(c, h, lo, 14)
-        vwap_dev         = calc_vwap_dev(c, volumes, dates)
+    else:  # day — 10min足デイトレ (v13: ORB + RSI_bull + BB_bull で指標を統一)
+        rsi_v    = calc_rsi(c, 9)
+        ml, sl, hl = calc_macd(c, 5, 13, 4)
+        pb       = calc_bb(c, 10)
+        ef       = _ema(c, 9); es = _ema(c, 21)
+        vwap_dev = calc_vwap_dev(c, volumes, dates)
         return np.stack([
-            score_rsi(rsi_v),    score_macd(ml, sl, hl),
-            score_bb(pb),        score_ma(c, ef, es),
-            score_stoch(sk, sd), score_relvol(volumes, 20),
-            score_cci(cci),      score_vwap(vwap_dev),
+            score_rsi_bull(rsi_v),     score_macd(ml, sl, hl),
+            score_bb_bull(pb),         score_ma(c, ef, es),
+            score_relvol(volumes, 20), score_vwap_bull(vwap_dev),
+            score_orb(h, lo, c, dates),
+            score_momentum_3b(c),
         ], axis=0)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -823,271 +998,6 @@ def detailed_eval_single(ticker_data: dict, w: np.ndarray, sell_name: str,
         "max_dd":      round((min_ret if min_ret < np.inf else 0.) * 100, 3),
     }
 
-
-def collect_trade_records(ticker_data: dict, w: np.ndarray, sell_name: str,
-                           threshold: int, t_start: int, t_end: int,
-                           crossover_only: bool = True) -> list[dict]:
-    """ポートフォリオシミュレーション用の個別取引記録を収集する。
-    各取引に相場レジーム (0=低ボラ, 1=中ボラ, 2=高ボラ) を付与する。"""
-    records = []
-    wm = w.reshape(1, 8).astype(np.float32)
-    for ticker, td in ticker_data.items():
-        ind   = td["ind_scores"][:, t_start:t_end].astype(np.float32)
-        sout  = td["sell_outcomes"][sell_name][t_start:t_end].astype(np.float32)
-        vmask = td["vol_ok"][t_start:t_end]
-        if "edge_bar" in td:
-            vmask = vmask & ~td["edge_bar"][t_start:t_end]
-        valid = ~np.isnan(sout) & vmask
-        comp  = (wm @ ind)[0]
-        if crossover_only:
-            above = comp >= threshold
-            prev_above = np.roll(above, 1); prev_above[0] = False
-            mask = above & ~prev_above & valid
-        else:
-            mask = (comp >= threshold) & valid
-
-        # 相場レジームをエントリーバー時点で付与
-        regime_arr = compute_vol_regime(td["closes"][t_start:t_end])
-
-        bar_indices = np.where(mask)[0]
-        for bar_idx in bar_indices:
-            ret = float(sout[bar_idx])
-            if not np.isnan(ret):
-                records.append({
-                    "bar":    int(t_start + bar_idx),
-                    "ticker": ticker,
-                    "score":  float(comp[bar_idx]),
-                    "return": ret,
-                    "regime": int(regime_arr[bar_idx]),
-                })
-    records.sort(key=lambda x: x["bar"])
-    return records
-
-
-def compute_vol_regime(closes: np.ndarray, window: int = REGIME_WINDOW) -> np.ndarray:
-    """
-    各バーのボラティリティレジームを返す (0=低ボラ, 1=中ボラ, 2=高ボラ)。
-    実現ボラティリティ (ローリング対数リターン標準偏差) のパーセンタイル分類。
-    """
-    T   = len(closes)
-    eps = 1e-10
-    lr  = np.log(np.maximum(closes[1:], eps) / np.maximum(closes[:-1], eps))
-    rv  = np.full(T, np.nan)
-    for i in range(window - 1, len(lr)):
-        rv[i + 1] = lr[i - window + 1:i + 1].std()
-    valid = rv[~np.isnan(rv)]
-    if len(valid) < 10:
-        return np.ones(T, dtype=np.int8)
-    p33, p67 = np.percentile(valid, 33), np.percentile(valid, 67)
-    regime = np.where(np.isnan(rv), 1,
-             np.where(rv < p33, 0,
-             np.where(rv < p67, 1, 2))).astype(np.int8)
-    return regime
-
-
-def compute_profit_factor(records: list[dict]) -> float:
-    """
-    Profit Factor = 総利益 / 総損失 (絶対値)。
-    取引がない or 損失ゼロ の場合は 0 を返す。
-    """
-    gross_win  = sum(r["return"] for r in records if r["return"] > 0)
-    gross_loss = sum(-r["return"] for r in records if r["return"] < 0)
-    return round(gross_win / gross_loss, 4) if gross_loss > 1e-10 else 0.
-
-
-def regime_stats(records: list[dict]) -> dict:
-    """
-    取引記録を相場レジーム別に集計して統計を返す。
-    records の各要素は {"regime": int, "return": float, ...} を持つこと。
-    """
-    buckets: dict[int, list[float]] = {0: [], 1: [], 2: []}
-    for r in records:
-        rg = r.get("regime", 1)
-        buckets[rg].append(r["return"])
-    out = {}
-    for rg, rets in buckets.items():
-        if not rets:
-            out[REGIME_NAMES[rg]] = {"n_trades": 0}
-            continue
-        arr = np.array(rets)
-        wins = int((arr > 0).sum())
-        out[REGIME_NAMES[rg]] = {
-            "n_trades":     len(rets),
-            "win_rate":     round(wins / len(rets), 4),
-            "avg_return":   round(float(arr.mean()) * 100, 3),
-            "profit_factor": compute_profit_factor([{"return": r} for r in rets]),
-        }
-    return out
-
-
-def multi_criteria_score(sim_result: dict, records: list[dict]) -> float:
-    """
-    Sharpe + Calmar比 + Profit Factor の加重スコアを返す。
-    アセンブルフェーズでtop候補の再ランキングに使用。
-    """
-    sharpe = sim_result.get("sharpe", 0.)
-    ret    = sim_result.get("total_return_pct", 0.)
-    dd     = max(sim_result.get("max_drawdown_pct", 0.1), 0.1)
-    calmar = ret / dd
-    pf     = compute_profit_factor(records)
-    w      = MULTI_CRIT_W
-    # 各指標を同等スケールに正規化してから加重和
-    # Sharpe: そのまま, Calmar: /10 (典型値1-5), PF: /3 (典型値1-3)
-    score  = w["sharpe"] * sharpe + w["calmar"] * (calmar / 10.0) + w["profit_factor"] * (pf / 3.0)
-    return round(score, 6)
-
-
-def simulate_portfolio(records: list[dict], threshold: int, method: str,
-                        initial: float = 100.0) -> dict:
-    """
-    3手法でポートフォリオ成長をシミュレートする。
-      equal      : 全トレード均等サイズ (ベースライン)
-      score_prop : スコア比例 (閾値=0.5x → スコア100=2x)
-      frac_kelly : 分数ケリー基準 (kelly_f=0.35, max_position=0.50)
-
-    リスク制御:
-      - max_position=0.50 : 1トレードの最大ポジション比率50%
-      - dd_brake: ドローダウン>20%時にポジション半減 (破滅的損失防止)
-    """
-    MAX_POSITION = 0.50
-    DD_BRAKE_THRESHOLD = 0.20
-    DD_BRAKE_FACTOR = 0.50
-    KELLY_F = 0.35
-    BASE_FRACTION = 0.10
-
-    if not records:
-        return {"final_value": initial, "total_return_pct": 0., "max_drawdown_pct": 0.,
-                "n_trades": 0, "sharpe": 0., "cagr": 0., "curve": []}
-
-    portfolio = initial
-    peak = initial
-    max_dd = 0.
-    returns_list: list[float] = []
-    curve: list[float] = [round(initial, 4)]
-
-    # group by bar to handle same-bar entries (apply them sequentially)
-    from itertools import groupby
-    for _bar, group in groupby(records, key=lambda x: x["bar"]):
-        trades = list(group)
-        for rec in trades:
-            score = rec["score"]
-            trade_ret = rec["return"]   # fractional return, e.g. 0.15 = +15%
-
-            # drawdown brake
-            dd = (peak - portfolio) / peak if peak > 0 else 0.
-            max_dd = max(max_dd, dd)
-            brake = DD_BRAKE_FACTOR if dd >= DD_BRAKE_THRESHOLD else 1.0
-
-            if method == "equal":
-                fraction = BASE_FRACTION * brake
-
-            elif method == "score_prop":
-                # 閾値でBASE_FRACTION × 0.5x, スコア100で BASE_FRACTION × 2x
-                score_range = max(100.0 - threshold, 1.0)
-                norm = (score - threshold) / score_range
-                norm = max(0.0, min(1.0, norm))
-                multiplier = 0.5 + 1.5 * norm   # 0.5x → 2.0x
-                fraction = BASE_FRACTION * multiplier * brake
-
-            elif method == "frac_kelly":
-                # ケリー公式近似: f = (p*(b+1) - 1) / b
-                # ここでは b=avg_win/avg_loss の代わりに score正規化を使用
-                # win_prob ≈ 0.5 + 0.5*(score-threshold)/(100-threshold)
-                score_range = max(100.0 - threshold, 1.0)
-                norm = (score - threshold) / score_range
-                norm = max(0.0, min(1.0, norm))
-                p = 0.50 + 0.35 * norm   # win_prob 0.50~0.85
-                b = 1.5                   # 想定ペイオフ比 (avg win / avg loss)
-                kelly_raw = (p * (b + 1) - 1) / b if b > 0 else 0.
-                fraction = max(0., KELLY_F * kelly_raw) * brake
-
-            else:
-                fraction = BASE_FRACTION * brake
-
-            fraction = min(fraction, MAX_POSITION)
-            pnl = portfolio * fraction * trade_ret
-            portfolio += pnl
-            portfolio = max(portfolio, 0.001)   # 破産フロア
-
-            if portfolio > peak:
-                peak = portfolio
-            returns_list.append(pnl / (portfolio - pnl) if abs(portfolio - pnl) > 1e-10 else 0.)
-            curve.append(round(portfolio, 4))
-
-    total_return = (portfolio - initial) / initial * 100.0
-    n = len(returns_list)
-    if n > 1:
-        arr = np.array(returns_list)
-        avg_r = float(arr.mean())
-        std_r = float(arr.std())
-        # annualize by sqrt(n) capped at sqrt(252) — avoids blow-up with few trades
-        ann_factor = np.sqrt(min(n, 252))
-        sharpe = avg_r / std_r * ann_factor if std_r > 1e-10 else 0.
-    else:
-        sharpe = 0.
-
-    return {
-        "final_value":       round(portfolio, 4),
-        "total_return_pct":  round(total_return, 2),
-        "max_drawdown_pct":  round(max_dd * 100, 2),
-        "n_trades":          n,
-        "sharpe":            round(sharpe, 4),
-        "curve":             curve[::max(1, len(curve) // 200)],  # 最大200点に間引き
-    }
-
-
-def eval_jp_stocks(best_w: np.ndarray, best_sell: str, best_thresh: int) -> dict | None:
-    """US最適化ウェイトをJP株2年データで汎化性テスト。ファイルがなければNoneを返す。"""
-    if not DATA_FILE_SWING_JP.exists():
-        return None
-
-    print("  JP株 OOSテスト (US最適化ウェイトを適用中)...")
-    raw = json.loads(DATA_FILE_SWING_JP.read_text())
-    jp_ticker_data: dict = {}
-    for tkr, rows in raw.items():
-        if len(rows) < 300:
-            print(f"    SKIP {tkr}: {len(rows)} bars < 300"); continue
-        td = {
-            "closes":  np.array([r["close"]           for r in rows], dtype=np.float64),
-            "opens":   np.array([r["open"]            for r in rows], dtype=np.float64),
-            "highs":   np.array([r["high"]            for r in rows], dtype=np.float64),
-            "lows":    np.array([r["low"]             for r in rows], dtype=np.float64),
-            "volumes": np.array([r.get("volume", 0)   for r in rows], dtype=np.float64),
-            "dates":   [r["date"] for r in rows],
-            "cost":    cost_rate(tkr),
-        }
-        print(f"    {tkr}: 指標計算...", end="", flush=True)
-        ind_scores = compute_ind_scores(td, "swing")
-        vol_ok     = vol_ok_mask(td["volumes"])
-        sell_out   = precompute_sell_outcomes(
-            td["closes"], td["opens"], td["highs"], td["lows"], td["cost"],
-            SWING_SELL_RULES, MAX_HOLD_BARS_SWING,
-        )
-        print(" done")
-        jp_ticker_data[tkr] = {"ind_scores": ind_scores, "sell_outcomes": sell_out, "vol_ok": vol_ok}
-
-    if not jp_ticker_data:
-        return None
-
-    T_jp = min(len(td["ind_scores"][0]) for td in jp_ticker_data.values())
-    trade_recs = collect_trade_records(
-        jp_ticker_data, best_w, best_sell, best_thresh, 0, T_jp, crossover_only=True
-    )
-    print(f"    JP取引数: {len(trade_recs)}件  (全期間OOS)")
-
-    if not trade_recs:
-        return {"n_trades": 0, "tickers": list(jp_ticker_data.keys()),
-                "note": "JP株でシグナルなし — 閾値を下げるか確認"}
-
-    return {
-        "n_trades":   len(trade_recs),
-        "tickers":    list(jp_ticker_data.keys()),
-        "equal":      simulate_portfolio(trade_recs, best_thresh, "equal"),
-        "score_prop": simulate_portfolio(trade_recs, best_thresh, "score_prop"),
-        "frac_kelly": simulate_portfolio(trade_recs, best_thresh, "frac_kelly"),
-    }
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 # 8. DOE 主効果分析 (Taguchi L18)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1142,11 +1052,15 @@ def _make_alpha(doe_effects: dict, ind_names: list) -> np.ndarray:
 
 def run_ga(ticker_data: dict, mode: str, doe_effects: dict,
            best_sell: str, best_thresh: int,
-           t_train_end: int) -> tuple[np.ndarray, float, list]:
+           t_train_end: int,
+           use_inner_val: bool = True) -> tuple[np.ndarray, float, list]:
     sell_hold  = SWING_SELL_HOLD  if mode == "swing" else DAY_SELL_HOLD
     ind_names  = IND_NAMES_SWING  if mode == "swing" else IND_NAMES_DAY
 
-    POP = GA_POP; GENS = GA_GENS; ELITE = GA_ELITE
+    if mode == "day":
+        POP = GA_POP_DAY; GENS = GA_GENS_DAY; ELITE = GA_ELITE_DAY; l2 = GA_L2_LAMBDA_DAY
+    else:
+        POP = GA_POP;     GENS = GA_GENS;     ELITE = GA_ELITE;     l2 = GA_L2_LAMBDA
     TOURN_SIZE = GA_TOURN; MUT_SIGMA = GA_SIGMA; MUT_PROB = GA_MPROB
 
     alpha = _make_alpha(doe_effects, ind_names)
@@ -1158,12 +1072,24 @@ def run_ga(ticker_data: dict, mode: str, doe_effects: dict,
 
     def fitness_batch(wm_: np.ndarray) -> np.ndarray:
         min_t = SWING_MIN_TRADES if mode == "swing" else MIN_TRADES
-        shp = batch_sharpe(ticker_data, wm_, best_sell, thresholds_single, hb, 0, t_train_end,
-                           min_trades=min_t)
-        fit = np.where(np.isnan(shp[:, 0]), -np.inf, shp[:, 0])
+        if use_inner_val:
+            # IS+内部OOS二段階フィットネス: 訓練75%でIS評価、残り25%で汎化性を検証
+            inner_split = int(t_train_end * 0.75)
+            min_t_val = max(3, min_t // 4)
+            shp_is  = batch_sharpe(ticker_data, wm_, best_sell, thresholds_single, hb, 0, inner_split,
+                                   min_trades=min_t)
+            shp_val = batch_sharpe(ticker_data, wm_, best_sell, thresholds_single, hb, inner_split, t_train_end,
+                                   min_trades=min_t_val)
+            fit_is  = np.where(np.isnan(shp_is[:,  0]), -np.inf, shp_is[:,  0])
+            fit_val = np.where(np.isnan(shp_val[:, 0]), 0.0,     shp_val[:, 0])
+            combined = 0.6 * fit_is + 0.4 * fit_val
+        else:
+            shp = batch_sharpe(ticker_data, wm_, best_sell, thresholds_single, hb, 0, t_train_end,
+                               min_trades=min_t)
+            combined = np.where(np.isnan(shp[:, 0]), -np.inf, shp[:, 0])
         # L2正則化: 重みの集中を抑制しOOS汎化性を向上（指標数で正規化）
         n_ind = wm_.shape[1]
-        return fit - GA_L2_LAMBDA * np.sum(wm_**2, axis=1) / n_ind
+        return combined - l2 * np.sum(wm_**2, axis=1) / n_ind
 
     convergence = []
     no_improve = 0
@@ -1232,6 +1158,7 @@ def run_ga_all_sells(ticker_data: dict, mode: str, doe_effects: dict,
                      t_train_end: int,
                      checkpoint_dir: "Path | None" = None,
                      time_limit_s: "float | None" = None,
+                     use_inner_val: bool = True,
                      ) -> "tuple[dict | None, dict, bool]":
     """
     全売りルールそれぞれでGAを走らせ、最良の (sell, weights) を返す。
@@ -1254,16 +1181,21 @@ def run_ga_all_sells(ticker_data: dict, mode: str, doe_effects: dict,
         prog_file = checkpoint_dir / "progress.json"
         if prog_file.exists():
             prog = json.loads(prog_file.read_text())
-            completed_sells = set(prog.get("completed_sells", []))
-            for sname in list(completed_sells):
-                rf = checkpoint_dir / f"ga_{sname}.json"
-                if rf.exists():
-                    gr = json.loads(rf.read_text())
-                    gr["weights"] = np.array(gr["weights_list"])
-                    all_ga_results[sname] = gr
-                else:
-                    completed_sells.discard(sname)
-            print(f"  チェックポイント復元: {len(completed_sells)}/{len(sell_rules)} 売りルール完了")
+            # t_train_end が変わった場合（MIN_BARS_DAY変更等でT_minが変化）はチェックポイント無効化
+            ckpt_t = prog.get("t_train_end", -1)
+            if ckpt_t != t_train_end:
+                print(f"  チェックポイント無効: t_train_end変更 ({ckpt_t} → {t_train_end}), 最初からやり直し")
+            else:
+                completed_sells = set(prog.get("completed_sells", []))
+                for sname in list(completed_sells):
+                    rf = checkpoint_dir / f"ga_{sname}.json"
+                    if rf.exists():
+                        gr = json.loads(rf.read_text())
+                        gr["weights"] = np.array(gr["weights_list"])
+                        all_ga_results[sname] = gr
+                    else:
+                        completed_sells.discard(sname)
+                print(f"  チェックポイント復元: {len(completed_sells)}/{len(sell_rules)} 売りルール完了")
 
     # MC probe (300サンプル) で各売りルールの best_thresh を事前決定
     thresholds = SWING_BUY_THRESHOLDS if mode == "swing" else BUY_THRESHOLDS
@@ -1298,7 +1230,8 @@ def run_ga_all_sells(ticker_data: dict, mode: str, doe_effects: dict,
         thresh = best_thresh_per_sell[sname]
         print(f"  [{rule_i}/{n_rules}] 売りルール: {sname} (thresh={thresh})")
         best_w, train_shp, convergence = run_ga(
-            ticker_data, mode, doe_effects, sname, thresh, t_train_end)
+            ticker_data, mode, doe_effects, sname, thresh, t_train_end,
+            use_inner_val=use_inner_val)
 
         ga_result: dict = {
             "weights":      best_w,
@@ -1320,6 +1253,7 @@ def run_ga_all_sells(ticker_data: dict, mode: str, doe_effects: dict,
             completed_sells.add(sname)
             (checkpoint_dir / "progress.json").write_text(json.dumps({
                 "completed_sells": list(completed_sells),
+                "t_train_end":     t_train_end,
                 "last_updated":    time.strftime("%Y-%m-%d %H:%M"),
             }))
 
@@ -1676,7 +1610,7 @@ def run_phase_wf_fold(mode: str, fold_i: int,
     t_holdout   = doe_art["t_holdout"]
     doe_effects = doe_art["doe_effects"]
 
-    splits = _wf_splits(T_min, t_holdout)
+    splits = _wf_splits(T_min, t_holdout, mode)
     if fold_i < 0 or fold_i >= len(splits):
         print(f"ERROR: fold_i={fold_i} 範囲外 (0〜{len(splits)-1})"); sys.exit(1)
 
@@ -1790,7 +1724,8 @@ def run_phase_final(mode: str, time_limit_s: "float | None" = None) -> None:
     else:
         best_overall, all_ga_results, all_completed = run_ga_all_sells(
             ticker_data, mode, doe_effects, t_holdout,
-            checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s)
+            checkpoint_dir=checkpoint_dir, time_limit_s=time_limit_s,
+            use_inner_val=False)
         ic_lift_details = None
 
     if not all_completed:
@@ -1847,7 +1782,7 @@ def run_phase_assemble(mode: str) -> None:
     doe_effects = doe_art["doe_effects"]
     doe_ranked  = doe_art["doe_ranked"]
 
-    splits     = _wf_splits(T_min, t_holdout)
+    splits     = _wf_splits(T_min, t_holdout, mode)
     n_wf_folds = len(splits)
 
     wf_folds: list[dict] = []
@@ -1947,22 +1882,6 @@ def run_phase_assemble(mode: str) -> None:
                                       crossover_only=co, bars_per_year=bpy)
     overfit_ratio = round(test_shp / train_shp, 4) if abs(train_shp) > 1e-6 else 0.
 
-    print("  ポートフォリオシミュレーション (均等/スコア比例/ケリー + レジーム分析)...")
-    trade_recs = collect_trade_records(ticker_data, best_w, best_sell, best_thresh,
-                                        t_holdout, T_min, crossover_only=co)
-    sim_equal      = simulate_portfolio(trade_recs, best_thresh, "equal")
-    sim_score_prop = simulate_portfolio(trade_recs, best_thresh, "score_prop")
-    sim_kelly      = simulate_portfolio(trade_recs, best_thresh, "frac_kelly")
-    port_sim = {
-        "n_trades":        len(trade_recs),
-        "profit_factor":   compute_profit_factor(trade_recs),
-        "regime_stats":    regime_stats(trade_recs),
-        "equal":           sim_equal,
-        "score_prop":      sim_score_prop,
-        "frac_kelly":      sim_kelly,
-        "multi_crit_score": multi_criteria_score(sim_score_prop, trade_recs),
-    }
-
     print("  売りルールランキング評価中...")
     sell_stats: list[dict] = []
     for sname in sell_rules:
@@ -1988,29 +1907,21 @@ def run_phase_assemble(mode: str) -> None:
         })
     sell_stats.sort(key=lambda x: x["best_sharpe"], reverse=True)
 
-    print("  top100 詳細評価 + 多基準スコア算出中...")
+    print("  top100 詳細評価中...")
     top100_out: list[dict] = []
     for r in top100:
-        ds  = detailed_eval_single(ticker_data, r["weights"], best_sell, r["thr"], hb, 0, t_holdout,
-                                   crossover_only=co, bars_per_year=bpy)
-        recs_mc = collect_trade_records(ticker_data, r["weights"], best_sell, r["thr"],
-                                         0, t_holdout, crossover_only=co)
-        sim_mc  = simulate_portfolio(recs_mc, r["thr"], "score_prop")
-        mc_s    = multi_criteria_score(sim_mc, recs_mc)
+        ds = detailed_eval_single(ticker_data, r["weights"], best_sell, r["thr"], hb, 0, t_holdout,
+                                  crossover_only=co, bars_per_year=bpy)
         top100_out.append({
-            "buy_weights":      {nm: round(float(r["weights"][i]), 3) for i, nm in enumerate(ind_names)},
-            "buy_threshold":    r["thr"],
-            "sell_rule":        best_sell,
-            "sharpe":           ds["sharpe"],
-            "n_trades":         ds["n_trades"],
-            "win_rate":         ds["win_rate"],
-            "avg_return":       ds["avg_return"],
-            "max_dd":           ds["max_dd"],
-            "profit_factor":    compute_profit_factor(recs_mc),
-            "multi_crit_score": mc_s,
+            "buy_weights":   {nm: round(float(r["weights"][i]), 3) for i, nm in enumerate(ind_names)},
+            "buy_threshold": r["thr"],
+            "sell_rule":     best_sell,
+            "sharpe":        ds["sharpe"],
+            "n_trades":      ds["n_trades"],
+            "win_rate":      ds["win_rate"],
+            "avg_return":    ds["avg_return"],
+            "max_dd":        ds["max_dd"],
         })
-    # 多基準スコアで再ランキング
-    top100_out.sort(key=lambda x: x["multi_crit_score"], reverse=True)
 
     ga_all_sells_summary = {}
     for sname, gr in all_ga_results_raw.items():
@@ -2037,27 +1948,14 @@ def run_phase_assemble(mode: str) -> None:
                 "final":        final_ic,
             }
 
-    # JP株 OOSテスト (swing のみ、price_data_intraday_jp.json が存在する場合)
-    jp_oos = None
-    if mode == "swing":
-        jp_oos = eval_jp_stocks(best_w, best_sell, best_thresh)
-        if jp_oos and jp_oos.get("n_trades", 0) > 0:
-            for method in ["equal", "score_prop", "frac_kelly"]:
-                s = jp_oos[method]
-                print(f"  [JP OOS {method:10s}] 最終値={s['final_value']:.2f} "
-                      f"リターン={s['total_return_pct']:+.1f}%  "
-                      f"最大DD={s['max_drawdown_pct']:.1f}%  "
-                      f"Sharpe={s['sharpe']:.3f}")
-
     result = {
-        "version":       8,
+        "version":       15,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
-        "data_source":   "price_data_intraday.json (1h足)" if mode == "swing" else "price_data_10min.json (10分足)",
+        "data_source":   "price_data_intraday.json (10min bars, Alpaca)" if mode == "day" else "price_data.json (daily bars)",
         "n_tickers":     len(ticker_data),
         "tickers":       list(ticker_data.keys()),
         "n_evaluated":   len(all_results),
-        "multi_crit_weights": MULTI_CRIT_W,
         "transaction_costs": {"US_pct": round(US_COST * 100, 2), "JP_pct": round(JP_COST * 100, 2)},
         "lookahead_bias_fixed": True,
         "entry_price":   "open of bar t+1 (signal at close of bar t)",
@@ -2083,8 +1981,8 @@ def run_phase_assemble(mode: str) -> None:
             "ranking":           doe_ranked,
         },
         "ga_results": {
-            "population":             GA_POP if mode == "day" else 0,
-            "generations":            GA_GENS if mode == "day" else 0,
+            "population":             GA_POP_DAY if mode == "day" else 0,
+            "generations":            GA_GENS_DAY if mode == "day" else 0,
             "method":                 "ga" if mode == "day" else "ic_lift",
             "n_sell_rules_optimized": len(sell_rules),
             "all_sell_rules":         ga_all_sells_summary,
@@ -2094,8 +1992,6 @@ def run_phase_assemble(mode: str) -> None:
             "best_threshold":         best_thresh,
             "convergence":            [round(v, 4) for v in convergence],
         },
-        "portfolio_simulation": port_sim,
-        "jp_oos_test": jp_oos,
         "ic_lift_results": ic_lift_results,
         "walk_forward": {
             "n_folds":         n_wf_folds,
@@ -2313,10 +2209,10 @@ def full_evaluation(ticker_data: dict, mode: str) -> dict:
         }
 
     return {
-        "version":       6,
+        "version":       15,
         "generated_at":  time.strftime("%Y-%m-%d %H:%M"),
         "mode":          mode,
-        "data_source":   "price_data_intraday.json (1h足)" if mode == "swing" else "price_data_10min.json (10分足)",
+        "data_source":   "price_data_intraday.json (10min bars, Alpaca)" if mode == "day" else "price_data.json (daily bars)",
         "n_tickers":     len(ticker_data),
         "tickers":       list(ticker_data.keys()),
         "n_evaluated":   len(all_results),
