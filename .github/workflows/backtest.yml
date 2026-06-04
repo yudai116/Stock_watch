@@ -1,4 +1,4 @@
-name: バックテスト実行（実データ・16ジョブ並列）
+name: バックテスト実行（実データ・22ジョブ並列）
 
 on:
   workflow_dispatch:
@@ -6,25 +6,15 @@ on:
       mode:
         description: 'バックテストモード'
         required: false
-        default: 'both'
+        default: 'swing'
         type: choice
         options:
           - swing
           - day
           - both
-      ga_l2_lambda:
-        description: 'L2正則化強度 (デフォルト: 0.5, 過学習時は増やす)'
-        required: false
-        default: '0.5'
-        type: string
-      threshold_offset:
-        description: '買い閾値オフセット (0=デフォルト, -10=閾値を10下げる)'
-        required: false
-        default: '0'
-        type: string
   push:
     branches:
-      - 'claude/stock-price-dashboard-QrhiS'
+      - main
     paths:
       - 'backtest/pdca_trigger.json'
   schedule:
@@ -56,57 +46,30 @@ jobs:
           cache: 'npm'
       - name: npm install
         run: npm ci
-      - name: US 1時間足データ取得 (Alpaca優先/最大10年, US38銘柄) — スイング最適化用
+      - name: 10min足データ取得 (Alpaca優先/最大10年, フォールバックYahoo1h-730日) — デイトレ用
         run: node backtest/fetch_data.mjs --intraday
         env:
           ALPACA_API_KEY:    ${{ secrets.ALPACA_API_KEY }}
           ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
-      - name: JP 1時間足データ取得 (Yahoo/730日, JP12銘柄) — JP OOSテスト用
-        run: node backtest/fetch_data.mjs --intraday-jp
-      - name: 10分足データ取得 US (Alpaca/最大10年) — デイトレ用
-        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
-        run: node backtest/fetch_data.mjs --day
-        env:
-          ALPACA_API_KEY:    ${{ secrets.ALPACA_API_KEY }}
-          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
-      - name: 10分足データ取得 JP (J-Quants/2年) — デイトレ用 (JQUANTS_EMAIL 設定時のみ)
-        if: ${{ (github.event_name != 'workflow_dispatch' || github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both') && secrets.JQUANTS_EMAIL != '' }}
-        run: |
-          pip install requests --quiet
-          python backtest/fetch_data_jquants.py
-        env:
-          JQUANTS_EMAIL:    ${{ secrets.JQUANTS_EMAIL }}
-          JQUANTS_PASSWORD: ${{ secrets.JQUANTS_PASSWORD }}
-      - name: スイング用データをアーティファクトとして保存 (US 1時間足)
+      - name: 日足データ取得 (10年, 47銘柄) — スイング用
+        run: node backtest/fetch_data.mjs
+      - name: デイトレ用データをアーティファクトとして保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: price-data
+          path: backtest/price_data_intraday.json
+          retention-days: 1
+      - name: スイング用データをアーティファクトとして保存
         uses: actions/upload-artifact@v4
         with:
           name: price-data-swing
-          path: backtest/price_data_intraday.json
+          path: backtest/price_data.json
           retention-days: 1
-      - name: JP OOSテスト用データをアーティファクトとして保存 (JP 1時間足)
-        uses: actions/upload-artifact@v4
-        with:
-          name: price-data-swing-jp
-          path: backtest/price_data_intraday_jp.json
-          retention-days: 1
-      - name: デイトレ用データをアーティファクトとして保存 (US 10分足)
-        uses: actions/upload-artifact@v4
-        with:
-          name: price-data-day
-          path: backtest/price_data_10min.json
-          retention-days: 1
-      - name: デイトレ用データをアーティファクトとして保存 (JP 10分足, 存在する場合)
-        uses: actions/upload-artifact@v4
-        with:
-          name: price-data-day-jp
-          path: backtest/price_data_10min_jp.json
-          retention-days: 1
-        continue-on-error: true
 
   # ── Job 2: スイング DOE ────────────────────────────────────────────────────
   swing-doe:
     needs: fetch-data
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode != 'day' }}
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -131,21 +94,15 @@ jobs:
   # ── Job 3: デイトレ DOE ────────────────────────────────────────────────────
   day-doe:
     needs: fetch-data
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: price-data-day
+          name: price-data
           path: backtest/
-      - name: JP 10分足データを取得 (存在する場合)
-        uses: actions/download-artifact@v4
-        with:
-          name: price-data-day-jp
-          path: backtest/
-        continue-on-error: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -162,7 +119,7 @@ jobs:
   # ── Job 4: スイング WF Fold 0 ─────────────────────────────────────────────
   swing-wf-fold-0:
     needs: [fetch-data, swing-doe]
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode != 'day' }}
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -208,7 +165,7 @@ jobs:
   # ── Job 5: スイング WF Fold 1 ─────────────────────────────────────────────
   swing-wf-fold-1:
     needs: [fetch-data, swing-doe]
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode != 'day' }}
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -254,7 +211,7 @@ jobs:
   # ── Job 6: スイング WF Fold 2 ─────────────────────────────────────────────
   swing-wf-fold-2:
     needs: [fetch-data, swing-doe]
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode != 'day' }}
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -300,7 +257,7 @@ jobs:
   # ── Job 7: スイング WF Fold 3 ─────────────────────────────────────────────
   swing-wf-fold-3:
     needs: [fetch-data, swing-doe]
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode != 'day' }}
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -346,7 +303,7 @@ jobs:
   # ── Job: スイング WF Fold 4 ───────────────────────────────────────────────
   swing-wf-fold-4:
     needs: [fetch-data, swing-doe]
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode != 'day' }}
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -392,7 +349,7 @@ jobs:
   # ── Job: スイング WF Fold 5 ───────────────────────────────────────────────
   swing-wf-fold-5:
     needs: [fetch-data, swing-doe]
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode != 'day' }}
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -435,10 +392,100 @@ jobs:
           path: backtest/phase_artifacts/wf_swing_fold_5.json
           retention-days: 1
 
+  swing-wf-fold-6:
+    needs: [fetch-data, swing-doe]
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 255
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: price-data-swing
+          path: backtest/
+      - run: mkdir -p backtest/phase_artifacts/checkpoint_swing_fold_6
+      - uses: actions/download-artifact@v4
+        with:
+          name: doe-swing
+          path: backtest/phase_artifacts/
+      - name: チェックポイント取得 (前回の続きがあれば)
+        uses: actions/download-artifact@v4
+        with:
+          name: checkpoint-swing-fold-6
+          path: backtest/phase_artifacts/checkpoint_swing_fold_6/
+        continue-on-error: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy --quiet
+      - name: スイング WF Fold 6 実行
+        id: run_fold
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 6 --time-limit 230
+      - name: チェックポイント保存 (常に実行)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkpoint-swing-fold-6
+          path: backtest/phase_artifacts/checkpoint_swing_fold_6/
+          retention-days: 7
+          overwrite: true
+      - name: 完了時フォールド結果を保存
+        if: steps.run_fold.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wf-swing-fold-6
+          path: backtest/phase_artifacts/wf_swing_fold_6.json
+          retention-days: 1
+
+  swing-wf-fold-7:
+    needs: [fetch-data, swing-doe]
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 255
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: price-data-swing
+          path: backtest/
+      - run: mkdir -p backtest/phase_artifacts/checkpoint_swing_fold_7
+      - uses: actions/download-artifact@v4
+        with:
+          name: doe-swing
+          path: backtest/phase_artifacts/
+      - name: チェックポイント取得 (前回の続きがあれば)
+        uses: actions/download-artifact@v4
+        with:
+          name: checkpoint-swing-fold-7
+          path: backtest/phase_artifacts/checkpoint_swing_fold_7/
+        continue-on-error: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy --quiet
+      - name: スイング WF Fold 7 実行
+        id: run_fold
+        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 7 --time-limit 230
+      - name: チェックポイント保存 (常に実行)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkpoint-swing-fold-7
+          path: backtest/phase_artifacts/checkpoint_swing_fold_7/
+          retention-days: 7
+          overwrite: true
+      - name: 完了時フォールド結果を保存
+        if: steps.run_fold.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wf-swing-fold-7
+          path: backtest/phase_artifacts/wf_swing_fold_7.json
+          retention-days: 1
+
   # ── Job 8: スイング 最終GA ─────────────────────────────────────────────────
   swing-final:
     needs: [fetch-data, swing-doe]
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode != 'day' }}
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
@@ -484,21 +531,15 @@ jobs:
   # ── Job 9: デイトレ WF Fold 0 ─────────────────────────────────────────────
   day-wf-fold-0:
     needs: [fetch-data, day-doe]
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: price-data-day
+          name: price-data
           path: backtest/
-      - name: JP 10分足データを取得 (存在する場合)
-        uses: actions/download-artifact@v4
-        with:
-          name: price-data-day-jp
-          path: backtest/
-        continue-on-error: true
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_0
       - uses: actions/download-artifact@v4
         with:
@@ -536,21 +577,15 @@ jobs:
   # ── Job 10: デイトレ WF Fold 1 ────────────────────────────────────────────
   day-wf-fold-1:
     needs: [fetch-data, day-doe]
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: price-data-day
+          name: price-data
           path: backtest/
-      - name: JP 10分足データを取得 (存在する場合)
-        uses: actions/download-artifact@v4
-        with:
-          name: price-data-day-jp
-          path: backtest/
-        continue-on-error: true
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_1
       - uses: actions/download-artifact@v4
         with:
@@ -588,21 +623,15 @@ jobs:
   # ── Job 11: デイトレ WF Fold 2 ────────────────────────────────────────────
   day-wf-fold-2:
     needs: [fetch-data, day-doe]
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: price-data-day
+          name: price-data
           path: backtest/
-      - name: JP 10分足データを取得 (存在する場合)
-        uses: actions/download-artifact@v4
-        with:
-          name: price-data-day-jp
-          path: backtest/
-        continue-on-error: true
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_2
       - uses: actions/download-artifact@v4
         with:
@@ -640,21 +669,15 @@ jobs:
   # ── Job 12: デイトレ WF Fold 3 ────────────────────────────────────────────
   day-wf-fold-3:
     needs: [fetch-data, day-doe]
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: price-data-day
+          name: price-data
           path: backtest/
-      - name: JP 10分足データを取得 (存在する場合)
-        uses: actions/download-artifact@v4
-        with:
-          name: price-data-day-jp
-          path: backtest/
-        continue-on-error: true
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_3
       - uses: actions/download-artifact@v4
         with:
@@ -692,21 +715,15 @@ jobs:
   # ── Job: デイトレ WF Fold 4 ──────────────────────────────────────────────
   day-wf-fold-4:
     needs: [fetch-data, day-doe]
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: price-data-day
+          name: price-data
           path: backtest/
-      - name: JP 10分足データを取得 (存在する場合)
-        uses: actions/download-artifact@v4
-        with:
-          name: price-data-day-jp
-          path: backtest/
-        continue-on-error: true
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_4
       - uses: actions/download-artifact@v4
         with:
@@ -744,21 +761,15 @@ jobs:
   # ── Job: デイトレ WF Fold 5 ──────────────────────────────────────────────
   day-wf-fold-5:
     needs: [fetch-data, day-doe]
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: price-data-day
+          name: price-data
           path: backtest/
-      - name: JP 10分足データを取得 (存在する場合)
-        uses: actions/download-artifact@v4
-        with:
-          name: price-data-day-jp
-          path: backtest/
-        continue-on-error: true
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_fold_5
       - uses: actions/download-artifact@v4
         with:
@@ -796,21 +807,15 @@ jobs:
   # ── Job 13: デイトレ 最終GA ───────────────────────────────────────────────
   day-final:
     needs: [fetch-data, day-doe]
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 255
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: price-data-day
+          name: price-data
           path: backtest/
-      - name: JP 10分足データを取得 (存在する場合)
-        uses: actions/download-artifact@v4
-        with:
-          name: price-data-day-jp
-          path: backtest/
-        continue-on-error: true
       - run: mkdir -p backtest/phase_artifacts/checkpoint_day_final
       - uses: actions/download-artifact@v4
         with:
@@ -847,8 +852,8 @@ jobs:
 
   # ── Job 14: スイング アセンブル ───────────────────────────────────────────
   swing-assemble:
-    needs: [swing-wf-fold-0, swing-wf-fold-1, swing-wf-fold-2, swing-wf-fold-3, swing-wf-fold-4, swing-wf-fold-5, swing-final]
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode != 'day' }}
+    needs: [swing-wf-fold-0, swing-wf-fold-1, swing-wf-fold-2, swing-wf-fold-3, swing-wf-fold-4, swing-wf-fold-5, swing-wf-fold-6, swing-wf-fold-7, swing-final]
+    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -888,19 +893,21 @@ jobs:
           path: backtest/phase_artifacts/
       - uses: actions/download-artifact@v4
         with:
+          name: wf-swing-fold-6
+          path: backtest/phase_artifacts/
+      - uses: actions/download-artifact@v4
+        with:
+          name: wf-swing-fold-7
+          path: backtest/phase_artifacts/
+      - uses: actions/download-artifact@v4
+        with:
           name: final-swing
           path: backtest/phase_artifacts/
-      - name: JP OOSテスト用データを取得
-        uses: actions/download-artifact@v4
-        with:
-          name: price-data-swing-jp
-          path: backtest/
-        continue-on-error: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: pip install numpy --quiet
-      - name: スイング アセンブル実行 (JP OOSテスト含む)
+      - name: スイング アセンブル実行
         run: python3 backtest/strategy_search.py --phase assemble --mode swing
       - uses: actions/upload-artifact@v4
         with:
@@ -911,14 +918,14 @@ jobs:
   # ── Job 15: デイトレ アセンブル ───────────────────────────────────────────
   day-assemble:
     needs: [day-wf-fold-0, day-wf-fold-1, day-wf-fold-2, day-wf-fold-3, day-wf-fold-4, day-wf-fold-5, day-final]
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.mode == 'day' || github.event.inputs.mode == 'both' }}
+    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: price-data-day
+          name: price-data
           path: backtest/
       - run: mkdir -p backtest/phase_artifacts
       - uses: actions/download-artifact@v4
@@ -953,12 +960,6 @@ jobs:
         with:
           name: final-day
           path: backtest/phase_artifacts/
-      - name: JP 10分足データを取得 (存在する場合)
-        uses: actions/download-artifact@v4
-        with:
-          name: price-data-day-jp
-          path: backtest/
-        continue-on-error: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -1011,5 +1012,8 @@ jobs:
                   lib/backtestWeights.ts 2>/dev/null || true
           git diff --staged --quiet && echo "変更なし" || (
             git commit -m "chore: バックテスト結果を更新 [skip ci]" &&
-            git push origin main
+            for i in 1 2 3 4 5; do
+              git pull --rebase origin main && git push origin main && break
+              echo "Push retry $i/5, waiting $((i*3))s..." && sleep $((i*3))
+            done
           )
