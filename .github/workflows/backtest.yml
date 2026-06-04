@@ -16,9 +16,7 @@ on:
     branches:
       - main
     paths:
-      - 'backtest/**'
-      - 'app/**'
-      - '.github/workflows/backtest.yml'
+      - 'backtest/pdca_trigger.json'
   schedule:
     - cron: '0 1 * * 0'
 
@@ -1014,5 +1012,8 @@ jobs:
                   lib/backtestWeights.ts 2>/dev/null || true
           git diff --staged --quiet && echo "変更なし" || (
             git commit -m "chore: バックテスト結果を更新 [skip ci]" &&
-            git push origin main
+            for i in 1 2 3 4 5; do
+              git pull --rebase origin main && git push origin main && break
+              echo "Push retry $i/5, waiting $((i*3))s..." && sleep $((i*3))
+            done
           )
