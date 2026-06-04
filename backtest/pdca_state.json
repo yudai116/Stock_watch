@@ -2,8 +2,8 @@
   "run_count": 4,
   "stop_requested": false,
   "current_params": {
-    "ga_l2_lambda": 5.0,
-    "threshold_offset": -20,
+    "ga_l2_lambda": 0.5,
+    "threshold_offset": 0,
     "mode": "both"
   },
   "history": [
@@ -132,5 +132,5 @@
     "swing_sharpe": 2.8435,
     "day_sharpe": 37.6718
   },
-  "no_improve_streak": 3
+  "no_improve_streak": 0
 }
