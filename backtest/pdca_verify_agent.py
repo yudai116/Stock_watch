@@ -153,60 +153,62 @@ def run_agent(mode: str) -> str:
 
     # ── プロンプト構築 ──────────────────────────────────────────────────────
     if mode == "check":
-        spec = CHECKER_F.read_text(encoding="utf-8")
         system_prompt = (
-            "あなたは検証チェッカーエージェントです。"
-            "VERIFICATION_CHECKER.md の仕様に従って実装を確認し、詳細なレポートを出力してください。"
+            "あなたは検証チェッカーエージェントです（使用モデル: claude-opus-4-8 固定）。"
+            "まず最初に read_file ツールで backtest/VERIFICATION_CHECKER.md を読み、"
+            "その仕様に完全に従って実装を確認してください。"
             "コードは変更しないこと。"
         )
-        user_message = spec
+        user_message = (
+            "以下の手順で検証を実行してください:\n\n"
+            "**Step 0（必須・最初に行うこと）**: "
+            "`read_file` ツールで `backtest/VERIFICATION_CHECKER.md` を読む。"
+            "このファイルに記載された仕様・手順・フォーマットに完全に従うこと。\n\n"
+            "その後、VERIFICATION_CHECKER.md の Step 1〜4 を順番に実行し、"
+            "指定のフォーマットで詳細なレポートを出力してください。\n\n"
+            f"リポジトリルート: {REPO_ROOT}"
+        )
 
     elif mode == "improve":
-        spec     = SPEC_F.read_text(encoding="utf-8")
         state_txt = STATE_F.read_text(encoding="utf-8") if STATE_F.exists() else "{}"
         swing_txt = SWING_F.read_text(encoding="utf-8") if SWING_F.exists() else "null"
         day_txt   = DAY_F.read_text(encoding="utf-8")   if DAY_F.exists() else "null"
 
         system_prompt = (
-            "あなたは検証役エージェントです。"
-            "VERIFICATION_SPEC.md の仕様に従って、アルゴリズムの改善を提案し、"
-            "backtest/strategy_search.py に直接実装してください。"
+            "あなたは検証役エージェントです（使用モデル: claude-opus-4-8 固定）。"
+            "まず最初に read_file ツールで backtest/VERIFICATION_SPEC.md を読み、"
+            "その仕様に完全に従ってアルゴリズムの改善を実装してください。"
             "提案だけでは不十分です。必ずコードを編集してください。"
         )
-        user_message = f"""{spec}
+        user_message = f"""以下の手順で改善を実行してください:
+
+**Step 0（必須・最初に行うこと）**: `read_file` ツールで `backtest/VERIFICATION_SPEC.md` を読む。
+このファイルに記載された仕様・手順・フォーマットに完全に従うこと。
+
+その後、VERIFICATION_SPEC.md の Step 1〜5 を順番に実行すること。
 
 ---
 
-## 今回の実験データ
+## 今回の実験データ（参考）
 
 ### pdca_state.json（実験履歴）
 ```json
 {state_txt}
 ```
 
-### strategy_results_swing.json（スイング結果）
+### strategy_results_swing.json（スイング結果・先頭3000文字）
 ```json
 {swing_txt[:3000]}
 ```
 
-### strategy_results_day.json（デイトレ結果）
+### strategy_results_day.json（デイトレ結果・先頭3000文字）
 ```json
 {day_txt[:3000]}
 ```
 
 ---
 
-## 実行指示
-
-上記の仕様書（VERIFICATION_SPEC.md）と実験データをもとに、以下の順番で作業してください:
-
-1. `backtest/strategy_search.py` を read_file ツールで読む
-2. Step 1: 現状コードの問題点を特定する
-3. Step 2: 実験結果と照合して原因を特定する
-4. Step 3: VERIFICATION_SPEC.md の「改善案フォーマット」に従って改善案を立案する
-5. 改善案を `edit_file` ツールを使って `backtest/strategy_search.py` に実装する
-6. 実装完了後、`run_command` で `git diff backtest/strategy_search.py` を実行して変更内容を確認する
-7. 最終レポートを出力する（Step 3 フォーマット準拠）
+リポジトリルート: {REPO_ROOT}
 """
     else:
         print(f"[ERROR] 不明なモード: {mode}", file=sys.stderr)
