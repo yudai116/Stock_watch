@@ -60,14 +60,15 @@ RESULTS_DAY   = HERE / "strategy_results_day.json"
 ARTIFACTS_DIR = HERE / "phase_artifacts"
 
 MIN_TRADES     = 25   # v12: day ORB導入でシグナル増加 → 制約を緩め実現可能な戦略を発見
-MIN_TRADES_OOS = 5    # OOS/ホールドアウト評価の最小取引数（v13: 10→5 小さいホールドアウトでも有効なSharpe取得）
+MIN_TRADES_OOS = 3    # v14: →3 4取引ホールドアウトでSharpe計算可能に
 BARS_PER_YEAR_DAY   = 9828  # 10min bars/year (252日 × 39本/日) ※Yahoo 1h fallback時は過大だが許容
 BARS_PER_YEAR_SWING = 252   # daily bars/year
 
 # スイング専用パラメータ
 SWING_MIN_TRADES      = 15   # OOS最小トレード数（v9: 10→15 品質向上）
 _TOFF = int(os.environ.get("THRESHOLD_OFFSET", "0"))
-SWING_BUY_THRESHOLDS  = [max(20, t + _TOFF) for t in [30, 35, 40, 45, 50]]  # v9: 大幅引き下げでホールドアウトのトレード数を確保
+_TOFF_CLAMPED = max(-5, _TOFF)  # v14: 大きな負値でBUY_THRESHOLDSが崩壊するのを防ぐ
+SWING_BUY_THRESHOLDS  = [max(20, t + _TOFF_CLAMPED) for t in [30, 35, 40, 45, 50]]  # v9: 大幅引き下げでホールドアウトのトレード数を確保
 
 # IC+Lift スイング専用パラメータ (GAの代替)
 SWING_IC_WIN        = 120   # ローリングIC窓サイズ (日足: 約6ヶ月)
@@ -208,7 +209,7 @@ DAY_SELL_JA = {
 IND_NAMES_SWING = ["RSI", "MACD", "BB", "EMA200", "MOM3M", "Stoch", "CCI", "52WK"]
 IND_NAMES_DAY   = ["RSI", "MACD", "BB", "MA", "RVOL", "VWAP_B", "ORB", "MOM3B"]
 
-BUY_THRESHOLDS = [max(3, t + _TOFF) for t in [5, 8, 10, 12, 15]]   # v12: ORB単独でも反応できる低閾値; _TOFF で調整
+BUY_THRESHOLDS = [max(3, t + _TOFF_CLAMPED) for t in [5, 8, 10, 12, 15]]   # v14: _TOFF_CLAMPEDで崩壊防止
 
 MAX_HOLD_BARS_SWING = 60   # 日足: 最大60取引日 (約3ヶ月)
 MAX_HOLD_BARS_DAY   = 78   # 10min足×78 = 13h ≈ 2取引日
@@ -620,12 +621,12 @@ def score_vwap_bull(vwap_dev: np.ndarray) -> np.ndarray:
     """VWAP乖離(強気版): VWAP以上ほど高スコア。ORBブレイクアウトの方向性確認用。
     従来の score_vwap (逆張り) とは逆向き — day モード専用。"""
     dev_pct = vwap_dev * 100
-    s = np.where(dev_pct > 2.0,   15.,
-        np.where(dev_pct > 0.5,   10. + (dev_pct - 0.5) / 1.5 * 5.,
-        np.where(dev_pct > 0.,    6.  + dev_pct / 0.5 * 4.,
-        np.where(dev_pct > -1.5,  2.  + (dev_pct + 1.5) / 1.5 * 4.,
+    s = np.where(dev_pct > 2.0,   25.,
+        np.where(dev_pct > 0.5,   17. + (dev_pct - 0.5) / 1.5 * 8.,
+        np.where(dev_pct > 0.,    10. + dev_pct / 0.5 * 7.,
+        np.where(dev_pct > -1.5,  3.  + (dev_pct + 1.5) / 1.5 * 7.,
         0.))))
-    return np.clip(np.where(np.isnan(vwap_dev), 0., s), 0., 15.)
+    return np.clip(np.where(np.isnan(vwap_dev), 0., s), 0., 25.)
 
 
 def score_momentum_3b(c: np.ndarray) -> np.ndarray:
@@ -635,10 +636,10 @@ def score_momentum_3b(c: np.ndarray) -> np.ndarray:
     roc = np.zeros(T)
     roc[3:] = (c[3:] - c[:-3]) / np.maximum(c[:-3], 1e-8) * 100
     return np.where(roc <= 0., 0.,
-           np.where(roc < 0.2,  roc / 0.2 * 5.,
-           np.where(roc < 0.8,  5. + (roc - 0.2) / 0.6 * 5.,
-           np.where(roc < 2.0,  10.,
-           np.where(roc < 4.0,  10. - (roc - 2.0) / 2.0 * 5., 5.)))))
+           np.where(roc < 0.2,  roc / 0.2 * 12.5,
+           np.where(roc < 0.8,  12.5 + (roc - 0.2) / 0.6 * 12.5,
+           np.where(roc < 2.0,  25.,
+           np.where(roc < 4.0,  25. - (roc - 2.0) / 2.0 * 12.5, 12.5)))))
 
 
 def score_rsi_bull(r: np.ndarray) -> np.ndarray:
@@ -647,12 +648,12 @@ def score_rsi_bull(r: np.ndarray) -> np.ndarray:
     過学習防止: ピーク幅±15(35-70)を広くとり急峻な山を避ける。
     設計根拠: RSI>50=強気トレンド継続, 50-70=モメンタムゾーン, >75=過熱リスク。"""
     s = np.where(r < 35,  0.,
-        np.where(r < 50, (r - 35) / 15 * 10.,
-        np.where(r < 65, 10. + (r - 50) / 15 * 5.,
-        np.where(r < 70, 15.,
-        np.where(r < 80, 15. - (r - 70) / 10 * 12.,
-        np.maximum(0., 3. - (r - 80) / 10 * 3.))))))
-    return np.clip(np.where(np.isnan(r), 0., s), 0., 15.)
+        np.where(r < 50, (r - 35) / 15 * 17.,
+        np.where(r < 65, 17. + (r - 50) / 15 * 8.,
+        np.where(r < 70, 25.,
+        np.where(r < 80, 25. - (r - 70) / 10 * 20.,
+        np.maximum(0., 5. - (r - 80) / 10 * 5.))))))
+    return np.clip(np.where(np.isnan(r), 0., s), 0., 25.)
 
 
 def score_bb_bull(pb: np.ndarray) -> np.ndarray:
@@ -661,12 +662,12 @@ def score_bb_bull(pb: np.ndarray) -> np.ndarray:
     過学習防止: 0.3-0.8 の広い範囲を優遇、上限帯(>0.85)は急落。
     設計根拠: 上位バンド近く(>0.8)は過熱、下位(<0.3)はORBと矛盾。"""
     s = np.where(pb < 0.1,  0.,
-        np.where(pb < 0.4,  (pb - 0.1) / 0.3 * 10.,
-        np.where(pb < 0.6,  10. + (pb - 0.4) / 0.2 * 5.,
-        np.where(pb < 0.75, 15.,
-        np.where(pb < 0.85, 15. - (pb - 0.75) / 0.1 * 10.,
-        np.maximum(0., 5. - (pb - 0.85) / 0.15 * 5.))))))
-    return np.clip(np.where(np.isnan(pb), 0., s), 0., 15.)
+        np.where(pb < 0.4,  (pb - 0.1) / 0.3 * 17.,
+        np.where(pb < 0.6,  17. + (pb - 0.4) / 0.2 * 8.,
+        np.where(pb < 0.75, 25.,
+        np.where(pb < 0.85, 25. - (pb - 0.75) / 0.1 * 17.,
+        np.maximum(0., 8. - (pb - 0.85) / 0.15 * 8.))))))
+    return np.clip(np.where(np.isnan(pb), 0., s), 0., 25.)
 
 
 def score_relvol(volumes: np.ndarray, period: int = 20) -> np.ndarray:
@@ -674,8 +675,8 @@ def score_relvol(volumes: np.ndarray, period: int = 20) -> np.ndarray:
     sma_v = _sma(volumes, period)
     valid = ~np.isnan(sma_v) & (sma_v > 0)
     rvol  = np.where(valid, volumes / np.where(sma_v > 0, sma_v, 1.), np.nan)
-    s = np.where(rvol > 3.0, 22.,
-        np.where(rvol > 2.0, 16. + (rvol - 2.0) * 6.,
+    s = np.where(rvol > 3.0, 25.,
+        np.where(rvol > 2.0, 16. + (rvol - 2.0) * 9.,
         np.where(rvol > 1.5, 11. + (rvol - 1.5) / 0.5 * 5.,
         np.where(rvol > 1.0,  7. + (rvol - 1.0) / 0.5 * 4.,
         np.where(rvol > 0.7,  3. + (rvol - 0.7) / 0.3 * 4.,
@@ -962,8 +963,9 @@ def detailed_eval_single(ticker_data: dict, w: np.ndarray, sell_name: str,
                           t_start: int, t_end: int,
                           crossover_only: bool = False,
                           bars_per_year: int = BARS_PER_YEAR_DAY) -> dict:
-    """単一重みベクトルの詳細評価 (n_trades / win_rate / avg_return / max_dd)"""
+    """単一重みベクトルの詳細評価 (n_trades / win_rate / avg_return / max_dd / profit_factor)"""
     n = 0; s = 0.; sq = 0.; wins = 0; min_ret = np.inf
+    gross_win = 0.; gross_loss = 0.
     wm = w.reshape(1, 8).astype(np.float32)
     for td in ticker_data.values():
         ind   = td["ind_scores"][:, t_start:t_end].astype(np.float32)
@@ -987,19 +989,23 @@ def detailed_eval_single(ticker_data: dict, w: np.ndarray, sell_name: str,
         sq   += float((tr**2).sum())
         wins += int((tr > 0).sum())
         min_ret = min(min_ret, float(tr.min()))
+        gross_win  += float(tr[tr > 0].sum()) if (tr > 0).any() else 0.
+        gross_loss += float(abs(tr[tr < 0].sum())) if (tr < 0).any() else 0.
     if n == 0:
-        return {"sharpe": 0., "n_trades": 0, "win_rate": 0., "avg_return": 0., "max_dd": 0.}
+        return {"sharpe": 0., "n_trades": 0, "win_rate": 0., "avg_return": 0., "max_dd": 0., "profit_factor": 0.}
     avg = s / n
     var = sq / n - avg**2
     std = np.sqrt(max(var, 0.))
     factor = np.sqrt(bars_per_year / max(hold_bars, 1))
     sharpe = (avg / std * factor) if std > 1e-10 else 0.
+    pf = round(gross_win / gross_loss, 4) if gross_loss > 1e-8 else (9.999 if gross_win > 0 else 0.)
     return {
-        "sharpe":      round(float(sharpe), 4),
-        "n_trades":    n,
-        "win_rate":    round(wins / n, 4),
-        "avg_return":  round(avg * 100, 3),
-        "max_dd":      round((min_ret if min_ret < np.inf else 0.) * 100, 3),
+        "sharpe":        round(float(sharpe), 4),
+        "n_trades":      n,
+        "win_rate":      round(wins / n, 4),
+        "avg_return":    round(avg * 100, 3),
+        "max_dd":        round((min_ret if min_ret < np.inf else 0.) * 100, 3),
+        "profit_factor": pf,
     }
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1189,10 +1195,17 @@ def run_ga_all_sells(ticker_data: dict, mode: str, doe_effects: dict,
         prog_file = checkpoint_dir / "progress.json"
         if prog_file.exists():
             prog = json.loads(prog_file.read_text())
-            # t_train_end が変わった場合（MIN_BARS_DAY変更等でT_minが変化）はチェックポイント無効化
-            ckpt_t = prog.get("t_train_end", -1)
-            if ckpt_t != t_train_end:
-                print(f"  チェックポイント無効: t_train_end変更 ({ckpt_t} → {t_train_end}), 最初からやり直し")
+            # v14: L2/TOFF変更時に旧GA結果を使い回すバグを修正
+            ckpt_t    = prog.get("t_train_end", -1)
+            ckpt_l2   = prog.get("ga_l2_lambda", -1.0)
+            ckpt_toff = prog.get("threshold_offset", -999)
+            params_ok = (
+                ckpt_t == t_train_end and
+                abs(ckpt_l2 - GA_L2_LAMBDA) < 1e-6 and
+                ckpt_toff == _TOFF
+            )
+            if not params_ok:
+                print(f"  チェックポイント無効: パラメータ変更 (t={ckpt_t}→{t_train_end}, l2={ckpt_l2}→{GA_L2_LAMBDA}, toff={ckpt_toff}→{_TOFF})")
             else:
                 completed_sells = set(prog.get("completed_sells", []))
                 for sname in list(completed_sells):
@@ -1260,9 +1273,11 @@ def run_ga_all_sells(ticker_data: dict, mode: str, doe_effects: dict,
             }))
             completed_sells.add(sname)
             (checkpoint_dir / "progress.json").write_text(json.dumps({
-                "completed_sells": list(completed_sells),
-                "t_train_end":     t_train_end,
-                "last_updated":    time.strftime("%Y-%m-%d %H:%M"),
+                "completed_sells":  list(completed_sells),
+                "t_train_end":      t_train_end,
+                "ga_l2_lambda":     GA_L2_LAMBDA,
+                "threshold_offset": _TOFF,
+                "last_updated":     time.strftime("%Y-%m-%d %H:%M"),
             }))
 
         best_shp_now = max(gr["sharpe"] for gr in all_ga_results.values())
@@ -1806,8 +1821,13 @@ def run_phase_assemble(mode: str) -> None:
         fold_weights_list.append(np.array(wa["best_weights"]))
 
     avg_oos_sharpe = float(np.mean([f["oos_sharpe"] for f in wf_folds]))
-    oos_arr = np.array([f["oos_sharpe"] for f in wf_folds])
-    wf_stability = float(1. - np.std(oos_arr) / (abs(np.mean(oos_arr)) + 1e-6))
+    oos_arr   = np.array([f["oos_sharpe"] for f in wf_folds])
+    # v14: 取引数不足(=0.0)フォールドを除外してWF安定性を計算
+    oos_valid = oos_arr[oos_arr != 0.0]
+    if len(oos_valid) >= 2:
+        wf_stability = float(1. - np.std(oos_valid) / (abs(np.mean(oos_valid)) + 1e-6))
+    else:
+        wf_stability = 0.0
 
     best_sell   = final_art["best_sell"]
     best_thresh = final_art["best_threshold"]
@@ -2000,11 +2020,12 @@ def run_phase_assemble(mode: str) -> None:
             "train_bars":      t_holdout,
             "test_bars":       T_min - t_holdout,
             "train_sharpe":    round(train_shp, 4),
-            "test_sharpe":     round(test_shp, 4),
-            "test_win_rate":   round(test_stats["win_rate"], 4),
-            "test_n_trades":   test_stats["n_trades"],
-            "test_avg_return": round(test_stats["avg_return"], 3),
-            "test_max_dd":     round(test_stats["max_dd"], 3),
+            "test_sharpe":        round(test_shp, 4),
+            "test_win_rate":      round(test_stats["win_rate"], 4),
+            "test_n_trades":      test_stats["n_trades"],
+            "test_avg_return":    round(test_stats["avg_return"], 3),
+            "test_max_dd":        round(test_stats["max_dd"], 3),
+            "test_profit_factor": round(test_stats.get("profit_factor", 0.), 4),
         },
     }
     out_file.write_text(json.dumps(result, ensure_ascii=False, indent=2))
