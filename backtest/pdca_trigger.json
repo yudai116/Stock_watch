@@ -1,8 +1,8 @@
 {
-  "ga_l2_lambda": 3.78,
+  "ga_l2_lambda": 5.0,
   "threshold_offset": -20,
   "mode": "both",
-  "triggered_at": "2026-06-04 01:55:33",
-  "run_count": 5,
-  "reason": "過学習 → L2=2.52→3.78"
+  "triggered_at": "2026-06-04 02:34:31",
+  "run_count": 6,
+  "reason": "過学習 → L2=3.78→5.00"
 }
