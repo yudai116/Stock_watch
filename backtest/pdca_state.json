@@ -1,9 +1,9 @@
 {
-  "run_count": 6,
+  "run_count": 7,
   "stop_requested": false,
   "current_params": {
-    "ga_l2_lambda": 5.0,
-    "threshold_offset": -20,
+    "ga_l2_lambda": 1.0,
+    "threshold_offset": -10,
     "mode": "both"
   },
   "history": [
@@ -186,11 +186,41 @@
       "swing_passed": 2,
       "day_passed": 0,
       "decision": "過学習 → L2=3.78→5.00"
+    },
+    {
+      "ts": "2026-06-04 07:43:33",
+      "run": 6,
+      "params": {
+        "ga_l2_lambda": 5.0,
+        "threshold_offset": -20,
+        "mode": "both"
+      },
+      "swing": {
+        "sharpe": 1.3217,
+        "n_trades": 293,
+        "win_rate": 0.6416,
+        "max_dd": -7.3,
+        "wf_stability": -1.6214,
+        "overfit_ratio": 4.3165,
+        "profit_factor": 0.0
+      },
+      "day": {
+        "sharpe": 0.0,
+        "n_trades": 4,
+        "win_rate": 0.25,
+        "max_dd": -1.012,
+        "wf_stability": -5.0322,
+        "overfit_ratio": 0.0,
+        "profit_factor": 0.0
+      },
+      "swing_passed": 2,
+      "day_passed": 0,
+      "decision": "改善停止(5回) → パラメータリセット L2=1.0, offset=-10"
     }
   ],
   "best": {
     "swing_sharpe": 1.4088,
     "day_sharpe": 0.0
   },
-  "no_improve_streak": 5
+  "no_improve_streak": 6
 }
