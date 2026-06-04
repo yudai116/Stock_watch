@@ -12,6 +12,8 @@ on:
           - swing
           - day
           - both
+  repository_dispatch:
+    types: [pdca-trigger]
   push:
     branches:
       - main
@@ -900,6 +902,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      actions: write
     steps:
       - name: リポジトリをチェックアウト
         uses: actions/checkout@v4
@@ -937,6 +940,8 @@ jobs:
           )
 
       - name: PDCAループ自動実行 — 次パラメータ決定 & トリガー更新
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pip install numpy --quiet
           # pdca_loop.py を実行して次パラメータを決定
@@ -953,13 +958,19 @@ jobs:
             git diff --staged --quiet && echo "変更なし（パラメータ同じ）" || (
               REASON=$(echo "$PDCA_JSON" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('reason',''))")
               RUN_N=$(echo "$PDCA_JSON" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('run_count','?'))")
-              git commit -m "trigger: PDCAループ run#${RUN_N} — ${REASON}" &&
+              git commit -m "trigger: PDCAループ run#${RUN_N} — ${REASON} [skip ci]" &&
               for i in 1 2 3 4 5; do
                 git pull --rebase origin main && git push origin HEAD:main && break
                 echo "Push retry $i/5, waiting $((i*3))s..." && sleep $((i*3))
               done
             )
-            echo "次のバックテストをトリガーしました"
+            # repository_dispatch で次バックテストを起動（GITHUB_TOKEN の push は push トリガーを起動しないため）
+            curl -s -X POST \
+              -H "Authorization: token ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/dispatches" \
+              -d "{\"event_type\":\"pdca-trigger\",\"client_payload\":{\"run_count\":${RUN_N},\"reason\":\"${REASON}\"}}"
+            echo "次のバックテストをトリガーしました (repository_dispatch)"
           elif [ "$ACTION" = "stop" ]; then
             REASON=$(echo "$PDCA_JSON" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('reason',''))")
             echo "PDCAループ停止: $REASON"
