@@ -392,96 +392,6 @@ jobs:
           path: backtest/phase_artifacts/wf_swing_fold_5.json
           retention-days: 1
 
-  swing-wf-fold-6:
-    needs: [fetch-data, swing-doe]
-    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 255
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: price-data-swing
-          path: backtest/
-      - run: mkdir -p backtest/phase_artifacts/checkpoint_swing_fold_6
-      - uses: actions/download-artifact@v4
-        with:
-          name: doe-swing
-          path: backtest/phase_artifacts/
-      - name: チェックポイント取得 (前回の続きがあれば)
-        uses: actions/download-artifact@v4
-        with:
-          name: checkpoint-swing-fold-6
-          path: backtest/phase_artifacts/checkpoint_swing_fold_6/
-        continue-on-error: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: pip install numpy --quiet
-      - name: スイング WF Fold 6 実行
-        id: run_fold
-        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 6 --time-limit 230
-      - name: チェックポイント保存 (常に実行)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: checkpoint-swing-fold-6
-          path: backtest/phase_artifacts/checkpoint_swing_fold_6/
-          retention-days: 7
-          overwrite: true
-      - name: 完了時フォールド結果を保存
-        if: steps.run_fold.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: wf-swing-fold-6
-          path: backtest/phase_artifacts/wf_swing_fold_6.json
-          retention-days: 1
-
-  swing-wf-fold-7:
-    needs: [fetch-data, swing-doe]
-    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 255
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: price-data-swing
-          path: backtest/
-      - run: mkdir -p backtest/phase_artifacts/checkpoint_swing_fold_7
-      - uses: actions/download-artifact@v4
-        with:
-          name: doe-swing
-          path: backtest/phase_artifacts/
-      - name: チェックポイント取得 (前回の続きがあれば)
-        uses: actions/download-artifact@v4
-        with:
-          name: checkpoint-swing-fold-7
-          path: backtest/phase_artifacts/checkpoint_swing_fold_7/
-        continue-on-error: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: pip install numpy --quiet
-      - name: スイング WF Fold 7 実行
-        id: run_fold
-        run: python3 backtest/strategy_search.py --phase wf-fold --mode swing --fold 7 --time-limit 230
-      - name: チェックポイント保存 (常に実行)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: checkpoint-swing-fold-7
-          path: backtest/phase_artifacts/checkpoint_swing_fold_7/
-          retention-days: 7
-          overwrite: true
-      - name: 完了時フォールド結果を保存
-        if: steps.run_fold.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: wf-swing-fold-7
-          path: backtest/phase_artifacts/wf_swing_fold_7.json
-          retention-days: 1
-
   # ── Job 8: スイング 最終GA ─────────────────────────────────────────────────
   swing-final:
     needs: [fetch-data, swing-doe]
@@ -852,7 +762,7 @@ jobs:
 
   # ── Job 14: スイング アセンブル ───────────────────────────────────────────
   swing-assemble:
-    needs: [swing-wf-fold-0, swing-wf-fold-1, swing-wf-fold-2, swing-wf-fold-3, swing-wf-fold-4, swing-wf-fold-5, swing-wf-fold-6, swing-wf-fold-7, swing-final]
+    needs: [swing-wf-fold-0, swing-wf-fold-1, swing-wf-fold-2, swing-wf-fold-3, swing-wf-fold-4, swing-wf-fold-5, swing-final]
     if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -890,14 +800,6 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: wf-swing-fold-5
-          path: backtest/phase_artifacts/
-      - uses: actions/download-artifact@v4
-        with:
-          name: wf-swing-fold-6
-          path: backtest/phase_artifacts/
-      - uses: actions/download-artifact@v4
-        with:
-          name: wf-swing-fold-7
           path: backtest/phase_artifacts/
       - uses: actions/download-artifact@v4
         with:
@@ -1017,3 +919,41 @@ jobs:
               echo "Push retry $i/5, waiting $((i*3))s..." && sleep $((i*3))
             done
           )
+
+      - name: PDCAループ自動実行 — 次パラメータ決定 & トリガー更新
+        run: |
+          pip install numpy --quiet
+          # pdca_loop.py を実行して次パラメータを決定
+          PDCA_JSON=$(python3 backtest/pdca_loop.py 2>/dev/null | tail -1)
+          echo "PDCA出力: $PDCA_JSON"
+
+          ACTION=$(echo "$PDCA_JSON" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('action','stop'))")
+          echo "アクション: $ACTION"
+
+          if [ "$ACTION" = "trigger" ]; then
+            echo "次のバックテストをトリガーします..."
+            # pdca_loop.py がすでに pdca_trigger.json と pdca_state.json を書き出し済み
+            git add backtest/pdca_trigger.json backtest/pdca_state.json
+            git diff --staged --quiet && echo "変更なし（パラメータ同じ）" || (
+              REASON=$(echo "$PDCA_JSON" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('reason',''))")
+              RUN_N=$(echo "$PDCA_JSON" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('run_count','?'))")
+              git commit -m "trigger: PDCAループ run#${RUN_N} — ${REASON}" &&
+              for i in 1 2 3 4 5; do
+                git pull --rebase origin main && git push origin main && break
+                echo "Push retry $i/5, waiting $((i*3))s..." && sleep $((i*3))
+              done
+            )
+            echo "次のバックテストをトリガーしました"
+          elif [ "$ACTION" = "stop" ]; then
+            REASON=$(echo "$PDCA_JSON" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('reason',''))")
+            echo "PDCAループ停止: $REASON"
+            # 停止記録をコミット
+            git add backtest/pdca_state.json
+            git diff --staged --quiet || (
+              git commit -m "chore: PDCAループ完了 — ${REASON} [skip ci]" &&
+              for i in 1 2 3 4 5; do
+                git pull --rebase origin main && git push origin main && break
+                echo "Push retry $i/5, waiting $((i*3))s..." && sleep $((i*3))
+              done
+            )
+          fi
