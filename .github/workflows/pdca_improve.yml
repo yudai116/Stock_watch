@@ -1,11 +1,9 @@
 name: PDCAループ 検証役＋チェッカー自動実行
 
-# バックテスト完了後に自動トリガー
+# 自動実行を無効化 — 改善はClaudeセッション内で手動実行
+# 再有効化するには on: の workflow_run を戻す
 on:
-  workflow_run:
-    workflows: ["バックテスト実行（実データ・22ジョブ並列）"]
-    types: [completed]
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
 
