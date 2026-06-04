@@ -284,19 +284,17 @@ def _load_ticker_data(mode: str) -> tuple[dict, int, int]:
 
 def _wf_splits(T_min: int, t_holdout: int, mode: str = "swing") -> list[tuple[int, int]]:
     """Expanding WF splits within training data [0, t_holdout].
-    swing: 8 folds (daily 10年, OOS ≈ 250日/fold)
+    swing: 6 folds (daily 10年, OOS ≈ 280日/fold) — v14: 8→6に削減
     day:   6 folds (10min ~2年, OOS ≈ 22取引日/fold @ T_min=8000)
     """
     if mode == "swing":
         return [
-            (int(T_min * 0.15), int(T_min * 0.25)),  # fold 0
-            (int(T_min * 0.25), int(T_min * 0.35)),  # fold 1
-            (int(T_min * 0.35), int(T_min * 0.45)),  # fold 2
-            (int(T_min * 0.45), int(T_min * 0.55)),  # fold 3
-            (int(T_min * 0.55), int(T_min * 0.64)),  # fold 4
-            (int(T_min * 0.64), int(T_min * 0.73)),  # fold 5
-            (int(T_min * 0.73), int(T_min * 0.77)),  # fold 6
-            (int(T_min * 0.77), t_holdout),            # fold 7
+            (int(T_min * 0.20), int(T_min * 0.33)),  # fold 0, OOS≈330日
+            (int(T_min * 0.33), int(T_min * 0.46)),  # fold 1, OOS≈330日
+            (int(T_min * 0.46), int(T_min * 0.57)),  # fold 2, OOS≈277日
+            (int(T_min * 0.57), int(T_min * 0.66)),  # fold 3, OOS≈227日
+            (int(T_min * 0.66), int(T_min * 0.73)),  # fold 4, OOS≈176日
+            (int(T_min * 0.73), t_holdout),            # fold 5, OOS≈176日
         ]
     else:
         # Day: 6 equally-spaced folds. Alpaca IEX returns ~2yr of 10min data.
