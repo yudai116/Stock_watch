@@ -309,10 +309,66 @@ def diagnose(swing_d: dict | None, day_d: dict | None) -> None:
     print(f"{'─'*WIDTH}\n")
 
 
+def show_loop_state() -> None:
+    """pdca_state.json / pdca_trigger.json の現状を表示する。"""
+    state_f   = HERE / "pdca_state.json"
+    trigger_f = HERE / "pdca_trigger.json"
+
+    print(f"\n{'═'*WIDTH}")
+    print(f"  {'【PDCAループ ステータス】':^{WIDTH-4}}")
+    print(f"{'═'*WIDTH}")
+
+    if state_f.exists():
+        try:
+            s = json.loads(state_f.read_text())
+            run_count  = s.get("run_count", 0)
+            stop_req   = s.get("stop_requested", False)
+            cur_params = s.get("current_params", {})
+            streak     = s.get("no_improve_streak", 0)
+            history    = s.get("history", [])
+            last       = history[-1] if history else {}
+
+            status_str = "停止要求あり" if stop_req else f"実行中 (run #{run_count})"
+            print(f"  ループ状態  : {status_str}")
+            print(f"  現在パラメータ: L2={cur_params.get('ga_l2_lambda','?')}  "
+                  f"offset={cur_params.get('threshold_offset','?')}  "
+                  f"mode={cur_params.get('mode','?')}")
+            print(f"  改善なし連続: {streak}回")
+
+            if last:
+                sw_p = last.get("swing_passed", "?")
+                dy_p = last.get("day_passed", "?")
+                dec  = last.get("decision", "")
+                ts   = last.get("ts", "")
+                print(f"  前回結果    : swing={sw_p}/5  day={dy_p}/5  ({ts})")
+                if dec:
+                    print(f"  前回決定    : {dec}")
+        except Exception as e:
+            print(f"  [ERROR] pdca_state.json 読み込み失敗: {e}")
+    else:
+        print("  pdca_state.json が見つかりません (ループ未開始)")
+
+    if trigger_f.exists():
+        try:
+            t = json.loads(trigger_f.read_text())
+            print(f"\n  最終トリガー: run#{t.get('run_count','?')}  "
+                  f"{t.get('triggered_at','?')}")
+            print(f"  トリガー理由: {t.get('reason','?')}")
+        except Exception:
+            pass
+
+    print(f"\n  GitHub Actions: https://github.com/yudai116/Stock_watch/actions")
+    print(f"  バックテスト  : https://github.com/yudai116/Stock_watch/actions/workflows/backtest.yml")
+    print(f"  PDCA改善ログ  : https://github.com/yudai116/Stock_watch/actions/workflows/pdca_improve.yml")
+    print(f"{'─'*WIDTH}")
+
+
 def main() -> None:
     print(f"\n{'═'*WIDTH}")
     print(f"  {'PDCA ステータス':^{WIDTH-4}}")
     print(f"{'═'*WIDTH}")
+
+    show_loop_state()
 
     swing_d = show_result(SWING, "スイング最適化結果")
     day_d   = show_result(DAY,   "デイトレ最適化結果")
