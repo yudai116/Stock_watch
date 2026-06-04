@@ -2,7 +2,7 @@
   "ga_l2_lambda": 1.0,
   "threshold_offset": 0,
   "mode": "both",
-  "triggered_at": "2026-06-04 11:30:00",
+  "triggered_at": "2026-06-04 13:08:03",
   "run_count": 0,
-  "reason": "v14リセット: GA checkpoint修正・スコア正規化・WFフォールド削減"
+  "reason": "v14再実行: _wf_splits 8→6フォールド修正"
 }
