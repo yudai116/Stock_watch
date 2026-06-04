@@ -88,7 +88,7 @@ jobs:
             [ -z "$SUMMARY" ] && SUMMARY="検証役による自動改善"
             git commit -m "improve(strategy): ${SUMMARY}" &&
             for i in 1 2 3 4 5; do
-              git pull --rebase origin main && git push origin main && break
+              git pull --rebase origin main && git push origin HEAD:main && break
               echo "Push retry $i/5, waiting $((i*3))s..." && sleep $((i*3))
             done &&
             echo "✅ 改善をプッシュしました"

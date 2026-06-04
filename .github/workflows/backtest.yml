@@ -763,7 +763,7 @@ jobs:
   # ── Job 14: スイング アセンブル ───────────────────────────────────────────
   swing-assemble:
     needs: [swing-wf-fold-0, swing-wf-fold-1, swing-wf-fold-2, swing-wf-fold-3, swing-wf-fold-4, swing-wf-fold-5, swing-final]
-    if: ${{ (github.event.inputs.mode || 'both') != 'day' }}
+    if: ${{ always() && !cancelled() && (github.event.inputs.mode || 'both') != 'day' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -777,34 +777,42 @@ jobs:
         with:
           name: doe-swing
           path: backtest/phase_artifacts/
+        continue-on-error: true
       - uses: actions/download-artifact@v4
         with:
           name: wf-swing-fold-0
           path: backtest/phase_artifacts/
+        continue-on-error: true
       - uses: actions/download-artifact@v4
         with:
           name: wf-swing-fold-1
           path: backtest/phase_artifacts/
+        continue-on-error: true
       - uses: actions/download-artifact@v4
         with:
           name: wf-swing-fold-2
           path: backtest/phase_artifacts/
+        continue-on-error: true
       - uses: actions/download-artifact@v4
         with:
           name: wf-swing-fold-3
           path: backtest/phase_artifacts/
+        continue-on-error: true
       - uses: actions/download-artifact@v4
         with:
           name: wf-swing-fold-4
           path: backtest/phase_artifacts/
+        continue-on-error: true
       - uses: actions/download-artifact@v4
         with:
           name: wf-swing-fold-5
           path: backtest/phase_artifacts/
+        continue-on-error: true
       - uses: actions/download-artifact@v4
         with:
           name: final-swing
           path: backtest/phase_artifacts/
+        continue-on-error: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -820,7 +828,7 @@ jobs:
   # ── Job 15: デイトレ アセンブル ───────────────────────────────────────────
   day-assemble:
     needs: [day-wf-fold-0, day-wf-fold-1, day-wf-fold-2, day-wf-fold-3, day-wf-fold-4, day-wf-fold-5, day-final]
-    if: ${{ (github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both' }}
+    if: ${{ always() && !cancelled() && ((github.event.inputs.mode || 'both') == 'day' || (github.event.inputs.mode || 'both') == 'both') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -834,34 +842,42 @@ jobs:
         with:
           name: doe-day
           path: backtest/phase_artifacts/
+        continue-on-error: true
       - uses: actions/download-artifact@v4
         with:
           name: wf-day-fold-0
           path: backtest/phase_artifacts/
+        continue-on-error: true
       - uses: actions/download-artifact@v4
         with:
           name: wf-day-fold-1
           path: backtest/phase_artifacts/
+        continue-on-error: true
       - uses: actions/download-artifact@v4
         with:
           name: wf-day-fold-2
           path: backtest/phase_artifacts/
+        continue-on-error: true
       - uses: actions/download-artifact@v4
         with:
           name: wf-day-fold-3
           path: backtest/phase_artifacts/
+        continue-on-error: true
       - uses: actions/download-artifact@v4
         with:
           name: wf-day-fold-4
           path: backtest/phase_artifacts/
+        continue-on-error: true
       - uses: actions/download-artifact@v4
         with:
           name: wf-day-fold-5
           path: backtest/phase_artifacts/
+        continue-on-error: true
       - uses: actions/download-artifact@v4
         with:
           name: final-day
           path: backtest/phase_artifacts/
+        continue-on-error: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
