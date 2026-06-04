@@ -1,6 +1,6 @@
 {
   "version": 15,
-  "generated_at": "2026-06-04 09:55",
+  "generated_at": "2026-06-04 10:30",
   "mode": "swing",
   "data_source": "price_data.json (daily bars)",
   "n_tickers": 47,
@@ -53,7 +53,7 @@
     "6762.T",
     "6902.T"
   ],
-  "n_evaluated": 25005,
+  "n_evaluated": 25004,
   "transaction_costs": {
     "US_pct": 0.16,
     "JP_pct": 0.3
@@ -63,2159 +63,2159 @@
   "top100": [
     {
       "buy_weights": {
-        "RSI": 0.097,
-        "MACD": 0.378,
-        "BB": 0.447,
-        "EMA200": 0.004,
-        "MOM3M": 0.034,
-        "Stoch": 0.057,
-        "CCI": 0.16,
-        "52WK": 2.823
+        "RSI": 0.256,
+        "MACD": 0.397,
+        "BB": 0.0,
+        "EMA200": 0.293,
+        "MOM3M": 0.272,
+        "Stoch": 0.0,
+        "CCI": 0.194,
+        "52WK": 0.359
       },
       "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.7906,
-      "n_trades": 295,
-      "win_rate": 0.5017,
-      "avg_return": 3.934,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.052,
-        "MACD": 0.275,
-        "BB": 0.105,
-        "EMA200": 0.2,
-        "MOM3M": 0.103,
-        "Stoch": 0.404,
-        "CCI": 0.211,
-        "52WK": 2.65
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.7462,
-      "n_trades": 293,
-      "win_rate": 0.4846,
-      "avg_return": 3.707,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.253,
-        "MACD": 0.117,
-        "BB": 0.036,
-        "EMA200": 0.325,
-        "MOM3M": 0.293,
-        "Stoch": 0.181,
-        "CCI": 0.002,
-        "52WK": 2.793
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.7225,
-      "n_trades": 292,
-      "win_rate": 0.4795,
-      "avg_return": 3.59,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.059,
-        "MACD": 0.103,
-        "BB": 0.014,
-        "EMA200": 0.245,
-        "MOM3M": 0.275,
-        "Stoch": 0.305,
-        "CCI": 0.24,
-        "52WK": 2.76
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.7112,
-      "n_trades": 286,
-      "win_rate": 0.479,
-      "avg_return": 3.519,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.443,
-        "MACD": 0.247,
-        "BB": 0.067,
-        "EMA200": 0.691,
-        "MOM3M": 0.063,
-        "Stoch": 0.032,
-        "CCI": 0.016,
-        "52WK": 2.442
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.6445,
-      "n_trades": 377,
-      "win_rate": 0.4854,
-      "avg_return": 3.058,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.039,
-        "MACD": 0.639,
-        "BB": 0.022,
-        "EMA200": 0.352,
-        "MOM3M": 0.013,
-        "Stoch": 0.405,
-        "CCI": 0.175,
-        "52WK": 2.355
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.6356,
-      "n_trades": 369,
-      "win_rate": 0.4607,
-      "avg_return": 3.127,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.026,
-        "MACD": 0.237,
-        "BB": 0.035,
-        "EMA200": 0.291,
-        "MOM3M": 0.29,
-        "Stoch": 0.442,
-        "CCI": 0.24,
-        "52WK": 2.439
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.6348,
-      "n_trades": 314,
-      "win_rate": 0.4682,
-      "avg_return": 3.104,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.081,
-        "MACD": 0.04,
-        "BB": 0.36,
-        "EMA200": 2.815,
-        "MOM3M": 0.027,
-        "Stoch": 0.216,
-        "CCI": 0.164,
-        "52WK": 0.297
-      },
-      "buy_threshold": 25,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.6339,
-      "n_trades": 292,
-      "win_rate": 0.4589,
-      "avg_return": 3.226,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.043,
-        "MACD": 0.139,
-        "BB": 0.143,
-        "EMA200": 0.458,
-        "MOM3M": 0.494,
-        "Stoch": 0.129,
-        "CCI": 0.156,
-        "52WK": 2.438
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.633,
-      "n_trades": 305,
-      "win_rate": 0.4623,
-      "avg_return": 3.119,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.053,
-        "MACD": 0.252,
-        "BB": 0.174,
-        "EMA200": 0.065,
-        "MOM3M": 0.33,
-        "Stoch": 0.148,
-        "CCI": 0.495,
-        "52WK": 2.483
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.6262,
-      "n_trades": 314,
-      "win_rate": 0.4586,
-      "avg_return": 3.089,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.253,
-        "MACD": 0.117,
-        "BB": 0.036,
-        "EMA200": 0.325,
-        "MOM3M": 0.293,
-        "Stoch": 0.181,
-        "CCI": 0.002,
-        "52WK": 2.793
-      },
-      "buy_threshold": 25,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.6065,
-      "n_trades": 324,
-      "win_rate": 0.4599,
-      "avg_return": 2.961,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.019,
-        "MACD": 0.687,
-        "BB": 0.072,
-        "EMA200": 0.032,
-        "MOM3M": 0.238,
-        "Stoch": 0.162,
-        "CCI": 0.129,
-        "52WK": 2.661
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.6053,
-      "n_trades": 296,
-      "win_rate": 0.4561,
-      "avg_return": 2.968,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.015,
-        "MACD": 0.428,
-        "BB": 0.438,
-        "EMA200": 0.653,
-        "MOM3M": 0.083,
-        "Stoch": 0.014,
-        "CCI": 0.233,
-        "52WK": 2.138
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.596,
-      "n_trades": 402,
-      "win_rate": 0.4701,
-      "avg_return": 2.855,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.011,
-        "MACD": 0.332,
-        "BB": 0.21,
-        "EMA200": 2.426,
-        "MOM3M": 0.127,
-        "Stoch": 0.144,
-        "CCI": 0.275,
-        "52WK": 0.475
-      },
-      "buy_threshold": 25,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5784,
-      "n_trades": 380,
-      "win_rate": 0.4368,
-      "avg_return": 2.981,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.172,
-        "MACD": 0.052,
-        "BB": 0.331,
-        "EMA200": 2.518,
-        "MOM3M": 0.201,
-        "Stoch": 0.276,
-        "CCI": 0.14,
-        "52WK": 0.311
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5565,
-      "n_trades": 356,
-      "win_rate": 0.441,
-      "avg_return": 2.792,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.034,
-        "MACD": 0.101,
-        "BB": 0.043,
-        "EMA200": 2.387,
-        "MOM3M": 0.241,
-        "Stoch": 0.125,
-        "CCI": 0.916,
-        "52WK": 0.153
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5561,
-      "n_trades": 356,
-      "win_rate": 0.4438,
-      "avg_return": 2.813,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.029,
-        "MACD": 0.222,
-        "BB": 0.032,
-        "EMA200": 2.597,
-        "MOM3M": 0.363,
-        "Stoch": 0.175,
-        "CCI": 0.226,
-        "52WK": 0.357
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5546,
-      "n_trades": 317,
-      "win_rate": 0.4385,
-      "avg_return": 2.773,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.484,
-        "MACD": 0.82,
-        "BB": 0.124,
-        "EMA200": 0.021,
-        "MOM3M": 0.639,
-        "Stoch": 0.772,
-        "CCI": 1.121,
-        "52WK": 0.02
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5531,
-      "n_trades": 429,
-      "win_rate": 0.4406,
-      "avg_return": 2.754,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.484,
-        "MACD": 0.82,
-        "BB": 0.124,
-        "EMA200": 0.021,
-        "MOM3M": 0.639,
-        "Stoch": 0.772,
-        "CCI": 1.121,
-        "52WK": 0.02
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5531,
-      "n_trades": 429,
-      "win_rate": 0.4406,
-      "avg_return": 2.754,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.484,
-        "MACD": 0.82,
-        "BB": 0.124,
-        "EMA200": 0.021,
-        "MOM3M": 0.639,
-        "Stoch": 0.772,
-        "CCI": 1.121,
-        "52WK": 0.02
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5531,
-      "n_trades": 429,
-      "win_rate": 0.4406,
-      "avg_return": 2.754,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.081,
-        "MACD": 0.04,
-        "BB": 0.36,
-        "EMA200": 2.815,
-        "MOM3M": 0.027,
-        "Stoch": 0.216,
-        "CCI": 0.164,
-        "52WK": 0.297
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5423,
-      "n_trades": 403,
-      "win_rate": 0.4318,
-      "avg_return": 2.743,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.081,
-        "MACD": 0.04,
-        "BB": 0.36,
-        "EMA200": 2.815,
-        "MOM3M": 0.027,
-        "Stoch": 0.216,
-        "CCI": 0.164,
-        "52WK": 0.297
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5423,
-      "n_trades": 403,
-      "win_rate": 0.4318,
-      "avg_return": 2.743,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.081,
-        "MACD": 0.04,
-        "BB": 0.36,
-        "EMA200": 2.815,
-        "MOM3M": 0.027,
-        "Stoch": 0.216,
-        "CCI": 0.164,
-        "52WK": 0.297
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5423,
-      "n_trades": 403,
-      "win_rate": 0.4318,
-      "avg_return": 2.743,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.029,
-        "MACD": 0.222,
-        "BB": 0.032,
-        "EMA200": 2.597,
-        "MOM3M": 0.363,
-        "Stoch": 0.175,
-        "CCI": 0.226,
-        "52WK": 0.357
-      },
-      "buy_threshold": 25,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5393,
-      "n_trades": 338,
-      "win_rate": 0.4349,
-      "avg_return": 2.749,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.081,
-        "MACD": 0.04,
-        "BB": 0.36,
-        "EMA200": 2.815,
-        "MOM3M": 0.027,
-        "Stoch": 0.216,
-        "CCI": 0.164,
-        "52WK": 0.297
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5287,
-      "n_trades": 319,
-      "win_rate": 0.4295,
-      "avg_return": 2.655,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.041,
-        "MACD": 0.33,
-        "BB": 0.009,
-        "EMA200": 2.473,
-        "MOM3M": 0.094,
-        "Stoch": 0.065,
-        "CCI": 0.104,
-        "52WK": 0.885
-      },
-      "buy_threshold": 25,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5257,
-      "n_trades": 330,
-      "win_rate": 0.4273,
-      "avg_return": 2.669,
-      "max_dd": -13.423
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.017,
-        "MACD": 0.184,
-        "BB": 0.008,
-        "EMA200": 2.613,
-        "MOM3M": 0.278,
-        "Stoch": 0.232,
-        "CCI": 0.536,
-        "52WK": 0.131
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.524,
-      "n_trades": 303,
-      "win_rate": 0.4323,
-      "avg_return": 2.611,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.165,
-        "MACD": 0.081,
-        "BB": 0.331,
-        "EMA200": 2.614,
-        "MOM3M": 0.248,
-        "Stoch": 0.213,
-        "CCI": 0.122,
-        "52WK": 0.225
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5224,
-      "n_trades": 326,
-      "win_rate": 0.4294,
-      "avg_return": 2.609,
-      "max_dd": -8.12
+      "sell_rule": "target10_stop5",
+      "sharpe": 1.2765,
+      "n_trades": 165,
+      "win_rate": 0.5515,
+      "avg_return": 2.986,
+      "max_dd": -5.3
     },
     {
       "buy_weights": {
         "RSI": 0.331,
-        "MACD": 0.397,
-        "BB": 0.015,
-        "EMA200": 1.993,
-        "MOM3M": 0.173,
-        "Stoch": 0.124,
-        "CCI": 0.263,
-        "52WK": 0.704
+        "MACD": 0.598,
+        "BB": 0.252,
+        "EMA200": 0.219,
+        "MOM3M": 0.1,
+        "Stoch": 0.109,
+        "CCI": 0.04,
+        "52WK": 2.351
       },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5187,
-      "n_trades": 425,
-      "win_rate": 0.4282,
-      "avg_return": 2.622,
-      "max_dd": -13.423
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.7599,
+      "n_trades": 314,
+      "win_rate": 0.4713,
+      "avg_return": 1.765,
+      "max_dd": -5.3
     },
     {
       "buy_weights": {
-        "RSI": 0.549,
-        "MACD": 0.403,
-        "BB": 0.062,
-        "EMA200": 0.123,
-        "MOM3M": 0.961,
-        "Stoch": 0.098,
-        "CCI": 1.404,
-        "52WK": 0.401
+        "RSI": 0.058,
+        "MACD": 0.295,
+        "BB": 0.261,
+        "EMA200": 0.35,
+        "MOM3M": 0.053,
+        "Stoch": 0.358,
+        "CCI": 0.157,
+        "52WK": 2.469
       },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.516,
-      "n_trades": 368,
-      "win_rate": 0.4239,
-      "avg_return": 2.608,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.549,
-        "MACD": 0.403,
-        "BB": 0.062,
-        "EMA200": 0.123,
-        "MOM3M": 0.961,
-        "Stoch": 0.098,
-        "CCI": 1.404,
-        "52WK": 0.401
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.516,
-      "n_trades": 368,
-      "win_rate": 0.4239,
-      "avg_return": 2.608,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.549,
-        "MACD": 0.403,
-        "BB": 0.062,
-        "EMA200": 0.123,
-        "MOM3M": 0.961,
-        "Stoch": 0.098,
-        "CCI": 1.404,
-        "52WK": 0.401
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.516,
-      "n_trades": 368,
-      "win_rate": 0.4239,
-      "avg_return": 2.608,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.165,
-        "MACD": 0.081,
-        "BB": 0.331,
-        "EMA200": 2.614,
-        "MOM3M": 0.248,
-        "Stoch": 0.213,
-        "CCI": 0.122,
-        "52WK": 0.225
-      },
-      "buy_threshold": 25,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.516,
-      "n_trades": 422,
-      "win_rate": 0.4194,
-      "avg_return": 2.651,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.239,
-        "MACD": 0.799,
-        "BB": 0.045,
-        "EMA200": 0.097,
-        "MOM3M": 1.418,
-        "Stoch": 0.117,
-        "CCI": 1.163,
-        "52WK": 0.123
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.511,
-      "n_trades": 434,
-      "win_rate": 0.4332,
-      "avg_return": 2.524,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.239,
-        "MACD": 0.799,
-        "BB": 0.045,
-        "EMA200": 0.097,
-        "MOM3M": 1.418,
-        "Stoch": 0.117,
-        "CCI": 1.163,
-        "52WK": 0.123
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.511,
-      "n_trades": 434,
-      "win_rate": 0.4332,
-      "avg_return": 2.524,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.239,
-        "MACD": 0.799,
-        "BB": 0.045,
-        "EMA200": 0.097,
-        "MOM3M": 1.418,
-        "Stoch": 0.117,
-        "CCI": 1.163,
-        "52WK": 0.123
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.511,
-      "n_trades": 434,
-      "win_rate": 0.4332,
-      "avg_return": 2.524,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.052,
-        "MACD": 0.26,
-        "BB": 0.24,
-        "EMA200": 1.989,
-        "MOM3M": 0.117,
-        "Stoch": 0.141,
-        "CCI": 0.271,
-        "52WK": 0.929
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5095,
-      "n_trades": 372,
-      "win_rate": 0.4194,
-      "avg_return": 2.608,
-      "max_dd": -13.423
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.078,
-        "MACD": 0.649,
-        "BB": 0.058,
-        "EMA200": 0.318,
-        "MOM3M": 2.304,
-        "Stoch": 0.19,
-        "CCI": 0.272,
-        "52WK": 0.131
-      },
-      "buy_threshold": 25,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5083,
-      "n_trades": 633,
-      "win_rate": 0.4044,
-      "avg_return": 2.626,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.008,
-        "MACD": 0.852,
-        "BB": 0.212,
-        "EMA200": 0.118,
-        "MOM3M": 1.529,
-        "Stoch": 0.149,
-        "CCI": 0.966,
-        "52WK": 0.165
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5056,
-      "n_trades": 589,
-      "win_rate": 0.4261,
-      "avg_return": 2.527,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.008,
-        "MACD": 0.852,
-        "BB": 0.212,
-        "EMA200": 0.118,
-        "MOM3M": 1.529,
-        "Stoch": 0.149,
-        "CCI": 0.966,
-        "52WK": 0.165
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5056,
-      "n_trades": 589,
-      "win_rate": 0.4261,
-      "avg_return": 2.527,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.008,
-        "MACD": 0.852,
-        "BB": 0.212,
-        "EMA200": 0.118,
-        "MOM3M": 1.529,
-        "Stoch": 0.149,
-        "CCI": 0.966,
-        "52WK": 0.165
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5056,
-      "n_trades": 589,
-      "win_rate": 0.4261,
-      "avg_return": 2.527,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.01,
-        "MACD": 0.693,
-        "BB": 0.269,
-        "EMA200": 0.119,
-        "MOM3M": 1.704,
-        "Stoch": 0.002,
-        "CCI": 1.155,
-        "52WK": 0.048
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.503,
-      "n_trades": 534,
-      "win_rate": 0.4288,
-      "avg_return": 2.501,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.01,
-        "MACD": 0.693,
-        "BB": 0.269,
-        "EMA200": 0.119,
-        "MOM3M": 1.704,
-        "Stoch": 0.002,
-        "CCI": 1.155,
-        "52WK": 0.048
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.503,
-      "n_trades": 534,
-      "win_rate": 0.4288,
-      "avg_return": 2.501,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.01,
-        "MACD": 0.693,
-        "BB": 0.269,
-        "EMA200": 0.119,
-        "MOM3M": 1.704,
-        "Stoch": 0.002,
-        "CCI": 1.155,
-        "52WK": 0.048
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.503,
-      "n_trades": 534,
-      "win_rate": 0.4288,
-      "avg_return": 2.501,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.059,
-        "MACD": 0.103,
-        "BB": 0.014,
-        "EMA200": 0.245,
-        "MOM3M": 0.275,
-        "Stoch": 0.305,
-        "CCI": 0.24,
-        "52WK": 2.76
-      },
-      "buy_threshold": 25,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5002,
-      "n_trades": 336,
-      "win_rate": 0.4375,
-      "avg_return": 2.408,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.005,
-        "MACD": 0.7,
-        "BB": 0.05,
-        "EMA200": 0.092,
-        "MOM3M": 0.718,
-        "Stoch": 0.15,
-        "CCI": 2.249,
-        "52WK": 0.036
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5002,
-      "n_trades": 520,
-      "win_rate": 0.4365,
-      "avg_return": 2.455,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.005,
-        "MACD": 0.7,
-        "BB": 0.05,
-        "EMA200": 0.092,
-        "MOM3M": 0.718,
-        "Stoch": 0.15,
-        "CCI": 2.249,
-        "52WK": 0.036
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5002,
-      "n_trades": 520,
-      "win_rate": 0.4365,
-      "avg_return": 2.455,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.005,
-        "MACD": 0.7,
-        "BB": 0.05,
-        "EMA200": 0.092,
-        "MOM3M": 0.718,
-        "Stoch": 0.15,
-        "CCI": 2.249,
-        "52WK": 0.036
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.5002,
-      "n_trades": 520,
-      "win_rate": 0.4365,
-      "avg_return": 2.455,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.004,
-        "MACD": 0.005,
-        "BB": 0.007,
-        "EMA200": 1.86,
-        "MOM3M": 0.2,
-        "Stoch": 0.027,
-        "CCI": 1.15,
-        "52WK": 0.747
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4962,
-      "n_trades": 478,
-      "win_rate": 0.4163,
-      "avg_return": 2.527,
-      "max_dd": -13.423
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.049,
-        "MACD": 0.072,
-        "BB": 0.582,
-        "EMA200": 0.001,
-        "MOM3M": 2.712,
-        "Stoch": 0.336,
-        "CCI": 0.141,
-        "52WK": 0.107
-      },
-      "buy_threshold": 25,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4907,
-      "n_trades": 720,
-      "win_rate": 0.4167,
-      "avg_return": 2.448,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.012,
-        "MACD": 0.649,
-        "BB": 0.197,
-        "EMA200": 0.18,
-        "MOM3M": 0.711,
-        "Stoch": 0.313,
-        "CCI": 1.834,
-        "52WK": 0.104
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4882,
-      "n_trades": 527,
-      "win_rate": 0.4231,
-      "avg_return": 2.422,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.012,
-        "MACD": 0.649,
-        "BB": 0.197,
-        "EMA200": 0.18,
-        "MOM3M": 0.711,
-        "Stoch": 0.313,
-        "CCI": 1.834,
-        "52WK": 0.104
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4882,
-      "n_trades": 527,
-      "win_rate": 0.4231,
-      "avg_return": 2.422,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.012,
-        "MACD": 0.649,
-        "BB": 0.197,
-        "EMA200": 0.18,
-        "MOM3M": 0.711,
-        "Stoch": 0.313,
-        "CCI": 1.834,
-        "52WK": 0.104
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4882,
-      "n_trades": 527,
-      "win_rate": 0.4231,
-      "avg_return": 2.422,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.167,
-        "MACD": 0.116,
-        "BB": 0.053,
-        "EMA200": 2.437,
-        "MOM3M": 0.576,
-        "Stoch": 0.133,
-        "CCI": 0.331,
-        "52WK": 0.187
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4878,
-      "n_trades": 386,
-      "win_rate": 0.4171,
-      "avg_return": 2.459,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.933,
-        "MACD": 0.357,
-        "BB": 0.251,
-        "EMA200": 0.074,
-        "MOM3M": 0.549,
-        "Stoch": 0.063,
-        "CCI": 1.586,
-        "52WK": 0.187
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4867,
-      "n_trades": 353,
-      "win_rate": 0.4221,
-      "avg_return": 2.468,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.933,
-        "MACD": 0.357,
-        "BB": 0.251,
-        "EMA200": 0.074,
-        "MOM3M": 0.549,
-        "Stoch": 0.063,
-        "CCI": 1.586,
-        "52WK": 0.187
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4867,
-      "n_trades": 353,
-      "win_rate": 0.4221,
-      "avg_return": 2.468,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.933,
-        "MACD": 0.357,
-        "BB": 0.251,
-        "EMA200": 0.074,
-        "MOM3M": 0.549,
-        "Stoch": 0.063,
-        "CCI": 1.586,
-        "52WK": 0.187
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4867,
-      "n_trades": 353,
-      "win_rate": 0.4221,
-      "avg_return": 2.468,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.286,
-        "MACD": 0.221,
-        "BB": 0.016,
-        "EMA200": 0.177,
-        "MOM3M": 2.669,
-        "Stoch": 0.115,
-        "CCI": 0.295,
-        "52WK": 0.222
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4852,
-      "n_trades": 450,
-      "win_rate": 0.4044,
-      "avg_return": 2.486,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.286,
-        "MACD": 0.221,
-        "BB": 0.016,
-        "EMA200": 0.177,
-        "MOM3M": 2.669,
-        "Stoch": 0.115,
-        "CCI": 0.295,
-        "52WK": 0.222
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4852,
-      "n_trades": 450,
-      "win_rate": 0.4044,
-      "avg_return": 2.486,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.286,
-        "MACD": 0.221,
-        "BB": 0.016,
-        "EMA200": 0.177,
-        "MOM3M": 2.669,
-        "Stoch": 0.115,
-        "CCI": 0.295,
-        "52WK": 0.222
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4852,
-      "n_trades": 450,
-      "win_rate": 0.4044,
-      "avg_return": 2.486,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.067,
-        "MACD": 0.501,
-        "BB": 0.101,
-        "EMA200": 2.615,
-        "MOM3M": 0.204,
-        "Stoch": 0.259,
-        "CCI": 0.165,
-        "52WK": 0.089
-      },
-      "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4812,
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.7495,
       "n_trades": 323,
-      "win_rate": 0.418,
-      "avg_return": 2.408,
-      "max_dd": -7.3
+      "win_rate": 0.4706,
+      "avg_return": 1.741,
+      "max_dd": -5.3
     },
     {
       "buy_weights": {
-        "RSI": 0.041,
-        "MACD": 0.53,
-        "BB": 0.157,
-        "EMA200": 0.414,
-        "MOM3M": 0.723,
-        "Stoch": 0.125,
-        "CCI": 1.997,
-        "52WK": 0.013
+        "RSI": 0.175,
+        "MACD": 0.434,
+        "BB": 0.02,
+        "EMA200": 0.378,
+        "MOM3M": 0.043,
+        "Stoch": 0.278,
+        "CCI": 0.076,
+        "52WK": 2.596
       },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4807,
-      "n_trades": 484,
-      "win_rate": 0.4215,
-      "avg_return": 2.4,
-      "max_dd": -8.12
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.7386,
+      "n_trades": 297,
+      "win_rate": 0.4646,
+      "avg_return": 1.719,
+      "max_dd": -5.3
     },
     {
       "buy_weights": {
-        "RSI": 0.041,
-        "MACD": 0.53,
-        "BB": 0.157,
-        "EMA200": 0.414,
-        "MOM3M": 0.723,
-        "Stoch": 0.125,
-        "CCI": 1.997,
-        "52WK": 0.013
+        "RSI": 0.192,
+        "MACD": 0.169,
+        "BB": 0.262,
+        "EMA200": 2.258,
+        "MOM3M": 0.051,
+        "Stoch": 0.166,
+        "CCI": 0.215,
+        "52WK": 0.687
       },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4807,
-      "n_trades": 484,
-      "win_rate": 0.4215,
-      "avg_return": 2.4,
-      "max_dd": -8.12
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.696,
+      "n_trades": 380,
+      "win_rate": 0.4632,
+      "avg_return": 1.617,
+      "max_dd": -5.3
     },
     {
       "buy_weights": {
-        "RSI": 0.041,
-        "MACD": 0.53,
-        "BB": 0.157,
-        "EMA200": 0.414,
-        "MOM3M": 0.723,
-        "Stoch": 0.125,
-        "CCI": 1.997,
-        "52WK": 0.013
+        "RSI": 0.233,
+        "MACD": 0.105,
+        "BB": 0.539,
+        "EMA200": 1.974,
+        "MOM3M": 0.202,
+        "Stoch": 0.044,
+        "CCI": 0.287,
+        "52WK": 0.616
       },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4807,
-      "n_trades": 484,
-      "win_rate": 0.4215,
-      "avg_return": 2.4,
-      "max_dd": -8.12
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6817,
+      "n_trades": 485,
+      "win_rate": 0.4598,
+      "avg_return": 1.578,
+      "max_dd": -5.3
     },
     {
       "buy_weights": {
-        "RSI": 0.236,
-        "MACD": 0.903,
-        "BB": 0.1,
-        "EMA200": 0.246,
-        "MOM3M": 1.108,
-        "Stoch": 0.223,
-        "CCI": 1.152,
-        "52WK": 0.033
+        "RSI": 0.299,
+        "MACD": 0.255,
+        "BB": 0.175,
+        "EMA200": 2.837,
+        "MOM3M": 0.093,
+        "Stoch": 0.257,
+        "CCI": 0.041,
+        "52WK": 0.042
       },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4806,
-      "n_trades": 416,
-      "win_rate": 0.4231,
-      "avg_return": 2.37,
-      "max_dd": -8.12
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6789,
+      "n_trades": 322,
+      "win_rate": 0.4596,
+      "avg_return": 1.572,
+      "max_dd": -5.3
     },
     {
       "buy_weights": {
-        "RSI": 0.236,
-        "MACD": 0.903,
-        "BB": 0.1,
-        "EMA200": 0.246,
-        "MOM3M": 1.108,
-        "Stoch": 0.223,
-        "CCI": 1.152,
-        "52WK": 0.033
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4806,
-      "n_trades": 416,
-      "win_rate": 0.4231,
-      "avg_return": 2.37,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.236,
-        "MACD": 0.903,
-        "BB": 0.1,
-        "EMA200": 0.246,
-        "MOM3M": 1.108,
-        "Stoch": 0.223,
-        "CCI": 1.152,
-        "52WK": 0.033
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4806,
-      "n_trades": 416,
-      "win_rate": 0.4231,
-      "avg_return": 2.37,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.136,
-        "MACD": 0.231,
-        "BB": 0.482,
-        "EMA200": 0.793,
-        "MOM3M": 1.028,
-        "Stoch": 0.126,
-        "CCI": 1.152,
-        "52WK": 0.052
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4801,
-      "n_trades": 492,
-      "win_rate": 0.4106,
-      "avg_return": 2.439,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.136,
-        "MACD": 0.231,
-        "BB": 0.482,
-        "EMA200": 0.793,
-        "MOM3M": 1.028,
-        "Stoch": 0.126,
-        "CCI": 1.152,
-        "52WK": 0.052
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4801,
-      "n_trades": 492,
-      "win_rate": 0.4106,
-      "avg_return": 2.439,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.136,
-        "MACD": 0.231,
-        "BB": 0.482,
-        "EMA200": 0.793,
-        "MOM3M": 1.028,
-        "Stoch": 0.126,
-        "CCI": 1.152,
-        "52WK": 0.052
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4801,
-      "n_trades": 492,
-      "win_rate": 0.4106,
-      "avg_return": 2.439,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.076,
-        "MACD": 0.126,
-        "BB": 0.042,
-        "EMA200": 2.664,
-        "MOM3M": 0.467,
-        "Stoch": 0.056,
-        "CCI": 0.134,
-        "52WK": 0.435
+        "RSI": 0.124,
+        "MACD": 0.068,
+        "BB": 0.076,
+        "EMA200": 2.734,
+        "MOM3M": 0.588,
+        "Stoch": 0.01,
+        "CCI": 0.006,
+        "52WK": 0.394
       },
       "buy_threshold": 30,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4793,
-      "n_trades": 301,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6762,
+      "n_trades": 288,
+      "win_rate": 0.4583,
+      "avg_return": 1.566,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.009,
+        "MACD": 0.708,
+        "BB": 0.517,
+        "EMA200": 0.516,
+        "MOM3M": 0.089,
+        "Stoch": 0.117,
+        "CCI": 0.09,
+        "52WK": 1.954
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6761,
+      "n_trades": 360,
+      "win_rate": 0.4583,
+      "avg_return": 1.568,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.053,
+        "MACD": 0.008,
+        "BB": 0.658,
+        "EMA200": 2.123,
+        "MOM3M": 0.118,
+        "Stoch": 0.301,
+        "CCI": 0.379,
+        "52WK": 0.359
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6754,
+      "n_trades": 546,
+      "win_rate": 0.456,
+      "avg_return": 1.568,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.124,
+        "MACD": 0.068,
+        "BB": 0.076,
+        "EMA200": 2.734,
+        "MOM3M": 0.588,
+        "Stoch": 0.01,
+        "CCI": 0.006,
+        "52WK": 0.394
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6662,
+      "n_trades": 294,
+      "win_rate": 0.4592,
+      "avg_return": 1.538,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.099,
+        "MACD": 0.511,
+        "BB": 0.027,
+        "EMA200": 2.396,
+        "MOM3M": 0.156,
+        "Stoch": 0.428,
+        "CCI": 0.067,
+        "52WK": 0.316
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6632,
+      "n_trades": 359,
+      "win_rate": 0.4568,
+      "avg_return": 1.536,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.201,
+        "MACD": 0.816,
+        "BB": 0.215,
+        "EMA200": 0.017,
+        "MOM3M": 0.963,
+        "Stoch": 0.341,
+        "CCI": 1.437,
+        "52WK": 0.011
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.655,
+      "n_trades": 449,
+      "win_rate": 0.4521,
+      "avg_return": 1.521,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.201,
+        "MACD": 0.816,
+        "BB": 0.215,
+        "EMA200": 0.017,
+        "MOM3M": 0.963,
+        "Stoch": 0.341,
+        "CCI": 1.437,
+        "52WK": 0.011
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.655,
+      "n_trades": 449,
+      "win_rate": 0.4521,
+      "avg_return": 1.521,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.477,
+        "MACD": 0.587,
+        "BB": 0.119,
+        "EMA200": 0.443,
+        "MOM3M": 0.671,
+        "Stoch": 0.064,
+        "CCI": 1.506,
+        "52WK": 0.133
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6453,
+      "n_trades": 383,
+      "win_rate": 0.4517,
+      "avg_return": 1.497,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.477,
+        "MACD": 0.587,
+        "BB": 0.119,
+        "EMA200": 0.443,
+        "MOM3M": 0.671,
+        "Stoch": 0.064,
+        "CCI": 1.506,
+        "52WK": 0.133
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6453,
+      "n_trades": 383,
+      "win_rate": 0.4517,
+      "avg_return": 1.497,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.531,
+        "MACD": 0.012,
+        "BB": 0.121,
+        "EMA200": 2.599,
+        "MOM3M": 0.153,
+        "Stoch": 0.524,
+        "CCI": 0.036,
+        "52WK": 0.024
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.645,
+      "n_trades": 352,
+      "win_rate": 0.4545,
+      "avg_return": 1.496,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.034,
+        "MACD": 0.446,
+        "BB": 0.236,
+        "EMA200": 0.296,
+        "MOM3M": 0.162,
+        "Stoch": 0.168,
+        "CCI": 0.456,
+        "52WK": 2.202
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6445,
+      "n_trades": 316,
+      "win_rate": 0.4525,
+      "avg_return": 1.495,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.334,
+        "MACD": 0.058,
+        "BB": 0.212,
+        "EMA200": 2.214,
+        "MOM3M": 0.124,
+        "Stoch": 0.421,
+        "CCI": 0.174,
+        "52WK": 0.464
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6418,
+      "n_trades": 434,
+      "win_rate": 0.4539,
+      "avg_return": 1.487,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.028,
+        "MACD": 0.046,
+        "BB": 0.414,
+        "EMA200": 1.754,
+        "MOM3M": 0.4,
+        "Stoch": 0.183,
+        "CCI": 0.378,
+        "52WK": 0.797
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6414,
+      "n_trades": 556,
+      "win_rate": 0.4532,
+      "avg_return": 1.487,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.1,
+        "MACD": 0.089,
+        "BB": 0.488,
+        "EMA200": 2.975,
+        "MOM3M": 0.069,
+        "Stoch": 0.162,
+        "CCI": 0.071,
+        "52WK": 0.046
+      },
+      "buy_threshold": 30,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.635,
+      "n_trades": 317,
+      "win_rate": 0.4511,
+      "avg_return": 1.471,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.299,
+        "MACD": 0.255,
+        "BB": 0.175,
+        "EMA200": 2.837,
+        "MOM3M": 0.093,
+        "Stoch": 0.257,
+        "CCI": 0.041,
+        "52WK": 0.042
+      },
+      "buy_threshold": 25,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.633,
+      "n_trades": 306,
+      "win_rate": 0.451,
+      "avg_return": 1.466,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.1,
+        "MACD": 0.089,
+        "BB": 0.488,
+        "EMA200": 2.975,
+        "MOM3M": 0.069,
+        "Stoch": 0.162,
+        "CCI": 0.071,
+        "52WK": 0.046
+      },
+      "buy_threshold": 25,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6294,
+      "n_trades": 275,
+      "win_rate": 0.4509,
+      "avg_return": 1.455,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.244,
+        "MACD": 0.012,
+        "BB": 0.11,
+        "EMA200": 2.183,
+        "MOM3M": 0.281,
+        "Stoch": 0.016,
+        "CCI": 0.272,
+        "52WK": 0.883
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6271,
+      "n_trades": 370,
+      "win_rate": 0.4514,
+      "avg_return": 1.45,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.141,
+        "MACD": 0.73,
+        "BB": 0.075,
+        "EMA200": 0.392,
+        "MOM3M": 0.431,
+        "Stoch": 0.139,
+        "CCI": 0.039,
+        "52WK": 2.054
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6158,
+      "n_trades": 360,
+      "win_rate": 0.4472,
+      "avg_return": 1.424,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.039,
+        "MACD": 0.017,
+        "BB": 0.008,
+        "EMA200": 1.243,
+        "MOM3M": 0.201,
+        "Stoch": 0.132,
+        "CCI": 0.029,
+        "52WK": 2.331
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6086,
+      "n_trades": 338,
+      "win_rate": 0.4467,
+      "avg_return": 1.407,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.634,
+        "MACD": 0.825,
+        "BB": 0.169,
+        "EMA200": 0.124,
+        "MOM3M": 0.728,
+        "Stoch": 0.097,
+        "CCI": 1.285,
+        "52WK": 0.139
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6057,
+      "n_trades": 324,
+      "win_rate": 0.4475,
+      "avg_return": 1.398,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.634,
+        "MACD": 0.825,
+        "BB": 0.169,
+        "EMA200": 0.124,
+        "MOM3M": 0.728,
+        "Stoch": 0.097,
+        "CCI": 1.285,
+        "52WK": 0.139
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6057,
+      "n_trades": 324,
+      "win_rate": 0.4475,
+      "avg_return": 1.398,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.378,
+        "MACD": 0.49,
+        "BB": 0.242,
+        "EMA200": 0.229,
+        "MOM3M": 0.666,
+        "Stoch": 0.029,
+        "CCI": 1.545,
+        "52WK": 0.422
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6021,
+      "n_trades": 424,
+      "win_rate": 0.4458,
+      "avg_return": 1.396,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.378,
+        "MACD": 0.49,
+        "BB": 0.242,
+        "EMA200": 0.229,
+        "MOM3M": 0.666,
+        "Stoch": 0.029,
+        "CCI": 1.545,
+        "52WK": 0.422
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.6021,
+      "n_trades": 424,
+      "win_rate": 0.4458,
+      "avg_return": 1.396,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.029,
+        "MACD": 0.429,
+        "BB": 0.212,
+        "EMA200": 0.276,
+        "MOM3M": 0.491,
+        "Stoch": 0.391,
+        "CCI": 0.113,
+        "52WK": 2.058
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5997,
+      "n_trades": 357,
+      "win_rate": 0.4426,
+      "avg_return": 1.393,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.322,
+        "MACD": 0.072,
+        "BB": 0.072,
+        "EMA200": 2.682,
+        "MOM3M": 0.058,
+        "Stoch": 0.246,
+        "CCI": 0.01,
+        "52WK": 0.537
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5994,
+      "n_trades": 322,
+      "win_rate": 0.4472,
+      "avg_return": 1.384,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.074,
+        "MACD": 0.153,
+        "BB": 0.559,
+        "EMA200": 1.943,
+        "MOM3M": 0.472,
+        "Stoch": 0.031,
+        "CCI": 0.12,
+        "52WK": 0.648
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5986,
+      "n_trades": 472,
+      "win_rate": 0.4492,
+      "avg_return": 1.379,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.334,
+        "MACD": 0.058,
+        "BB": 0.212,
+        "EMA200": 2.214,
+        "MOM3M": 0.124,
+        "Stoch": 0.421,
+        "CCI": 0.174,
+        "52WK": 0.464
+      },
+      "buy_threshold": 30,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5966,
+      "n_trades": 532,
+      "win_rate": 0.4455,
+      "avg_return": 1.382,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.299,
+        "MACD": 0.255,
+        "BB": 0.175,
+        "EMA200": 2.837,
+        "MOM3M": 0.093,
+        "Stoch": 0.257,
+        "CCI": 0.041,
+        "52WK": 0.042
+      },
+      "buy_threshold": 30,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5942,
+      "n_trades": 308,
+      "win_rate": 0.4448,
+      "avg_return": 1.373,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.21,
+        "MACD": 0.12,
+        "BB": 0.533,
+        "EMA200": 0.168,
+        "MOM3M": 0.109,
+        "Stoch": 0.408,
+        "CCI": 0.13,
+        "52WK": 2.321
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5909,
+      "n_trades": 378,
+      "win_rate": 0.4471,
+      "avg_return": 1.366,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.1,
+        "MACD": 0.371,
+        "BB": 0.609,
+        "EMA200": 0.319,
+        "MOM3M": 0.254,
+        "Stoch": 0.038,
+        "CCI": 0.268,
+        "52WK": 2.04
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5905,
+      "n_trades": 351,
+      "win_rate": 0.4444,
+      "avg_return": 1.369,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.811,
+        "MACD": 0.09,
+        "BB": 0.033,
+        "EMA200": 2.499,
+        "MOM3M": 0.016,
+        "Stoch": 0.202,
+        "CCI": 0.05,
+        "52WK": 0.299
+      },
+      "buy_threshold": 30,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5894,
+      "n_trades": 409,
+      "win_rate": 0.445,
+      "avg_return": 1.363,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.606,
+        "MACD": 0.133,
+        "BB": 0.045,
+        "EMA200": 2.392,
+        "MOM3M": 0.023,
+        "Stoch": 0.247,
+        "CCI": 0.347,
+        "52WK": 0.206
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5874,
+      "n_trades": 341,
+      "win_rate": 0.4457,
+      "avg_return": 1.359,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.1,
+        "MACD": 0.089,
+        "BB": 0.488,
+        "EMA200": 2.975,
+        "MOM3M": 0.069,
+        "Stoch": 0.162,
+        "CCI": 0.071,
+        "52WK": 0.046
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5851,
+      "n_trades": 325,
+      "win_rate": 0.4431,
+      "avg_return": 1.353,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.041,
+        "MACD": 0.062,
+        "BB": 0.357,
+        "EMA200": 0.057,
+        "MOM3M": 0.404,
+        "Stoch": 0.364,
+        "CCI": 0.201,
+        "52WK": 2.513
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5829,
+      "n_trades": 318,
+      "win_rate": 0.4434,
+      "avg_return": 1.35,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.811,
+        "MACD": 0.09,
+        "BB": 0.033,
+        "EMA200": 2.499,
+        "MOM3M": 0.016,
+        "Stoch": 0.202,
+        "CCI": 0.05,
+        "52WK": 0.299
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5823,
+      "n_trades": 344,
+      "win_rate": 0.4448,
+      "avg_return": 1.347,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.322,
+        "MACD": 0.072,
+        "BB": 0.072,
+        "EMA200": 2.682,
+        "MOM3M": 0.058,
+        "Stoch": 0.246,
+        "CCI": 0.01,
+        "52WK": 0.537
+      },
+      "buy_threshold": 30,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5802,
+      "n_trades": 313,
+      "win_rate": 0.4441,
+      "avg_return": 1.338,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.097,
+        "MACD": 0.256,
+        "BB": 0.12,
+        "EMA200": 2.119,
+        "MOM3M": 0.072,
+        "Stoch": 0.013,
+        "CCI": 0.335,
+        "52WK": 0.987
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5786,
+      "n_trades": 385,
+      "win_rate": 0.4442,
+      "avg_return": 1.334,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.322,
+        "MACD": 0.072,
+        "BB": 0.072,
+        "EMA200": 2.682,
+        "MOM3M": 0.058,
+        "Stoch": 0.246,
+        "CCI": 0.01,
+        "52WK": 0.537
+      },
+      "buy_threshold": 25,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5781,
+      "n_trades": 330,
+      "win_rate": 0.4424,
+      "avg_return": 1.338,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.158,
+        "MACD": 0.094,
+        "BB": 0.636,
+        "EMA200": 0.092,
+        "MOM3M": 0.116,
+        "Stoch": 0.151,
+        "CCI": 0.1,
+        "52WK": 2.652
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5753,
+      "n_trades": 315,
+      "win_rate": 0.4444,
+      "avg_return": 1.329,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.014,
+        "MACD": 0.737,
+        "BB": 0.148,
+        "EMA200": 0.096,
+        "MOM3M": 0.274,
+        "Stoch": 0.363,
+        "CCI": 0.115,
+        "52WK": 2.253
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.572,
+      "n_trades": 360,
+      "win_rate": 0.4389,
+      "avg_return": 1.324,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.104,
+        "MACD": 0.44,
+        "BB": 0.138,
+        "EMA200": 2.297,
+        "MOM3M": 0.741,
+        "Stoch": 0.11,
+        "CCI": 0.056,
+        "52WK": 0.113
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.569,
+      "n_trades": 381,
+      "win_rate": 0.4409,
+      "avg_return": 1.309,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.024,
+        "MACD": 0.124,
+        "BB": 0.173,
+        "EMA200": 0.319,
+        "MOM3M": 0.295,
+        "Stoch": 0.134,
+        "CCI": 0.666,
+        "52WK": 2.265
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5654,
+      "n_trades": 309,
+      "win_rate": 0.4401,
+      "avg_return": 1.31,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.297,
+        "MACD": 0.037,
+        "BB": 0.011,
+        "EMA200": 0.066,
+        "MOM3M": 0.312,
+        "Stoch": 0.351,
+        "CCI": 0.219,
+        "52WK": 2.707
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5652,
+      "n_trades": 302,
+      "win_rate": 0.4404,
+      "avg_return": 1.306,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.282,
+        "MACD": 0.333,
+        "BB": 0.168,
+        "EMA200": 0.261,
+        "MOM3M": 0.442,
+        "Stoch": 0.116,
+        "CCI": 0.139,
+        "52WK": 2.259
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5637,
+      "n_trades": 296,
+      "win_rate": 0.4392,
+      "avg_return": 1.304,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.15,
+        "MACD": 0.058,
+        "BB": 0.249,
+        "EMA200": 2.173,
+        "MOM3M": 0.19,
+        "Stoch": 0.589,
+        "CCI": 0.319,
+        "52WK": 0.272
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5563,
+      "n_trades": 507,
+      "win_rate": 0.4398,
+      "avg_return": 1.286,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.524,
+        "MACD": 0.267,
+        "BB": 0.09,
+        "EMA200": 0.142,
+        "MOM3M": 1.269,
+        "Stoch": 0.061,
+        "CCI": 1.633,
+        "52WK": 0.014
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5514,
+      "n_trades": 358,
+      "win_rate": 0.4358,
+      "avg_return": 1.272,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.524,
+        "MACD": 0.267,
+        "BB": 0.09,
+        "EMA200": 0.142,
+        "MOM3M": 1.269,
+        "Stoch": 0.061,
+        "CCI": 1.633,
+        "52WK": 0.014
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5514,
+      "n_trades": 358,
+      "win_rate": 0.4358,
+      "avg_return": 1.272,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.526,
+        "MACD": 0.303,
+        "BB": 0.275,
+        "EMA200": 2.142,
+        "MOM3M": 0.2,
+        "Stoch": 0.158,
+        "CCI": 0.008,
+        "52WK": 0.388
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5447,
+      "n_trades": 401,
+      "win_rate": 0.4389,
+      "avg_return": 1.256,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.187,
+        "MACD": 0.416,
+        "BB": 0.062,
+        "EMA200": 0.305,
+        "MOM3M": 0.78,
+        "Stoch": 0.224,
+        "CCI": 1.645,
+        "52WK": 0.381
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5434,
+      "n_trades": 444,
+      "win_rate": 0.4324,
+      "avg_return": 1.262,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.187,
+        "MACD": 0.416,
+        "BB": 0.062,
+        "EMA200": 0.305,
+        "MOM3M": 0.78,
+        "Stoch": 0.224,
+        "CCI": 1.645,
+        "52WK": 0.381
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5434,
+      "n_trades": 444,
+      "win_rate": 0.4324,
+      "avg_return": 1.262,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.074,
+        "MACD": 0.086,
+        "BB": 0.983,
+        "EMA200": 0.001,
+        "MOM3M": 0.265,
+        "Stoch": 0.017,
+        "CCI": 0.122,
+        "52WK": 2.453
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5398,
+      "n_trades": 355,
+      "win_rate": 0.4423,
+      "avg_return": 1.241,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.026,
+        "MACD": 0.225,
+        "BB": 0.049,
+        "EMA200": 1.854,
+        "MOM3M": 0.062,
+        "Stoch": 0.814,
+        "CCI": 0.097,
+        "52WK": 0.872
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.538,
+      "n_trades": 641,
+      "win_rate": 0.4368,
+      "avg_return": 1.239,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.011,
+        "MACD": 0.139,
+        "BB": 0.145,
+        "EMA200": 0.456,
+        "MOM3M": 0.211,
+        "Stoch": 0.079,
+        "CCI": 0.633,
+        "52WK": 2.325
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5374,
+      "n_trades": 303,
+      "win_rate": 0.4356,
+      "avg_return": 1.243,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.67,
+        "MACD": 0.1,
+        "BB": 0.344,
+        "EMA200": 0.861,
+        "MOM3M": 0.664,
+        "Stoch": 0.122,
+        "CCI": 1.227,
+        "52WK": 0.012
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5357,
+      "n_trades": 407,
+      "win_rate": 0.4349,
+      "avg_return": 1.238,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.67,
+        "MACD": 0.1,
+        "BB": 0.344,
+        "EMA200": 0.861,
+        "MOM3M": 0.664,
+        "Stoch": 0.122,
+        "CCI": 1.227,
+        "52WK": 0.012
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5357,
+      "n_trades": 407,
+      "win_rate": 0.4349,
+      "avg_return": 1.238,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.175,
+        "MACD": 0.434,
+        "BB": 0.02,
+        "EMA200": 0.378,
+        "MOM3M": 0.043,
+        "Stoch": 0.278,
+        "CCI": 0.076,
+        "52WK": 2.596
+      },
+      "buy_threshold": 30,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5335,
+      "n_trades": 310,
+      "win_rate": 0.4355,
+      "avg_return": 1.229,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.219,
+        "MACD": 0.202,
+        "BB": 0.191,
+        "EMA200": 2.384,
+        "MOM3M": 0.095,
+        "Stoch": 0.472,
+        "CCI": 0.168,
+        "52WK": 0.269
+      },
+      "buy_threshold": 30,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5286,
+      "n_trades": 414,
+      "win_rate": 0.4324,
+      "avg_return": 1.222,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.616,
+        "MACD": 0.06,
+        "BB": 0.18,
+        "EMA200": 2.063,
+        "MOM3M": 0.011,
+        "Stoch": 0.101,
+        "CCI": 0.219,
+        "52WK": 0.749
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5279,
+      "n_trades": 404,
+      "win_rate": 0.4356,
+      "avg_return": 1.218,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.047,
+        "MACD": 0.741,
+        "BB": 0.073,
+        "EMA200": 2.53,
+        "MOM3M": 0.236,
+        "Stoch": 0.073,
+        "CCI": 0.135,
+        "52WK": 0.165
+      },
+      "buy_threshold": 30,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5258,
+      "n_trades": 365,
+      "win_rate": 0.4329,
+      "avg_return": 1.215,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.544,
+        "MACD": 0.021,
+        "BB": 0.176,
+        "EMA200": 0.711,
+        "MOM3M": 1.018,
+        "Stoch": 0.158,
+        "CCI": 1.071,
+        "52WK": 0.3
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5252,
+      "n_trades": 422,
+      "win_rate": 0.4336,
+      "avg_return": 1.214,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.544,
+        "MACD": 0.021,
+        "BB": 0.176,
+        "EMA200": 0.711,
+        "MOM3M": 1.018,
+        "Stoch": 0.158,
+        "CCI": 1.071,
+        "52WK": 0.3
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5252,
+      "n_trades": 422,
+      "win_rate": 0.4336,
+      "avg_return": 1.214,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.56,
+        "MACD": 0.05,
+        "BB": 0.292,
+        "EMA200": 1.994,
+        "MOM3M": 0.44,
+        "Stoch": 0.103,
+        "CCI": 0.144,
+        "52WK": 0.417
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.525,
+      "n_trades": 585,
+      "win_rate": 0.4342,
+      "avg_return": 1.216,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.298,
+        "MACD": 0.46,
+        "BB": 0.065,
+        "EMA200": 0.313,
+        "MOM3M": 0.167,
+        "Stoch": 0.318,
+        "CCI": 0.217,
+        "52WK": 2.161
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5231,
+      "n_trades": 323,
+      "win_rate": 0.4334,
+      "avg_return": 1.207,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.294,
+        "MACD": 0.861,
+        "BB": 0.026,
+        "EMA200": 0.045,
+        "MOM3M": 0.992,
+        "Stoch": 0.43,
+        "CCI": 1.162,
+        "52WK": 0.19
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5153,
+      "n_trades": 439,
+      "win_rate": 0.4282,
+      "avg_return": 1.191,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.294,
+        "MACD": 0.861,
+        "BB": 0.026,
+        "EMA200": 0.045,
+        "MOM3M": 0.992,
+        "Stoch": 0.43,
+        "CCI": 1.162,
+        "52WK": 0.19
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5153,
+      "n_trades": 439,
+      "win_rate": 0.4282,
+      "avg_return": 1.191,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.156,
+        "MACD": 0.184,
+        "BB": 0.078,
+        "EMA200": 1.765,
+        "MOM3M": 0.019,
+        "Stoch": 0.648,
+        "CCI": 0.477,
+        "52WK": 0.673
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5116,
+      "n_trades": 665,
+      "win_rate": 0.4331,
+      "avg_return": 1.179,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.671,
+        "MACD": 0.499,
+        "BB": 0.096,
+        "EMA200": 0.537,
+        "MOM3M": 0.201,
+        "Stoch": 0.044,
+        "CCI": 1.773,
+        "52WK": 0.18
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5108,
+      "n_trades": 432,
+      "win_rate": 0.4306,
+      "avg_return": 1.179,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.671,
+        "MACD": 0.499,
+        "BB": 0.096,
+        "EMA200": 0.537,
+        "MOM3M": 0.201,
+        "Stoch": 0.044,
+        "CCI": 1.773,
+        "52WK": 0.18
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5108,
+      "n_trades": 432,
+      "win_rate": 0.4306,
+      "avg_return": 1.179,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.158,
+        "MACD": 0.094,
+        "BB": 0.636,
+        "EMA200": 0.092,
+        "MOM3M": 0.116,
+        "Stoch": 0.151,
+        "CCI": 0.1,
+        "52WK": 2.652
+      },
+      "buy_threshold": 30,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5105,
+      "n_trades": 321,
+      "win_rate": 0.433,
+      "avg_return": 1.177,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.258,
+        "MACD": 0.51,
+        "BB": 0.005,
+        "EMA200": 0.23,
+        "MOM3M": 1.158,
+        "Stoch": 0.323,
+        "CCI": 1.436,
+        "52WK": 0.08
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5096,
+      "n_trades": 399,
+      "win_rate": 0.4286,
+      "avg_return": 1.179,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.258,
+        "MACD": 0.51,
+        "BB": 0.005,
+        "EMA200": 0.23,
+        "MOM3M": 1.158,
+        "Stoch": 0.323,
+        "CCI": 1.436,
+        "52WK": 0.08
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5096,
+      "n_trades": 399,
+      "win_rate": 0.4286,
+      "avg_return": 1.179,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.043,
+        "MACD": 0.116,
+        "BB": 0.377,
+        "EMA200": 0.702,
+        "MOM3M": 1.144,
+        "Stoch": 0.087,
+        "CCI": 1.374,
+        "52WK": 0.157
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5068,
+      "n_trades": 519,
+      "win_rate": 0.4258,
+      "avg_return": 1.174,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.043,
+        "MACD": 0.116,
+        "BB": 0.377,
+        "EMA200": 0.702,
+        "MOM3M": 1.144,
+        "Stoch": 0.087,
+        "CCI": 1.374,
+        "52WK": 0.157
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5068,
+      "n_trades": 519,
+      "win_rate": 0.4258,
+      "avg_return": 1.174,
+      "max_dd": -6.558
+    },
+    {
+      "buy_weights": {
+        "RSI": 1.104,
+        "MACD": 0.27,
+        "BB": 0.165,
+        "EMA200": 0.262,
+        "MOM3M": 0.279,
+        "Stoch": 0.102,
+        "CCI": 1.781,
+        "52WK": 0.035
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5067,
+      "n_trades": 362,
+      "win_rate": 0.4282,
+      "avg_return": 1.173,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 1.104,
+        "MACD": 0.27,
+        "BB": 0.165,
+        "EMA200": 0.262,
+        "MOM3M": 0.279,
+        "Stoch": 0.102,
+        "CCI": 1.781,
+        "52WK": 0.035
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5067,
+      "n_trades": 362,
+      "win_rate": 0.4282,
+      "avg_return": 1.173,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.837,
+        "MACD": 0.315,
+        "BB": 0.207,
+        "EMA200": 0.477,
+        "MOM3M": 0.54,
+        "Stoch": 0.056,
+        "CCI": 1.527,
+        "52WK": 0.04
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5056,
+      "n_trades": 351,
+      "win_rate": 0.4302,
+      "avg_return": 1.167,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.837,
+        "MACD": 0.315,
+        "BB": 0.207,
+        "EMA200": 0.477,
+        "MOM3M": 0.54,
+        "Stoch": 0.056,
+        "CCI": 1.527,
+        "52WK": 0.04
+      },
+      "buy_threshold": 20,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5056,
+      "n_trades": 351,
+      "win_rate": 0.4302,
+      "avg_return": 1.167,
+      "max_dd": -5.3
+    },
+    {
+      "buy_weights": {
+        "RSI": 0.332,
+        "MACD": 0.079,
+        "BB": 0.015,
+        "EMA200": 1.744,
+        "MOM3M": 0.888,
+        "Stoch": 0.135,
+        "CCI": 0.056,
+        "52WK": 0.752
+      },
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5055,
+      "n_trades": 508,
       "win_rate": 0.4252,
-      "avg_return": 2.364,
-      "max_dd": -8.12
+      "avg_return": 1.171,
+      "max_dd": -5.3
     },
     {
       "buy_weights": {
-        "RSI": 0.32,
-        "MACD": 0.55,
-        "BB": 0.642,
-        "EMA200": 0.369,
-        "MOM3M": 0.696,
-        "Stoch": 0.126,
-        "CCI": 1.292,
-        "52WK": 0.006
+        "RSI": 0.593,
+        "MACD": 0.292,
+        "BB": 0.196,
+        "EMA200": 0.173,
+        "MOM3M": 0.851,
+        "Stoch": 0.215,
+        "CCI": 1.654,
+        "52WK": 0.026
       },
       "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4765,
-      "n_trades": 447,
-      "win_rate": 0.4139,
-      "avg_return": 2.409,
-      "max_dd": -8.12
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5047,
+      "n_trades": 363,
+      "win_rate": 0.427,
+      "avg_return": 1.164,
+      "max_dd": -6.558
     },
     {
       "buy_weights": {
-        "RSI": 0.32,
-        "MACD": 0.55,
-        "BB": 0.642,
-        "EMA200": 0.369,
-        "MOM3M": 0.696,
-        "Stoch": 0.126,
-        "CCI": 1.292,
-        "52WK": 0.006
+        "RSI": 0.593,
+        "MACD": 0.292,
+        "BB": 0.196,
+        "EMA200": 0.173,
+        "MOM3M": 0.851,
+        "Stoch": 0.215,
+        "CCI": 1.654,
+        "52WK": 0.026
       },
       "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4765,
-      "n_trades": 447,
-      "win_rate": 0.4139,
-      "avg_return": 2.409,
-      "max_dd": -8.12
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5047,
+      "n_trades": 363,
+      "win_rate": 0.427,
+      "avg_return": 1.164,
+      "max_dd": -6.558
     },
     {
       "buy_weights": {
-        "RSI": 0.32,
-        "MACD": 0.55,
-        "BB": 0.642,
-        "EMA200": 0.369,
-        "MOM3M": 0.696,
-        "Stoch": 0.126,
-        "CCI": 1.292,
-        "52WK": 0.006
+        "RSI": 0.079,
+        "MACD": 0.647,
+        "BB": 0.08,
+        "EMA200": 0.18,
+        "MOM3M": 1.031,
+        "Stoch": 0.119,
+        "CCI": 1.379,
+        "52WK": 0.485
       },
       "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4765,
-      "n_trades": 447,
-      "win_rate": 0.4139,
-      "avg_return": 2.409,
-      "max_dd": -8.12
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5002,
+      "n_trades": 476,
+      "win_rate": 0.4244,
+      "avg_return": 1.155,
+      "max_dd": -6.558
     },
     {
       "buy_weights": {
-        "RSI": 0.057,
-        "MACD": 0.249,
-        "BB": 0.502,
-        "EMA200": 0.559,
-        "MOM3M": 1.39,
-        "Stoch": 0.062,
-        "CCI": 0.916,
-        "52WK": 0.265
+        "RSI": 0.079,
+        "MACD": 0.647,
+        "BB": 0.08,
+        "EMA200": 0.18,
+        "MOM3M": 1.031,
+        "Stoch": 0.119,
+        "CCI": 1.379,
+        "52WK": 0.485
       },
       "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4752,
-      "n_trades": 529,
-      "win_rate": 0.4102,
-      "avg_return": 2.406,
-      "max_dd": -7.3
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.5002,
+      "n_trades": 476,
+      "win_rate": 0.4244,
+      "avg_return": 1.155,
+      "max_dd": -6.558
     },
     {
       "buy_weights": {
-        "RSI": 0.057,
-        "MACD": 0.249,
-        "BB": 0.502,
-        "EMA200": 0.559,
-        "MOM3M": 1.39,
-        "Stoch": 0.062,
-        "CCI": 0.916,
-        "52WK": 0.265
+        "RSI": 0.121,
+        "MACD": 0.132,
+        "BB": 0.369,
+        "EMA200": 1.477,
+        "MOM3M": 0.017,
+        "Stoch": 0.588,
+        "CCI": 0.184,
+        "52WK": 1.112
       },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4752,
-      "n_trades": 529,
-      "win_rate": 0.4102,
-      "avg_return": 2.406,
-      "max_dd": -7.3
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.4984,
+      "n_trades": 734,
+      "win_rate": 0.4292,
+      "avg_return": 1.148,
+      "max_dd": -5.3
     },
     {
       "buy_weights": {
-        "RSI": 0.057,
-        "MACD": 0.249,
-        "BB": 0.502,
-        "EMA200": 0.559,
-        "MOM3M": 1.39,
-        "Stoch": 0.062,
-        "CCI": 0.916,
-        "52WK": 0.265
+        "RSI": 0.068,
+        "MACD": 0.265,
+        "BB": 0.669,
+        "EMA200": 1.891,
+        "MOM3M": 0.39,
+        "Stoch": 0.16,
+        "CCI": 0.144,
+        "52WK": 0.412
       },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4752,
-      "n_trades": 529,
-      "win_rate": 0.4102,
-      "avg_return": 2.406,
-      "max_dd": -7.3
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.4982,
+      "n_trades": 582,
+      "win_rate": 0.4313,
+      "avg_return": 1.148,
+      "max_dd": -5.3
     },
     {
       "buy_weights": {
-        "RSI": 0.078,
-        "MACD": 0.649,
-        "BB": 0.058,
-        "EMA200": 0.318,
-        "MOM3M": 2.304,
-        "Stoch": 0.19,
-        "CCI": 0.272,
-        "52WK": 0.131
+        "RSI": 0.346,
+        "MACD": 1.348,
+        "BB": 0.152,
+        "EMA200": 0.143,
+        "MOM3M": 0.268,
+        "Stoch": 0.092,
+        "CCI": 1.525,
+        "52WK": 0.128
       },
       "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.475,
-      "n_trades": 568,
-      "win_rate": 0.3996,
-      "avg_return": 2.419,
-      "max_dd": -8.12
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.4885,
+      "n_trades": 424,
+      "win_rate": 0.4363,
+      "avg_return": 1.119,
+      "max_dd": -6.558
     },
     {
       "buy_weights": {
-        "RSI": 0.078,
-        "MACD": 0.649,
-        "BB": 0.058,
-        "EMA200": 0.318,
-        "MOM3M": 2.304,
-        "Stoch": 0.19,
-        "CCI": 0.272,
-        "52WK": 0.131
+        "RSI": 0.346,
+        "MACD": 1.348,
+        "BB": 0.152,
+        "EMA200": 0.143,
+        "MOM3M": 0.268,
+        "Stoch": 0.092,
+        "CCI": 1.525,
+        "52WK": 0.128
       },
       "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.475,
-      "n_trades": 568,
-      "win_rate": 0.3996,
-      "avg_return": 2.419,
-      "max_dd": -8.12
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.4885,
+      "n_trades": 424,
+      "win_rate": 0.4363,
+      "avg_return": 1.119,
+      "max_dd": -6.558
     },
     {
       "buy_weights": {
-        "RSI": 0.078,
-        "MACD": 0.649,
-        "BB": 0.058,
-        "EMA200": 0.318,
-        "MOM3M": 2.304,
-        "Stoch": 0.19,
-        "CCI": 0.272,
-        "52WK": 0.131
+        "RSI": 0.248,
+        "MACD": 0.159,
+        "BB": 0.194,
+        "EMA200": 0.837,
+        "MOM3M": 0.117,
+        "Stoch": 0.154,
+        "CCI": 0.091,
+        "52WK": 2.2
       },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.475,
-      "n_trades": 568,
-      "win_rate": 0.3996,
-      "avg_return": 2.419,
-      "max_dd": -8.12
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.4862,
+      "n_trades": 378,
+      "win_rate": 0.4259,
+      "avg_return": 1.121,
+      "max_dd": -5.3
     },
     {
       "buy_weights": {
-        "RSI": 0.416,
-        "MACD": 0.625,
-        "BB": 0.338,
-        "EMA200": 0.318,
-        "MOM3M": 0.701,
-        "Stoch": 0.195,
-        "CCI": 1.18,
-        "52WK": 0.228
+        "RSI": 0.42,
+        "MACD": 0.139,
+        "BB": 0.699,
+        "EMA200": 0.324,
+        "MOM3M": 1.117,
+        "Stoch": 0.233,
+        "CCI": 0.734,
+        "52WK": 0.334
       },
       "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.473,
-      "n_trades": 409,
-      "win_rate": 0.4132,
-      "avg_return": 2.393,
-      "max_dd": -8.12
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.4854,
+      "n_trades": 503,
+      "win_rate": 0.4274,
+      "avg_return": 1.121,
+      "max_dd": -6.558
     },
     {
       "buy_weights": {
-        "RSI": 0.416,
-        "MACD": 0.625,
-        "BB": 0.338,
-        "EMA200": 0.318,
-        "MOM3M": 0.701,
-        "Stoch": 0.195,
-        "CCI": 1.18,
-        "52WK": 0.228
+        "RSI": 0.42,
+        "MACD": 0.139,
+        "BB": 0.699,
+        "EMA200": 0.324,
+        "MOM3M": 1.117,
+        "Stoch": 0.233,
+        "CCI": 0.734,
+        "52WK": 0.334
       },
       "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.473,
-      "n_trades": 409,
-      "win_rate": 0.4132,
-      "avg_return": 2.393,
-      "max_dd": -8.12
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.4854,
+      "n_trades": 503,
+      "win_rate": 0.4274,
+      "avg_return": 1.121,
+      "max_dd": -6.558
     },
     {
       "buy_weights": {
-        "RSI": 0.416,
-        "MACD": 0.625,
-        "BB": 0.338,
-        "EMA200": 0.318,
-        "MOM3M": 0.701,
-        "Stoch": 0.195,
-        "CCI": 1.18,
-        "52WK": 0.228
+        "RSI": 0.192,
+        "MACD": 0.169,
+        "BB": 0.262,
+        "EMA200": 2.258,
+        "MOM3M": 0.051,
+        "Stoch": 0.166,
+        "CCI": 0.215,
+        "52WK": 0.687
       },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.473,
-      "n_trades": 409,
-      "win_rate": 0.4132,
-      "avg_return": 2.393,
-      "max_dd": -8.12
+      "buy_threshold": 30,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.484,
+      "n_trades": 380,
+      "win_rate": 0.4289,
+      "avg_return": 1.108,
+      "max_dd": -5.3
     },
     {
       "buy_weights": {
-        "RSI": 0.202,
-        "MACD": 0.426,
-        "BB": 0.386,
-        "EMA200": 0.32,
-        "MOM3M": 0.935,
-        "Stoch": 0.025,
-        "CCI": 1.544,
-        "52WK": 0.162
+        "RSI": 0.2,
+        "MACD": 0.341,
+        "BB": 0.1,
+        "EMA200": 0.473,
+        "MOM3M": 0.217,
+        "Stoch": 0.26,
+        "CCI": 0.289,
+        "52WK": 2.119
       },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4706,
-      "n_trades": 428,
-      "win_rate": 0.4182,
-      "avg_return": 2.354,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.202,
-        "MACD": 0.426,
-        "BB": 0.386,
-        "EMA200": 0.32,
-        "MOM3M": 0.935,
-        "Stoch": 0.025,
-        "CCI": 1.544,
-        "52WK": 0.162
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4706,
-      "n_trades": 428,
-      "win_rate": 0.4182,
-      "avg_return": 2.354,
-      "max_dd": -8.12
+      "buy_threshold": 35,
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.4832,
+      "n_trades": 328,
+      "win_rate": 0.4268,
+      "avg_return": 1.112,
+      "max_dd": -5.3
     },
     {
       "buy_weights": {
         "RSI": 0.202,
-        "MACD": 0.426,
-        "BB": 0.386,
-        "EMA200": 0.32,
-        "MOM3M": 0.935,
-        "Stoch": 0.025,
-        "CCI": 1.544,
-        "52WK": 0.162
+        "MACD": 1.28,
+        "BB": 0.105,
+        "EMA200": 0.137,
+        "MOM3M": 0.376,
+        "Stoch": 0.077,
+        "CCI": 1.555,
+        "52WK": 0.269
       },
       "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4706,
-      "n_trades": 428,
-      "win_rate": 0.4182,
-      "avg_return": 2.354,
-      "max_dd": -8.12
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.4828,
+      "n_trades": 451,
+      "win_rate": 0.4302,
+      "avg_return": 1.111,
+      "max_dd": -6.558
     },
     {
       "buy_weights": {
-        "RSI": 0.123,
-        "MACD": 0.133,
-        "BB": 1.111,
-        "EMA200": 0.335,
-        "MOM3M": 1.266,
-        "Stoch": 0.058,
-        "CCI": 0.424,
-        "52WK": 0.55
+        "RSI": 0.202,
+        "MACD": 1.28,
+        "BB": 0.105,
+        "EMA200": 0.137,
+        "MOM3M": 0.376,
+        "Stoch": 0.077,
+        "CCI": 1.555,
+        "52WK": 0.269
       },
       "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4705,
-      "n_trades": 692,
-      "win_rate": 0.4133,
-      "avg_return": 2.359,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.123,
-        "MACD": 0.133,
-        "BB": 1.111,
-        "EMA200": 0.335,
-        "MOM3M": 1.266,
-        "Stoch": 0.058,
-        "CCI": 0.424,
-        "52WK": 0.55
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4705,
-      "n_trades": 692,
-      "win_rate": 0.4133,
-      "avg_return": 2.359,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.123,
-        "MACD": 0.133,
-        "BB": 1.111,
-        "EMA200": 0.335,
-        "MOM3M": 1.266,
-        "Stoch": 0.058,
-        "CCI": 0.424,
-        "52WK": 0.55
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4705,
-      "n_trades": 692,
-      "win_rate": 0.4133,
-      "avg_return": 2.359,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.017,
-        "MACD": 0.989,
-        "BB": 0.288,
-        "EMA200": 0.06,
-        "MOM3M": 0.869,
-        "Stoch": 0.679,
-        "CCI": 1.044,
-        "52WK": 0.056
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4702,
-      "n_trades": 667,
-      "win_rate": 0.4138,
-      "avg_return": 2.34,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.017,
-        "MACD": 0.989,
-        "BB": 0.288,
-        "EMA200": 0.06,
-        "MOM3M": 0.869,
-        "Stoch": 0.679,
-        "CCI": 1.044,
-        "52WK": 0.056
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4702,
-      "n_trades": 667,
-      "win_rate": 0.4138,
-      "avg_return": 2.34,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.017,
-        "MACD": 0.989,
-        "BB": 0.288,
-        "EMA200": 0.06,
-        "MOM3M": 0.869,
-        "Stoch": 0.679,
-        "CCI": 1.044,
-        "52WK": 0.056
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4702,
-      "n_trades": 667,
-      "win_rate": 0.4138,
-      "avg_return": 2.34,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.146,
-        "MACD": 0.493,
-        "BB": 0.507,
-        "EMA200": 0.525,
-        "MOM3M": 1.928,
-        "Stoch": 0.19,
-        "CCI": 0.088,
-        "52WK": 0.123
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4701,
-      "n_trades": 594,
-      "win_rate": 0.3956,
-      "avg_return": 2.391,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.146,
-        "MACD": 0.493,
-        "BB": 0.507,
-        "EMA200": 0.525,
-        "MOM3M": 1.928,
-        "Stoch": 0.19,
-        "CCI": 0.088,
-        "52WK": 0.123
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4701,
-      "n_trades": 594,
-      "win_rate": 0.3956,
-      "avg_return": 2.391,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.146,
-        "MACD": 0.493,
-        "BB": 0.507,
-        "EMA200": 0.525,
-        "MOM3M": 1.928,
-        "Stoch": 0.19,
-        "CCI": 0.088,
-        "52WK": 0.123
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4701,
-      "n_trades": 594,
-      "win_rate": 0.3956,
-      "avg_return": 2.391,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.042,
-        "MACD": 0.277,
-        "BB": 0.017,
-        "EMA200": 0.164,
-        "MOM3M": 1.407,
-        "Stoch": 0.132,
-        "CCI": 1.431,
-        "52WK": 0.529
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4693,
-      "n_trades": 516,
-      "win_rate": 0.4205,
-      "avg_return": 2.34,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.042,
-        "MACD": 0.277,
-        "BB": 0.017,
-        "EMA200": 0.164,
-        "MOM3M": 1.407,
-        "Stoch": 0.132,
-        "CCI": 1.431,
-        "52WK": 0.529
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4693,
-      "n_trades": 516,
-      "win_rate": 0.4205,
-      "avg_return": 2.34,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 0.042,
-        "MACD": 0.277,
-        "BB": 0.017,
-        "EMA200": 0.164,
-        "MOM3M": 1.407,
-        "Stoch": 0.132,
-        "CCI": 1.431,
-        "52WK": 0.529
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4693,
-      "n_trades": 516,
-      "win_rate": 0.4205,
-      "avg_return": 2.34,
-      "max_dd": -7.3
-    },
-    {
-      "buy_weights": {
-        "RSI": 1.024,
-        "MACD": 0.586,
-        "BB": 0.067,
-        "EMA200": 0.624,
-        "MOM3M": 0.826,
-        "Stoch": 0.055,
-        "CCI": 0.816,
-        "52WK": 0.003
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4688,
-      "n_trades": 289,
-      "win_rate": 0.4014,
-      "avg_return": 2.43,
-      "max_dd": -8.12
-    },
-    {
-      "buy_weights": {
-        "RSI": 1.024,
-        "MACD": 0.586,
-        "BB": 0.067,
-        "EMA200": 0.624,
-        "MOM3M": 0.826,
-        "Stoch": 0.055,
-        "CCI": 0.816,
-        "52WK": 0.003
-      },
-      "buy_threshold": 20,
-      "sell_rule": "target20_stop7",
-      "sharpe": 0.4688,
-      "n_trades": 289,
-      "win_rate": 0.4014,
-      "avg_return": 2.43,
-      "max_dd": -8.12
+      "sell_rule": "target10_stop5",
+      "sharpe": 0.4828,
+      "n_trades": 451,
+      "win_rate": 0.4302,
+      "avg_return": 1.111,
+      "max_dd": -6.558
     }
   ],
   "sell_rule_ranking": [
     {
-      "sell_rule": "target15_stop7",
-      "sell_rule_ja": "利確+15% / ストップ-7%",
-      "best_sharpe": 0.3219,
-      "avg_sharpe": 0.2739,
-      "best_win_rate": 0.4145,
-      "best_n_trades": 994,
-      "best_avg_return": 1.209,
+      "sell_rule": "target10_stop5",
+      "sell_rule_ja": "利確+10% / ストップ-5%",
+      "best_sharpe": 1.2765,
+      "avg_sharpe": 0.5672,
+      "best_win_rate": 0.5515,
+      "best_n_trades": 165,
+      "best_avg_return": 2.986,
       "best_weights": {
-        "RSI": 0.0,
-        "MACD": 0.0,
-        "BB": 1.8342,
-        "EMA200": 0.0,
-        "MOM3M": 1.1554,
+        "RSI": 0.2561,
+        "MACD": 0.3973,
+        "BB": 0.0,
+        "EMA200": 0.2934,
+        "MOM3M": 0.2716,
         "Stoch": 0.0,
-        "CCI": 0.0,
-        "52WK": 1.0103
+        "CCI": 0.1944,
+        "52WK": 0.3586
       },
-      "best_threshold": 20
+      "best_threshold": 30
     },
     {
       "sell_rule": "target25_stop10",
       "sell_rule_ja": "利確+25% / ストップ-10%",
-      "best_sharpe": 0.3117,
-      "avg_sharpe": 0.2652,
-      "best_win_rate": 0.4577,
-      "best_n_trades": 994,
-      "best_avg_return": 2.086,
+      "best_sharpe": 1.2643,
+      "avg_sharpe": 0.6872,
+      "best_win_rate": 0.7091,
+      "best_n_trades": 165,
+      "best_avg_return": 7.766,
       "best_weights": {
-        "RSI": 0.0,
-        "MACD": 0.0,
-        "BB": 1.8342,
-        "EMA200": 0.0,
-        "MOM3M": 1.1554,
+        "RSI": 0.2561,
+        "MACD": 0.3973,
+        "BB": 0.0,
+        "EMA200": 0.2934,
+        "MOM3M": 0.2716,
         "Stoch": 0.0,
-        "CCI": 0.0,
-        "52WK": 1.0103
+        "CCI": 0.1944,
+        "52WK": 0.3586
       },
-      "best_threshold": 20
+      "best_threshold": 30
     },
     {
-      "sell_rule": "target20_stop7",
-      "sell_rule_ja": "利確+20% / ストップ-7%",
-      "best_sharpe": 0.3062,
-      "avg_sharpe": 0.2733,
-      "best_win_rate": 0.3853,
-      "best_n_trades": 994,
-      "best_avg_return": 1.469,
+      "sell_rule": "target15_stop7",
+      "sell_rule_ja": "利確+15% / ストップ-7%",
+      "best_sharpe": 1.2297,
+      "avg_sharpe": 0.6388,
+      "best_win_rate": 0.5818,
+      "best_n_trades": 165,
+      "best_avg_return": 4.716,
       "best_weights": {
-        "RSI": 0.0,
-        "MACD": 0.0,
-        "BB": 1.8342,
-        "EMA200": 0.0,
-        "MOM3M": 1.1554,
+        "RSI": 0.2561,
+        "MACD": 0.3973,
+        "BB": 0.0,
+        "EMA200": 0.2934,
+        "MOM3M": 0.2716,
         "Stoch": 0.0,
-        "CCI": 0.0,
-        "52WK": 1.0103
+        "CCI": 0.1944,
+        "52WK": 0.3586
       },
-      "best_threshold": 20
+      "best_threshold": 30
     },
     {
       "sell_rule": "target15_stop5",
       "sell_rule_ja": "利確+15% / ストップ-5%",
-      "best_sharpe": 0.2495,
-      "avg_sharpe": 0.2129,
-      "best_win_rate": 0.327,
-      "best_n_trades": 994,
-      "best_avg_return": 0.817,
+      "best_sharpe": 1.1756,
+      "avg_sharpe": 0.5511,
+      "best_win_rate": 0.5091,
+      "best_n_trades": 165,
+      "best_avg_return": 4.15,
       "best_weights": {
-        "RSI": 0.0,
-        "MACD": 0.0,
-        "BB": 1.8342,
-        "EMA200": 0.0,
-        "MOM3M": 1.1554,
+        "RSI": 0.2561,
+        "MACD": 0.3973,
+        "BB": 0.0,
+        "EMA200": 0.2934,
+        "MOM3M": 0.2716,
         "Stoch": 0.0,
-        "CCI": 0.0,
-        "52WK": 1.0103
+        "CCI": 0.1944,
+        "52WK": 0.3586
       },
-      "best_threshold": 20
+      "best_threshold": 30
     },
     {
-      "sell_rule": "target10_stop5",
-      "sell_rule_ja": "利確+10% / ストップ-5%",
-      "best_sharpe": 0.1688,
-      "avg_sharpe": 0.1118,
-      "best_win_rate": 0.3753,
-      "best_n_trades": 994,
-      "best_avg_return": 0.38,
+      "sell_rule": "target20_stop7",
+      "sell_rule_ja": "利確+20% / ストップ-7%",
+      "best_sharpe": 1.0993,
+      "avg_sharpe": 0.5876,
+      "best_win_rate": 0.5697,
+      "best_n_trades": 165,
+      "best_avg_return": 5.354,
       "best_weights": {
-        "RSI": 0.0,
-        "MACD": 0.0,
-        "BB": 1.8342,
-        "EMA200": 0.0,
-        "MOM3M": 1.1554,
+        "RSI": 0.2561,
+        "MACD": 0.3973,
+        "BB": 0.0,
+        "EMA200": 0.2934,
+        "MOM3M": 0.2716,
         "Stoch": 0.0,
-        "CCI": 0.0,
-        "52WK": 1.0103
+        "CCI": 0.1944,
+        "52WK": 0.3586
       },
-      "best_threshold": 20
+      "best_threshold": 30
     },
     {
       "sell_rule": "trail_5pct",
       "sell_rule_ja": "トレーリングストップ 5%",
-      "best_sharpe": -0.0189,
-      "avg_sharpe": -0.0547,
-      "best_win_rate": 0.3474,
-      "best_n_trades": 1160,
-      "best_avg_return": -0.035,
+      "best_sharpe": 0.581,
+      "avg_sharpe": 0.0668,
+      "best_win_rate": 0.4788,
+      "best_n_trades": 165,
+      "best_avg_return": 1.034,
       "best_weights": {
-        "RSI": 0.0,
-        "MACD": 0.0,
-        "BB": 1.8342,
-        "EMA200": 0.0,
-        "MOM3M": 1.1554,
+        "RSI": 0.2561,
+        "MACD": 0.3973,
+        "BB": 0.0,
+        "EMA200": 0.2934,
+        "MOM3M": 0.2716,
         "Stoch": 0.0,
-        "CCI": 0.0,
-        "52WK": 1.0103
+        "CCI": 0.1944,
+        "52WK": 0.3586
       },
-      "best_threshold": 25
+      "best_threshold": 30
     },
     {
       "sell_rule": "target5_stop3",
       "sell_rule_ja": "利確+5% / ストップ-3%",
-      "best_sharpe": -0.0492,
-      "avg_sharpe": -0.1387,
-      "best_win_rate": 0.3931,
-      "best_n_trades": 1160,
-      "best_avg_return": -0.047,
+      "best_sharpe": 0.5168,
+      "avg_sharpe": 0.0078,
+      "best_win_rate": 0.4606,
+      "best_n_trades": 165,
+      "best_avg_return": 0.503,
       "best_weights": {
-        "RSI": 0.0,
-        "MACD": 0.0,
-        "BB": 1.8342,
-        "EMA200": 0.0,
-        "MOM3M": 1.1554,
+        "RSI": 0.2561,
+        "MACD": 0.3973,
+        "BB": 0.0,
+        "EMA200": 0.2934,
+        "MOM3M": 0.2716,
         "Stoch": 0.0,
-        "CCI": 0.0,
-        "52WK": 1.0103
+        "CCI": 0.1944,
+        "52WK": 0.3586
       },
-      "best_threshold": 25
+      "best_threshold": 30
     }
   ],
   "indicator_weight_corr_with_sharpe": {
-    "RSI": -0.106,
-    "MACD": 0.032,
-    "BB": -0.2389,
-    "EMA200": 0.2047,
-    "MOM3M": 0.0096,
-    "Stoch": -0.2475,
-    "CCI": 0.0023,
-    "52WK": 0.2393
+    "RSI": -0.1051,
+    "MACD": 0.0389,
+    "BB": -0.2252,
+    "EMA200": 0.2649,
+    "MOM3M": -0.1827,
+    "Stoch": -0.1751,
+    "CCI": 0.0695,
+    "52WK": 0.1525
   },
   "top100_median_weights": {
-    "RSI": 0.081,
-    "MACD": 0.403,
-    "BB": 0.165,
-    "EMA200": 0.318,
-    "MOM3M": 0.718,
-    "Stoch": 0.146,
-    "CCI": 0.916,
-    "52WK": 0.187
+    "RSI": 0.246,
+    "MACD": 0.256,
+    "BB": 0.171,
+    "EMA200": 0.477,
+    "MOM3M": 0.273,
+    "Stoch": 0.158,
+    "CCI": 0.27,
+    "52WK": 0.381
   },
   "top100_weight_ranking": [
-    "CCI",
-    "MOM3M",
-    "MACD",
     "EMA200",
     "52WK",
+    "MOM3M",
+    "CCI",
+    "MACD",
+    "RSI",
     "BB",
-    "Stoch",
-    "RSI"
+    "Stoch"
   ],
   "weight_confidence_intervals": {
     "RSI": {
-      "mean": 1.1358,
-      "std": 1.3449,
-      "cv": 1.1841
+      "mean": 0.2536,
+      "std": 0.1485,
+      "cv": 0.5853
     },
     "MACD": {
-      "mean": 0.0556,
-      "std": 0.1571,
-      "cv": 2.8284
+      "mean": 0.2641,
+      "std": 0.3482,
+      "cv": 1.3185
     },
     "BB": {
-      "mean": 1.1584,
-      "std": 0.9405,
-      "cv": 0.8119
+      "mean": 0.1282,
+      "std": 0.1462,
+      "cv": 1.1405
     },
     "EMA200": {
-      "mean": 0.0556,
-      "std": 0.1571,
-      "cv": 2.8284
+      "mean": 0.2652,
+      "std": 0.303,
+      "cv": 1.1427
     },
     "MOM3M": {
-      "mean": 0.727,
-      "std": 0.4983,
-      "cv": 0.6853
+      "mean": 0.153,
+      "std": 0.1204,
+      "cv": 0.787
     },
     "Stoch": {
-      "mean": 0.3334,
-      "std": 0.7819,
-      "cv": 2.3453
+      "mean": 0.2718,
+      "std": 0.2041,
+      "cv": 0.7509
     },
     "CCI": {
-      "mean": 0.0556,
-      "std": 0.1571,
-      "cv": 2.8284
+      "mean": 0.239,
+      "std": 0.1877,
+      "cv": 0.7853
     },
     "52WK": {
-      "mean": 0.4787,
-      "std": 0.4504,
-      "cv": 0.941
+      "mean": 0.1268,
+      "std": 0.1766,
+      "cv": 1.3926
     }
   },
   "summary": {
-    "best_sharpe": 0.3062,
-    "best_sharpe_train": 0.3062,
-    "avg_oos_sharpe": 0.2658,
-    "wf_stability": -1.6214,
-    "overfit_ratio": 4.3165,
-    "best_sell_rule": "target20_stop7",
+    "best_sharpe": 47.0465,
+    "best_sharpe_train": 47.0465,
+    "avg_oos_sharpe": -0.4187,
+    "wf_stability": -2.968,
+    "overfit_ratio": 0.0731,
+    "best_sell_rule": "target10_stop5",
     "best_weights": {
-      "RSI": 0.0,
-      "MACD": 0.0,
-      "BB": 1.8342,
-      "EMA200": 0.0,
-      "MOM3M": 1.1554,
+      "RSI": 0.2561,
+      "MACD": 0.3973,
+      "BB": 0.0,
+      "EMA200": 0.2934,
+      "MOM3M": 0.2716,
       "Stoch": 0.0,
-      "CCI": 0.0,
-      "52WK": 1.0103
+      "CCI": 0.1944,
+      "52WK": 0.3586
     },
-    "best_threshold": 20
+    "best_threshold": 35
   },
   "doe_results": {
     "n_experiments": 18,
     "indicator_effects": {
-      "RSI": 1.0573,
-      "MACD": 1.5922,
-      "BB": 1.5551,
-      "EMA200": 1.5322,
-      "MOM3M": 1.6227,
-      "Stoch": 1.5871,
-      "CCI": 1.5834,
-      "52WK": 1.5385
+      "RSI": 0.0082,
+      "MACD": 0.0022,
+      "BB": 0.0031,
+      "EMA200": 0.0041,
+      "MOM3M": 0.0025,
+      "Stoch": 0.0013,
+      "CCI": 0.0037,
+      "52WK": 0.0031
     },
     "ranking": [
+      "RSI",
+      "EMA200",
+      "CCI",
+      "52WK",
+      "BB",
       "MOM3M",
       "MACD",
-      "Stoch",
-      "CCI",
-      "BB",
-      "52WK",
-      "EMA200",
-      "RSI"
+      "Stoch"
     ]
   },
   "ga_results": {
@@ -2225,379 +2225,288 @@
     "n_sell_rules_optimized": 7,
     "all_sell_rules": {
       "target5_stop3": {
-        "sharpe": -0.1444,
-        "threshold": 30,
+        "sharpe": 30.9917,
+        "threshold": 35,
         "weights": {
-          "RSI": 0.0,
-          "MACD": 0.0,
-          "BB": 1.166,
-          "EMA200": 0.0,
-          "MOM3M": 2.834,
-          "Stoch": 0.0,
-          "CCI": 0.0,
-          "52WK": 0.0
+          "RSI": 0.1174,
+          "MACD": 0.1284,
+          "BB": 0.3704,
+          "EMA200": 0.0835,
+          "MOM3M": 0.4559,
+          "Stoch": 0.0034,
+          "CCI": 0.0658,
+          "52WK": 0.4709
         }
       },
       "target10_stop5": {
-        "sharpe": 0.2426,
-        "threshold": 25,
+        "sharpe": 47.0465,
+        "threshold": 35,
         "weights": {
-          "RSI": 1.6476,
-          "MACD": 0.0,
+          "RSI": 0.2561,
+          "MACD": 0.3973,
           "BB": 0.0,
-          "EMA200": 0.0,
-          "MOM3M": 1.352,
+          "EMA200": 0.2934,
+          "MOM3M": 0.2716,
           "Stoch": 0.0,
-          "CCI": 0.0,
-          "52WK": 1.0004
+          "CCI": 0.1944,
+          "52WK": 0.3586
         }
       },
       "target15_stop5": {
-        "sharpe": 0.28,
-        "threshold": 30,
+        "sharpe": 5.1314,
+        "threshold": 35,
         "weights": {
-          "RSI": 1.7398,
-          "MACD": 0.0,
-          "BB": 0.0,
-          "EMA200": 0.0,
-          "MOM3M": 1.4514,
-          "Stoch": 0.0,
-          "CCI": 0.0,
-          "52WK": 0.8088
+          "RSI": 0.0629,
+          "MACD": 0.0004,
+          "BB": 0.1062,
+          "EMA200": 0.9746,
+          "MOM3M": 0.1835,
+          "Stoch": 0.1047,
+          "CCI": 0.1516,
+          "52WK": 1.2882
         }
       },
       "target20_stop7": {
-        "sharpe": 0.3062,
-        "threshold": 20,
+        "sharpe": 29.8908,
+        "threshold": 35,
         "weights": {
-          "RSI": 0.0,
-          "MACD": 0.0,
-          "BB": 1.8342,
-          "EMA200": 0.0,
-          "MOM3M": 1.1554,
-          "Stoch": 0.0,
-          "CCI": 0.0,
-          "52WK": 1.0103
+          "RSI": 0.1119,
+          "MACD": 0.4501,
+          "BB": 0.0,
+          "EMA200": 0.5515,
+          "MOM3M": 0.2118,
+          "Stoch": 0.0367,
+          "CCI": 0.0573,
+          "52WK": 0.3475
         }
       },
       "target15_stop7": {
-        "sharpe": 0.2804,
-        "threshold": 30,
+        "sharpe": 6.6773,
+        "threshold": 35,
         "weights": {
-          "RSI": 1.7515,
+          "RSI": 0.0453,
           "MACD": 0.0,
-          "BB": 0.0,
-          "EMA200": 0.0,
-          "MOM3M": 1.3078,
-          "Stoch": 0.0,
-          "CCI": 0.0,
-          "52WK": 0.9407
+          "BB": 0.0877,
+          "EMA200": 1.0259,
+          "MOM3M": 0.1437,
+          "Stoch": 0.0852,
+          "CCI": 0.1962,
+          "52WK": 1.3095
         }
       },
       "target25_stop10": {
-        "sharpe": 0.1714,
-        "threshold": 20,
+        "sharpe": 20.774,
+        "threshold": 35,
         "weights": {
-          "RSI": 0.0,
-          "MACD": 0.0,
-          "BB": 1.9841,
-          "EMA200": 0.0,
-          "MOM3M": 0.819,
+          "RSI": 0.476,
+          "MACD": 0.0099,
+          "BB": 0.2215,
+          "EMA200": 0.5804,
+          "MOM3M": 0.1896,
           "Stoch": 0.0,
-          "CCI": 0.0,
-          "52WK": 1.1969
+          "CCI": 0.0238,
+          "52WK": 0.1097
         }
       },
       "trail_5pct": {
-        "sharpe": -0.1703,
-        "threshold": 30,
+        "sharpe": 15.065,
+        "threshold": 35,
         "weights": {
-          "RSI": 1.7043,
+          "RSI": 0.3239,
           "MACD": 0.0,
-          "BB": 0.0,
-          "EMA200": 0.0,
-          "MOM3M": 2.2957,
-          "Stoch": 0.0,
-          "CCI": 0.0,
-          "52WK": 0.0
+          "BB": 0.2796,
+          "EMA200": 0.0003,
+          "MOM3M": 0.3469,
+          "Stoch": 0.2405,
+          "CCI": 0.0908,
+          "52WK": 0.2705
         }
       }
     },
     "best_weights": {
-      "RSI": 0.0,
-      "MACD": 0.0,
-      "BB": 1.8342,
-      "EMA200": 0.0,
-      "MOM3M": 1.1554,
+      "RSI": 0.2561,
+      "MACD": 0.3973,
+      "BB": 0.0,
+      "EMA200": 0.2934,
+      "MOM3M": 0.2716,
       "Stoch": 0.0,
-      "CCI": 0.0,
-      "52WK": 1.0103
+      "CCI": 0.1944,
+      "52WK": 0.3586
     },
-    "best_sharpe_train": 0.3062,
-    "best_sell_rule": "target20_stop7",
-    "best_threshold": 20,
-    "convergence": []
+    "best_sharpe_train": 47.0465,
+    "best_sell_rule": "target10_stop5",
+    "best_threshold": 35,
+    "convergence": [
+      4.0419,
+      4.5044,
+      4.5969,
+      4.8858,
+      4.9244,
+      5.0607,
+      5.1817,
+      5.2254,
+      5.2987,
+      5.329,
+      5.3484,
+      5.3523,
+      5.4664,
+      5.4664,
+      5.4851,
+      5.4851,
+      5.8229,
+      5.8229,
+      5.8229,
+      5.8229,
+      5.8229,
+      5.8229,
+      5.8229,
+      5.8229,
+      5.8229,
+      5.8604,
+      6.1074,
+      6.1633,
+      6.3156,
+      6.6067,
+      6.6306,
+      7.0347,
+      7.0347,
+      7.0347,
+      7.0347,
+      8.9606,
+      8.966,
+      8.966,
+      9.0449,
+      10.3488,
+      12.0063,
+      12.4824,
+      22.2187,
+      22.2187,
+      22.2187,
+      22.2187,
+      22.2187,
+      22.2187,
+      22.2187,
+      22.2187,
+      22.2187,
+      23.6007,
+      29.139,
+      29.139,
+      29.139,
+      29.139,
+      39.9769,
+      39.9769,
+      39.9769,
+      39.9769,
+      39.9769,
+      39.98,
+      39.98,
+      42.9451,
+      42.9451,
+      44.3549,
+      44.3549,
+      44.3549,
+      44.3549,
+      44.3549,
+      44.3549,
+      44.3549,
+      44.3549,
+      44.3549,
+      44.3553,
+      44.3553,
+      44.3553,
+      44.3553,
+      44.3553,
+      45.7183,
+      45.7188,
+      45.7188,
+      45.7197,
+      45.7197,
+      45.7197,
+      45.7197,
+      45.7197,
+      45.7197,
+      45.7202,
+      45.7202,
+      45.7202,
+      45.7202,
+      45.7202,
+      45.7202,
+      45.7202,
+      45.7202,
+      45.7202,
+      45.7202,
+      45.7202,
+      45.7202,
+      45.7202,
+      45.7209,
+      45.7209,
+      45.7209,
+      45.7209,
+      45.7209,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0435,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465,
+      47.0465
+    ]
   },
-  "ic_lift_results": {
-    "method": "ic_lift",
-    "fold_details": [
-      {
-        "valid_indicators": [
-          "MOM3M",
-          "RSI"
-        ],
-        "ic_scores": {
-          "RSI": 0.1824,
-          "MACD": -0.6377,
-          "BB": -0.0209,
-          "EMA200": 0.0,
-          "MOM3M": 0.0983,
-          "Stoch": 0.0744,
-          "CCI": -0.1296,
-          "52WK": 0.0
-        },
-        "lift_scores": {
-          "RSI": 0.9991,
-          "MACD": 0.6697,
-          "BB": 0.9419,
-          "EMA200": 1.0,
-          "MOM3M": 1.1188,
-          "Stoch": 0.9883,
-          "CCI": 0.9698,
-          "52WK": 1.0
-        },
-        "n_valid": 2
-      },
-      {
-        "valid_indicators": [
-          "RSI",
-          "EMA200"
-        ],
-        "ic_scores": {
-          "RSI": 0.0446,
-          "MACD": -0.382,
-          "BB": -0.1234,
-          "EMA200": 0.0,
-          "MOM3M": -0.2325,
-          "Stoch": -0.1178,
-          "CCI": -0.1979,
-          "52WK": 0.0
-        },
-        "lift_scores": {
-          "RSI": 0.9878,
-          "MACD": 0.8019,
-          "BB": 0.9359,
-          "EMA200": 1.0,
-          "MOM3M": 0.9231,
-          "Stoch": 0.9485,
-          "CCI": 0.9603,
-          "52WK": 1.0
-        },
-        "n_valid": 2
-      },
-      {
-        "valid_indicators": [
-          "RSI",
-          "MACD",
-          "BB",
-          "EMA200",
-          "MOM3M",
-          "Stoch",
-          "CCI",
-          "52WK"
-        ],
-        "ic_scores": {
-          "RSI": -0.1367,
-          "MACD": -0.4954,
-          "BB": -0.1837,
-          "EMA200": -0.0019,
-          "MOM3M": -0.3763,
-          "Stoch": -0.1363,
-          "CCI": -0.2741,
-          "52WK": 0.0
-        },
-        "lift_scores": {
-          "RSI": 0.973,
-          "MACD": 0.9216,
-          "BB": 0.9468,
-          "EMA200": 1.0,
-          "MOM3M": 0.934,
-          "Stoch": 0.9547,
-          "CCI": 0.9684,
-          "52WK": 1.0
-        },
-        "n_valid": 8
-      },
-      {
-        "valid_indicators": [
-          "Stoch",
-          "RSI",
-          "MOM3M"
-        ],
-        "ic_scores": {
-          "RSI": 0.0977,
-          "MACD": -0.1803,
-          "BB": 0.0241,
-          "EMA200": -0.2021,
-          "MOM3M": -0.0089,
-          "Stoch": 0.163,
-          "CCI": -0.0602,
-          "52WK": -0.2654
-        },
-        "lift_scores": {
-          "RSI": 1.0041,
-          "MACD": 1.0372,
-          "BB": 0.9414,
-          "EMA200": 0.4642,
-          "MOM3M": 1.0255,
-          "Stoch": 1.0117,
-          "CCI": 0.9608,
-          "52WK": 0.3827
-        },
-        "n_valid": 3
-      },
-      {
-        "valid_indicators": [
-          "BB",
-          "RSI",
-          "MOM3M"
-        ],
-        "ic_scores": {
-          "RSI": 0.2888,
-          "MACD": -0.3139,
-          "BB": 0.3622,
-          "EMA200": -0.4999,
-          "MOM3M": 0.0604,
-          "Stoch": 0.2757,
-          "CCI": 0.0269,
-          "52WK": 0.0395
-        },
-        "lift_scores": {
-          "RSI": 1.0145,
-          "MACD": 0.9909,
-          "BB": 1.0022,
-          "EMA200": 0.7383,
-          "MOM3M": 0.9927,
-          "Stoch": 1.0024,
-          "CCI": 0.9861,
-          "52WK": 1.3751
-        },
-        "n_valid": 3
-      },
-      {
-        "valid_indicators": [
-          "52WK",
-          "BB",
-          "MOM3M"
-        ],
-        "ic_scores": {
-          "RSI": 0.3146,
-          "MACD": -0.1966,
-          "BB": 0.3738,
-          "EMA200": -0.4632,
-          "MOM3M": 0.1562,
-          "Stoch": 0.2186,
-          "CCI": 0.0605,
-          "52WK": 0.1508
-        },
-        "lift_scores": {
-          "RSI": 1.0117,
-          "MACD": 0.9572,
-          "BB": 0.997,
-          "EMA200": 0.7773,
-          "MOM3M": 0.9632,
-          "Stoch": 0.9885,
-          "CCI": 0.9904,
-          "52WK": 1.1848
-        },
-        "n_valid": 3
-      },
-      {
-        "valid_indicators": [
-          "52WK",
-          "BB",
-          "MOM3M"
-        ],
-        "ic_scores": {
-          "RSI": 0.3167,
-          "MACD": -0.1732,
-          "BB": 0.3536,
-          "EMA200": -0.4188,
-          "MOM3M": 0.1945,
-          "Stoch": 0.192,
-          "CCI": 0.0544,
-          "52WK": 0.1606
-        },
-        "lift_scores": {
-          "RSI": 1.0059,
-          "MACD": 1.0166,
-          "BB": 0.9567,
-          "EMA200": 1.1793,
-          "MOM3M": 0.959,
-          "Stoch": 0.9656,
-          "CCI": 0.9827,
-          "52WK": 1.4324
-        },
-        "n_valid": 3
-      },
-      {
-        "valid_indicators": [
-          "52WK",
-          "BB",
-          "MOM3M"
-        ],
-        "ic_scores": {
-          "RSI": 0.3427,
-          "MACD": -0.2063,
-          "BB": 0.3746,
-          "EMA200": -0.369,
-          "MOM3M": 0.2277,
-          "Stoch": 0.1991,
-          "CCI": 0.0804,
-          "52WK": 0.2022
-        },
-        "lift_scores": {
-          "RSI": 1.0157,
-          "MACD": 0.9933,
-          "BB": 0.9873,
-          "EMA200": 1.2122,
-          "MOM3M": 0.9553,
-          "Stoch": 0.9934,
-          "CCI": 0.9938,
-          "52WK": 1.4337
-        },
-        "n_valid": 3
-      }
-    ],
-    "final": {
-      "valid_indicators": [
-        "52WK",
-        "BB",
-        "MOM3M"
-      ],
-      "ic_scores": {
-        "RSI": 0.3723,
-        "MACD": -0.2047,
-        "BB": 0.3908,
-        "EMA200": -0.3445,
-        "MOM3M": 0.2462,
-        "Stoch": 0.208,
-        "CCI": 0.0815,
-        "52WK": 0.2153
-      },
-      "lift_scores": {
-        "RSI": 1.0165,
-        "MACD": 0.9946,
-        "BB": 0.9946,
-        "EMA200": 1.2291,
-        "MOM3M": 0.9651,
-        "Stoch": 1.0017,
-        "CCI": 0.9917,
-        "52WK": 1.4171
-      },
-      "n_valid": 3
-    }
-  },
+  "ic_lift_results": null,
   "walk_forward": {
     "n_folds": 8,
     "folds": [
@@ -2607,54 +2516,54 @@
         "oos_bars": 58,
         "best_sell": "target5_stop3",
         "best_threshold": 20,
-        "train_sharpe": 0.4453,
-        "oos_sharpe": 0.5514,
-        "oos_n_trades": 60,
-        "oos_win_rate": 0.4667,
-        "oos_avg_return": 0.536,
+        "train_sharpe": 16.859,
+        "oos_sharpe": -1.2718,
+        "oos_n_trades": 187,
+        "oos_win_rate": 0.262,
+        "oos_avg_return": -1.092,
         "oos_max_dd": -3.3,
         "all_sell_oos": {
           "target5_stop3": {
-            "oos_sharpe": 0.5514,
-            "oos_n_trades": 60,
-            "oos_win_rate": 0.4667,
-            "oos_avg_return": 0.536
+            "oos_sharpe": -1.2718,
+            "oos_n_trades": 187,
+            "oos_win_rate": 0.262,
+            "oos_avg_return": -1.092
           },
           "target10_stop5": {
-            "oos_sharpe": -1.2693,
-            "oos_n_trades": 200,
-            "oos_win_rate": 0.19,
-            "oos_avg_return": -2.336
+            "oos_sharpe": -1.4462,
+            "oos_n_trades": 75,
+            "oos_win_rate": 0.1733,
+            "oos_avg_return": -2.594
           },
           "target15_stop5": {
-            "oos_sharpe": -1.3193,
-            "oos_n_trades": 268,
-            "oos_win_rate": 0.1119,
-            "oos_avg_return": -3.019
+            "oos_sharpe": -0.9569,
+            "oos_n_trades": 202,
+            "oos_win_rate": 0.1386,
+            "oos_avg_return": -2.433
           },
           "target20_stop7": {
-            "oos_sharpe": -1.0804,
-            "oos_n_trades": 130,
-            "oos_win_rate": 0.1231,
-            "oos_avg_return": -3.953
+            "oos_sharpe": -1.1189,
+            "oos_n_trades": 273,
+            "oos_win_rate": 0.1209,
+            "oos_avg_return": -4.039
           },
           "target15_stop7": {
-            "oos_sharpe": -1.1466,
-            "oos_n_trades": 141,
-            "oos_win_rate": 0.1702,
-            "oos_avg_return": -3.484
+            "oos_sharpe": -1.1707,
+            "oos_n_trades": 85,
+            "oos_win_rate": 0.1647,
+            "oos_avg_return": -3.566
           },
           "target25_stop10": {
-            "oos_sharpe": -0.9362,
-            "oos_n_trades": 143,
-            "oos_win_rate": 0.1469,
-            "oos_avg_return": -5.198
+            "oos_sharpe": -1.1385,
+            "oos_n_trades": 292,
+            "oos_win_rate": 0.1233,
+            "oos_avg_return": -6.009
           },
           "trail_5pct": {
-            "oos_sharpe": -0.1563,
-            "oos_n_trades": 264,
-            "oos_win_rate": 0.2841,
-            "oos_avg_return": -0.336
+            "oos_sharpe": -0.0135,
+            "oos_n_trades": 228,
+            "oos_win_rate": 0.2544,
+            "oos_avg_return": -0.034
           }
         }
       },
@@ -2662,56 +2571,56 @@
         "fold": 1,
         "train_bars": 144,
         "oos_bars": 57,
-        "best_sell": "target5_stop3",
+        "best_sell": "trail_5pct",
         "best_threshold": 20,
-        "train_sharpe": -0.0797,
-        "oos_sharpe": -0.6922,
-        "oos_n_trades": 78,
-        "oos_win_rate": 0.3205,
-        "oos_avg_return": -0.63,
-        "oos_max_dd": -3.3,
+        "train_sharpe": 8.1024,
+        "oos_sharpe": -3.3413,
+        "oos_n_trades": 7,
+        "oos_win_rate": 0.1429,
+        "oos_avg_return": -2.648,
+        "oos_max_dd": -4.85,
         "all_sell_oos": {
           "target5_stop3": {
-            "oos_sharpe": -0.6922,
-            "oos_n_trades": 78,
-            "oos_win_rate": 0.3205,
-            "oos_avg_return": -0.63
+            "oos_sharpe": -0.9036,
+            "oos_n_trades": 97,
+            "oos_win_rate": 0.299,
+            "oos_avg_return": -0.804
           },
           "target10_stop5": {
-            "oos_sharpe": -0.8157,
-            "oos_n_trades": 76,
-            "oos_win_rate": 0.2368,
-            "oos_avg_return": -1.642
+            "oos_sharpe": 0.1403,
+            "oos_n_trades": 158,
+            "oos_win_rate": 0.3671,
+            "oos_avg_return": 0.32
           },
           "target15_stop5": {
-            "oos_sharpe": -0.1756,
-            "oos_n_trades": 84,
-            "oos_win_rate": 0.2381,
-            "oos_avg_return": -0.547
+            "oos_sharpe": 0.2807,
+            "oos_n_trades": 188,
+            "oos_win_rate": 0.3191,
+            "oos_avg_return": 0.954
           },
           "target20_stop7": {
-            "oos_sharpe": -0.1478,
-            "oos_n_trades": 134,
-            "oos_win_rate": 0.2687,
-            "oos_avg_return": -0.696
+            "oos_sharpe": 0.298,
+            "oos_n_trades": 190,
+            "oos_win_rate": 0.3526,
+            "oos_avg_return": 1.54
           },
           "target15_stop7": {
-            "oos_sharpe": -0.2275,
-            "oos_n_trades": 84,
-            "oos_win_rate": 0.2976,
-            "oos_avg_return": -0.829
+            "oos_sharpe": 0.2224,
+            "oos_n_trades": 210,
+            "oos_win_rate": 0.3857,
+            "oos_avg_return": 0.861
           },
           "target25_stop10": {
-            "oos_sharpe": 0.035,
-            "oos_n_trades": 146,
-            "oos_win_rate": 0.3562,
-            "oos_avg_return": 0.25
+            "oos_sharpe": 0.3203,
+            "oos_n_trades": 199,
+            "oos_win_rate": 0.4372,
+            "oos_avg_return": 2.378
           },
           "trail_5pct": {
-            "oos_sharpe": -0.0344,
-            "oos_n_trades": 224,
-            "oos_win_rate": 0.3348,
-            "oos_avg_return": -0.075
+            "oos_sharpe": -3.3413,
+            "oos_n_trades": 7,
+            "oos_win_rate": 0.1429,
+            "oos_avg_return": -2.648
           }
         }
       },
@@ -2719,56 +2628,56 @@
         "fold": 2,
         "train_bars": 201,
         "oos_bars": 58,
-        "best_sell": "target5_stop3",
-        "best_threshold": 20,
-        "train_sharpe": 0.0193,
-        "oos_sharpe": -0.5532,
-        "oos_n_trades": 119,
-        "oos_win_rate": 0.3361,
-        "oos_avg_return": -0.512,
-        "oos_max_dd": -3.3,
+        "best_sell": "trail_5pct",
+        "best_threshold": 35,
+        "train_sharpe": 4.3425,
+        "oos_sharpe": -1.48,
+        "oos_n_trades": 170,
+        "oos_win_rate": 0.2059,
+        "oos_avg_return": -1.566,
+        "oos_max_dd": -5.16,
         "all_sell_oos": {
           "target5_stop3": {
-            "oos_sharpe": -0.5532,
-            "oos_n_trades": 119,
-            "oos_win_rate": 0.3361,
-            "oos_avg_return": -0.512
+            "oos_sharpe": -0.3365,
+            "oos_n_trades": 114,
+            "oos_win_rate": 0.3596,
+            "oos_avg_return": -0.316
           },
           "target10_stop5": {
-            "oos_sharpe": -0.8447,
-            "oos_n_trades": 360,
-            "oos_win_rate": 0.2333,
-            "oos_avg_return": -1.688
+            "oos_sharpe": -0.857,
+            "oos_n_trades": 199,
+            "oos_win_rate": 0.2312,
+            "oos_avg_return": -1.705
           },
           "target15_stop5": {
-            "oos_sharpe": -0.6506,
-            "oos_n_trades": 290,
-            "oos_win_rate": 0.169,
-            "oos_avg_return": -1.817
+            "oos_sharpe": 0.6485,
+            "oos_n_trades": 8,
+            "oos_win_rate": 0.375,
+            "oos_avg_return": 2.34
           },
           "target20_stop7": {
-            "oos_sharpe": -0.7466,
-            "oos_n_trades": 258,
-            "oos_win_rate": 0.1628,
-            "oos_avg_return": -3.012
+            "oos_sharpe": 0.0,
+            "oos_n_trades": 4,
+            "oos_win_rate": 0.5,
+            "oos_avg_return": 6.34
           },
           "target15_stop7": {
-            "oos_sharpe": -0.8594,
-            "oos_n_trades": 265,
-            "oos_win_rate": 0.2,
-            "oos_avg_return": -2.797
+            "oos_sharpe": -0.9597,
+            "oos_n_trades": 227,
+            "oos_win_rate": 0.185,
+            "oos_avg_return": -3.051
           },
           "target25_stop10": {
-            "oos_sharpe": -0.7592,
-            "oos_n_trades": 288,
-            "oos_win_rate": 0.2153,
-            "oos_avg_return": -4.302
+            "oos_sharpe": -0.8256,
+            "oos_n_trades": 23,
+            "oos_win_rate": 0.1739,
+            "oos_avg_return": -4.845
           },
           "trail_5pct": {
-            "oos_sharpe": -0.7382,
-            "oos_n_trades": 390,
-            "oos_win_rate": 0.2641,
-            "oos_avg_return": -1.064
+            "oos_sharpe": -1.48,
+            "oos_n_trades": 170,
+            "oos_win_rate": 0.2059,
+            "oos_avg_return": -1.566
           }
         }
       },
@@ -2777,55 +2686,55 @@
         "train_bars": 259,
         "oos_bars": 57,
         "best_sell": "trail_5pct",
-        "best_threshold": 25,
-        "train_sharpe": -0.1869,
-        "oos_sharpe": -0.2991,
-        "oos_n_trades": 166,
-        "oos_win_rate": 0.3253,
-        "oos_avg_return": -0.429,
+        "best_threshold": 20,
+        "train_sharpe": 0.8264,
+        "oos_sharpe": -0.4021,
+        "oos_n_trades": 211,
+        "oos_win_rate": 0.3223,
+        "oos_avg_return": -0.604,
         "oos_max_dd": -5.237,
         "all_sell_oos": {
           "target5_stop3": {
-            "oos_sharpe": -1.2144,
-            "oos_n_trades": 67,
-            "oos_win_rate": 0.2687,
-            "oos_avg_return": -1.044
+            "oos_sharpe": 0.057,
+            "oos_n_trades": 91,
+            "oos_win_rate": 0.4066,
+            "oos_avg_return": 0.054
           },
           "target10_stop5": {
-            "oos_sharpe": 0.0351,
-            "oos_n_trades": 102,
-            "oos_win_rate": 0.3529,
-            "oos_avg_return": 0.079
+            "oos_sharpe": 0.3049,
+            "oos_n_trades": 187,
+            "oos_win_rate": 0.4011,
+            "oos_avg_return": 0.699
           },
           "target15_stop5": {
-            "oos_sharpe": 0.1192,
-            "oos_n_trades": 142,
-            "oos_win_rate": 0.3169,
-            "oos_avg_return": 0.375
+            "oos_sharpe": -0.8731,
+            "oos_n_trades": 23,
+            "oos_win_rate": 0.1739,
+            "oos_avg_return": -2.217
           },
           "target20_stop7": {
-            "oos_sharpe": 0.476,
-            "oos_n_trades": 220,
-            "oos_win_rate": 0.4455,
-            "oos_avg_return": 2.31
+            "oos_sharpe": 0.4908,
+            "oos_n_trades": 188,
+            "oos_win_rate": 0.4574,
+            "oos_avg_return": 2.345
           },
           "target15_stop7": {
-            "oos_sharpe": -0.1964,
-            "oos_n_trades": 76,
-            "oos_win_rate": 0.3158,
-            "oos_avg_return": -0.704
+            "oos_sharpe": 0.1761,
+            "oos_n_trades": 174,
+            "oos_win_rate": 0.4138,
+            "oos_avg_return": 0.643
           },
           "target25_stop10": {
-            "oos_sharpe": 0.4833,
-            "oos_n_trades": 266,
-            "oos_win_rate": 0.5075,
-            "oos_avg_return": 3.316
+            "oos_sharpe": 0.4679,
+            "oos_n_trades": 109,
+            "oos_win_rate": 0.4587,
+            "oos_avg_return": 3.479
           },
           "trail_5pct": {
-            "oos_sharpe": -0.2991,
-            "oos_n_trades": 166,
-            "oos_win_rate": 0.3253,
-            "oos_avg_return": -0.429
+            "oos_sharpe": -0.4021,
+            "oos_n_trades": 211,
+            "oos_win_rate": 0.3223,
+            "oos_avg_return": -0.604
           }
         }
       },
@@ -2833,56 +2742,56 @@
         "fold": 4,
         "train_bars": 316,
         "oos_bars": 52,
-        "best_sell": "target20_stop7",
-        "best_threshold": 30,
-        "train_sharpe": 0.0059,
-        "oos_sharpe": 0.2166,
-        "oos_n_trades": 140,
-        "oos_win_rate": 0.3786,
-        "oos_avg_return": 1.013,
+        "best_sell": "target15_stop7",
+        "best_threshold": 35,
+        "train_sharpe": 7.6569,
+        "oos_sharpe": 0.2679,
+        "oos_n_trades": 53,
+        "oos_win_rate": 0.4528,
+        "oos_avg_return": 0.952,
         "oos_max_dd": -7.3,
         "all_sell_oos": {
           "target5_stop3": {
-            "oos_sharpe": -0.2263,
-            "oos_n_trades": 121,
-            "oos_win_rate": 0.3719,
-            "oos_avg_return": -0.213
+            "oos_sharpe": -1.2272,
+            "oos_n_trades": 143,
+            "oos_win_rate": 0.2657,
+            "oos_avg_return": -1.054
           },
           "target10_stop5": {
-            "oos_sharpe": -0.17,
-            "oos_n_trades": 73,
-            "oos_win_rate": 0.3288,
-            "oos_avg_return": -0.37
+            "oos_sharpe": -0.0532,
+            "oos_n_trades": 140,
+            "oos_win_rate": 0.3571,
+            "oos_avg_return": -0.116
           },
           "target15_stop5": {
-            "oos_sharpe": -0.1031,
-            "oos_n_trades": 116,
-            "oos_win_rate": 0.2586,
-            "oos_avg_return": -0.324
+            "oos_sharpe": 0.7519,
+            "oos_n_trades": 37,
+            "oos_win_rate": 0.4865,
+            "oos_avg_return": 2.417
           },
           "target20_stop7": {
-            "oos_sharpe": 0.2166,
-            "oos_n_trades": 140,
-            "oos_win_rate": 0.3786,
-            "oos_avg_return": 1.013
+            "oos_sharpe": 1.4862,
+            "oos_n_trades": 25,
+            "oos_win_rate": 0.68,
+            "oos_avg_return": 6.765
           },
           "target15_stop7": {
-            "oos_sharpe": 0.0878,
-            "oos_n_trades": 121,
-            "oos_win_rate": 0.3884,
-            "oos_avg_return": 0.323
+            "oos_sharpe": 0.2679,
+            "oos_n_trades": 53,
+            "oos_win_rate": 0.4528,
+            "oos_avg_return": 0.952
           },
           "target25_stop10": {
-            "oos_sharpe": 0.1958,
-            "oos_n_trades": 206,
-            "oos_win_rate": 0.4563,
-            "oos_avg_return": 1.282
+            "oos_sharpe": 0.6851,
+            "oos_n_trades": 106,
+            "oos_win_rate": 0.5755,
+            "oos_avg_return": 4.627
           },
           "trail_5pct": {
-            "oos_sharpe": -0.437,
-            "oos_n_trades": 228,
-            "oos_win_rate": 0.2719,
-            "oos_avg_return": -0.745
+            "oos_sharpe": -0.4155,
+            "oos_n_trades": 75,
+            "oos_win_rate": 0.3467,
+            "oos_avg_return": -0.581
           }
         }
       },
@@ -2890,56 +2799,56 @@
         "fold": 5,
         "train_bars": 368,
         "oos_bars": 52,
-        "best_sell": "target20_stop7",
-        "best_threshold": 20,
-        "train_sharpe": 0.1256,
-        "oos_sharpe": 1.4589,
-        "oos_n_trades": 134,
-        "oos_win_rate": 0.6642,
-        "oos_avg_return": 6.437,
-        "oos_max_dd": -7.3,
+        "best_sell": "target15_stop7",
+        "best_threshold": 35,
+        "train_sharpe": 18.1969,
+        "oos_sharpe": 2.8776,
+        "oos_n_trades": 5,
+        "oos_win_rate": 0.8,
+        "oos_avg_return": 8.819,
+        "oos_max_dd": -7.16,
         "all_sell_oos": {
           "target5_stop3": {
-            "oos_sharpe": 0.0982,
-            "oos_n_trades": 102,
-            "oos_win_rate": 0.4118,
-            "oos_avg_return": 0.094
+            "oos_sharpe": 0.4084,
+            "oos_n_trades": 183,
+            "oos_win_rate": 0.4481,
+            "oos_avg_return": 0.396
           },
           "target10_stop5": {
-            "oos_sharpe": 0.7823,
-            "oos_n_trades": 75,
-            "oos_win_rate": 0.4933,
-            "oos_avg_return": 1.782
+            "oos_sharpe": 1.8428,
+            "oos_n_trades": 16,
+            "oos_win_rate": 0.625,
+            "oos_avg_return": 4.215
           },
           "target15_stop5": {
-            "oos_sharpe": 0.8304,
-            "oos_n_trades": 115,
-            "oos_win_rate": 0.4696,
-            "oos_avg_return": 2.745
+            "oos_sharpe": 2.1105,
+            "oos_n_trades": 11,
+            "oos_win_rate": 0.6364,
+            "oos_avg_return": 7.567
           },
           "target20_stop7": {
-            "oos_sharpe": 1.4589,
-            "oos_n_trades": 134,
-            "oos_win_rate": 0.6642,
-            "oos_avg_return": 6.437
+            "oos_sharpe": 2.5456,
+            "oos_n_trades": 5,
+            "oos_win_rate": 0.8,
+            "oos_avg_return": 9.871
           },
           "target15_stop7": {
-            "oos_sharpe": 1.1756,
-            "oos_n_trades": 75,
-            "oos_win_rate": 0.6,
-            "oos_avg_return": 4.356
+            "oos_sharpe": 2.8776,
+            "oos_n_trades": 5,
+            "oos_win_rate": 0.8,
+            "oos_avg_return": 8.819
           },
           "target25_stop10": {
-            "oos_sharpe": 1.5394,
-            "oos_n_trades": 127,
-            "oos_win_rate": 0.7638,
-            "oos_avg_return": 8.8
+            "oos_sharpe": 5.2684,
+            "oos_n_trades": 10,
+            "oos_win_rate": 1.0,
+            "oos_avg_return": 17.48
           },
           "trail_5pct": {
-            "oos_sharpe": 0.1313,
-            "oos_n_trades": 101,
-            "oos_win_rate": 0.3267,
-            "oos_avg_return": 0.279
+            "oos_sharpe": 1.554,
+            "oos_n_trades": 5,
+            "oos_win_rate": 0.6,
+            "oos_avg_return": 2.543
           }
         }
       },
@@ -2947,56 +2856,56 @@
         "fold": 6,
         "train_bars": 420,
         "oos_bars": 23,
-        "best_sell": "target20_stop7",
-        "best_threshold": 20,
-        "train_sharpe": 0.2769,
-        "oos_sharpe": 0.8844,
-        "oos_n_trades": 85,
-        "oos_win_rate": 0.5176,
-        "oos_avg_return": 4.363,
-        "oos_max_dd": -7.3,
+        "best_sell": "trail_5pct",
+        "best_threshold": 35,
+        "train_sharpe": 117.4155,
+        "oos_sharpe": 0.0,
+        "oos_n_trades": 0,
+        "oos_win_rate": 0.0,
+        "oos_avg_return": 0.0,
+        "oos_max_dd": 0.0,
         "all_sell_oos": {
           "target5_stop3": {
-            "oos_sharpe": 0.4164,
-            "oos_n_trades": 67,
-            "oos_win_rate": 0.4478,
-            "oos_avg_return": 0.403
+            "oos_sharpe": 0.0,
+            "oos_n_trades": 3,
+            "oos_win_rate": 0.3333,
+            "oos_avg_return": -0.493
           },
           "target10_stop5": {
-            "oos_sharpe": 0.1694,
-            "oos_n_trades": 61,
-            "oos_win_rate": 0.377,
-            "oos_avg_return": 0.376
+            "oos_sharpe": 0.0,
+            "oos_n_trades": 2,
+            "oos_win_rate": 1.0,
+            "oos_avg_return": 9.84
           },
           "target15_stop5": {
-            "oos_sharpe": 0.511,
-            "oos_n_trades": 64,
-            "oos_win_rate": 0.375,
-            "oos_avg_return": 1.747
+            "oos_sharpe": 0.0,
+            "oos_n_trades": 3,
+            "oos_win_rate": 1.0,
+            "oos_avg_return": 14.84
           },
           "target20_stop7": {
-            "oos_sharpe": 0.8844,
-            "oos_n_trades": 85,
-            "oos_win_rate": 0.5176,
-            "oos_avg_return": 4.363
+            "oos_sharpe": 11.6089,
+            "oos_n_trades": 8,
+            "oos_win_rate": 1.0,
+            "oos_avg_return": 16.607
           },
           "target15_stop7": {
-            "oos_sharpe": 1.0126,
-            "oos_n_trades": 67,
-            "oos_win_rate": 0.5373,
-            "oos_avg_return": 3.769
+            "oos_sharpe": 26659.5321,
+            "oos_n_trades": 5,
+            "oos_win_rate": 1.0,
+            "oos_avg_return": 14.84
           },
           "target25_stop10": {
-            "oos_sharpe": 1.4464,
-            "oos_n_trades": 79,
-            "oos_win_rate": 0.7342,
-            "oos_avg_return": 8.378
+            "oos_sharpe": 0.0,
+            "oos_n_trades": 1,
+            "oos_win_rate": 1.0,
+            "oos_avg_return": 24.84
           },
           "trail_5pct": {
-            "oos_sharpe": -0.1712,
-            "oos_n_trades": 67,
-            "oos_win_rate": 0.4478,
-            "oos_avg_return": -0.226
+            "oos_sharpe": 0.0,
+            "oos_n_trades": 0,
+            "oos_win_rate": 0.0,
+            "oos_avg_return": 0.0
           }
         }
       },
@@ -3004,71 +2913,71 @@
         "fold": 7,
         "train_bars": 443,
         "oos_bars": 17,
-        "best_sell": "target20_stop7",
-        "best_threshold": 20,
-        "train_sharpe": 0.2884,
-        "oos_sharpe": 0.5597,
-        "oos_n_trades": 62,
-        "oos_win_rate": 0.4516,
-        "oos_avg_return": 2.693,
-        "oos_max_dd": -7.3,
+        "best_sell": "target10_stop5",
+        "best_threshold": 35,
+        "train_sharpe": 114611.8354,
+        "oos_sharpe": 0.0,
+        "oos_n_trades": 1,
+        "oos_win_rate": 0.0,
+        "oos_avg_return": -5.3,
+        "oos_max_dd": -5.3,
         "all_sell_oos": {
           "target5_stop3": {
-            "oos_sharpe": -0.632,
-            "oos_n_trades": 55,
-            "oos_win_rate": 0.3273,
-            "oos_avg_return": -0.575
+            "oos_sharpe": 0.0,
+            "oos_n_trades": 0,
+            "oos_win_rate": 0.0,
+            "oos_avg_return": 0.0
           },
           "target10_stop5": {
-            "oos_sharpe": -0.2708,
-            "oos_n_trades": 39,
-            "oos_win_rate": 0.3077,
-            "oos_avg_return": -0.588
+            "oos_sharpe": 0.0,
+            "oos_n_trades": 1,
+            "oos_win_rate": 0.0,
+            "oos_avg_return": -5.3
           },
           "target15_stop5": {
-            "oos_sharpe": 0.1033,
-            "oos_n_trades": 39,
-            "oos_win_rate": 0.2821,
-            "oos_avg_return": 0.339
+            "oos_sharpe": 0.0,
+            "oos_n_trades": 1,
+            "oos_win_rate": 0.0,
+            "oos_avg_return": -5.3
           },
           "target20_stop7": {
-            "oos_sharpe": 0.5597,
-            "oos_n_trades": 62,
-            "oos_win_rate": 0.4516,
-            "oos_avg_return": 2.693
+            "oos_sharpe": 0.0,
+            "oos_n_trades": 1,
+            "oos_win_rate": 1.0,
+            "oos_avg_return": 19.7
           },
           "target15_stop7": {
-            "oos_sharpe": 0.1611,
-            "oos_n_trades": 36,
-            "oos_win_rate": 0.3889,
-            "oos_avg_return": 0.591
+            "oos_sharpe": 1.9147,
+            "oos_n_trades": 58,
+            "oos_win_rate": 0.6897,
+            "oos_avg_return": 6.72
           },
           "target25_stop10": {
-            "oos_sharpe": 1.0554,
-            "oos_n_trades": 57,
-            "oos_win_rate": 0.6316,
-            "oos_avg_return": 6.941
+            "oos_sharpe": 0.0,
+            "oos_n_trades": 2,
+            "oos_win_rate": 1.0,
+            "oos_avg_return": 17.039
           },
           "trail_5pct": {
-            "oos_sharpe": -0.9102,
-            "oos_n_trades": 51,
-            "oos_win_rate": 0.3137,
-            "oos_avg_return": -1.111
+            "oos_sharpe": 0.0,
+            "oos_n_trades": 1,
+            "oos_win_rate": 0.0,
+            "oos_avg_return": -3.635
           }
         }
       }
     ],
-    "avg_oos_sharpe": 0.2658,
-    "wf_stability": -1.6214,
-    "overfit_ratio": 4.3165,
+    "avg_oos_sharpe": -0.4187,
+    "wf_stability": -2.968,
+    "overfit_ratio": 0.0731,
     "train_ratio": 0.8,
     "train_bars": 460,
     "test_bars": 116,
-    "train_sharpe": 0.3062,
-    "test_sharpe": 1.3217,
-    "test_win_rate": 0.6416,
-    "test_n_trades": 293,
-    "test_avg_return": 6.202,
-    "test_max_dd": -7.3
+    "train_sharpe": 47.0465,
+    "test_sharpe": 3.439,
+    "test_win_rate": 0.8,
+    "test_n_trades": 10,
+    "test_avg_return": 6.351,
+    "test_max_dd": -5.3
   }
 }
