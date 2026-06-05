@@ -52,7 +52,12 @@ def step_fetch_macro() -> bool:
     print("\n[Step 1] マクロデータ取得")
     try:
         from backtest.data.fetch_macro import fetch_macro_data
-        fetch_macro_data()
+        from backtest.config import TICKERS_MACRO, MACRO_LOOKBACK_YEARS
+        fetch_macro_data(
+            tickers=TICKERS_MACRO,
+            lookback_years=MACRO_LOOKBACK_YEARS,
+            output_path=MACRO_DATA_PATH,
+        )
         return True
     except Exception as e:
         print(f"  [WARNING] マクロデータ取得失敗: {e}")
@@ -63,25 +68,25 @@ def step_fetch_price(mode: str) -> bool:
     """価格データを Alpaca から取得 (増分更新)"""
     print(f"\n[Step 1] 価格データ取得 ({mode})")
     try:
-        from backtest.data.fetch_alpaca import fetch_alpaca_bars
+        from backtest.data.fetch_alpaca import fetch_stock_data
         from backtest.config import (
             SWING_TIMEFRAME, DAY_TIMEFRAME,
             SWING_LOOKBACK_YEARS, DAY_LOOKBACK_YEARS,
             PRICE_DATA_SWING, PRICE_DATA_DAY,
         )
         if mode == "swing":
-            tickers   = TICKERS_SWING
-            timeframe = SWING_TIMEFRAME
-            years     = SWING_LOOKBACK_YEARS
-            out_path  = PRICE_DATA_SWING
+            tickers     = TICKERS_SWING
+            timeframe   = SWING_TIMEFRAME
+            years       = SWING_LOOKBACK_YEARS
+            output_path = PRICE_DATA_SWING
         else:
-            tickers   = TICKERS_DAY
-            timeframe = DAY_TIMEFRAME
-            years     = DAY_LOOKBACK_YEARS
-            out_path  = PRICE_DATA_DAY
+            tickers     = TICKERS_DAY
+            timeframe   = DAY_TIMEFRAME
+            years       = DAY_LOOKBACK_YEARS
+            output_path = PRICE_DATA_DAY
 
-        fetch_alpaca_bars(tickers, timeframe=timeframe, lookback_years=years,
-                          out_path=out_path)
+        fetch_stock_data(tickers, timeframe=timeframe, lookback_years=years,
+                         output_path=output_path)
         return True
     except Exception as e:
         print(f"  [WARNING] 価格データ取得失敗: {e}")
@@ -98,8 +103,10 @@ def step_regime() -> bool:
         return False
     try:
         from backtest.regime.hmm_model import run_regime_detection
+        from backtest.data.fetch_macro import load_macro_data
+        macro_data = load_macro_data(MACRO_DATA_PATH)
         run_regime_detection(
-            macro_path=MACRO_DATA_PATH,
+            macro_data=macro_data,
             output_path=REGIME_SIGNALS_PATH,
         )
         return True
