@@ -8,19 +8,26 @@ on:
         required: true
         default: "all"
         type: choice
-        options: ["all", "swing", "day"]
+        options:
+          - "all"
+          - "swing"
+          - "day"
       skip_fetch:
         description: "Skip data fetch (use cached)"
         required: false
         default: "false"
         type: choice
-        options: ["false", "true"]
+        options:
+          - "false"
+          - "true"
       skip_regime:
         description: "Skip HMM regime detection"
         required: false
         default: "false"
         type: choice
-        options: ["false", "true"]
+        options:
+          - "false"
+          - "true"
 
   schedule:
     # 毎週月曜 00:00 UTC に自動実行 (週次バックテスト)
