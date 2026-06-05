@@ -105,10 +105,13 @@ def step_regime() -> bool:
     try:
         from backtest.regime.hmm_model import run_regime_detection
         from backtest.data.fetch_macro import load_macro_data
+        from backtest.config import HMM_MIN_STATES, HMM_MAX_STATES
         macro_data = load_macro_data(MACRO_DATA_PATH)
         run_regime_detection(
             macro_data=macro_data,
             output_path=REGIME_SIGNALS_PATH,
+            min_states=HMM_MIN_STATES,
+            max_states=HMM_MAX_STATES,
         )
         return True
     except Exception as e:

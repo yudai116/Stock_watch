@@ -125,9 +125,9 @@ def score_ema200_swing(ema200_pct: np.ndarray) -> np.ndarray:
     """
     p = np.asarray(ema200_pct, dtype=float)
     out = np.zeros_like(p)
-    # EMA200 > 現在価格 (乖離 < 0%): 下降トレンド → 0点
-    # 注: EMA200乖離率 = (Close - EMA200) / EMA200 → 正なら上昇トレンド中
-    # ここでは −15〜−5% (EMA200より少し下) = 押し目買い最適ゾーン
+    # EMA200乖離率 = (Close - EMA200) / EMA200 → 正なら上昇トレンド中
+    # 最高点: −10〜−5% (EMA200直上の押し目ゾーン)
+    # −30%以下 → 0点、0%以上 → 上昇継続で中程度の得点
     m1 = (p >= -15) & (p < -10)
     out = np.where(m1, _lininterp(p, -15, -10, 15, 25), out)
     m2 = (p >= -10) & (p < -5)

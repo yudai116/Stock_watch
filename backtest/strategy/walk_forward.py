@@ -96,9 +96,7 @@ def run_walk_forward(
           "n_folds": int,
         }
     """
-    from backtest.strategy.ga_optimizer import (
-        optimize_all_sells, batch_sharpe, detailed_eval
-    )
+    from backtest.strategy.ga_optimizer import optimize_all_sells, detailed_eval
 
     splits     = wf_splits(T_min, t_holdout, n_folds)
     wf_folds   = []

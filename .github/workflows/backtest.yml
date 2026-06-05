@@ -52,8 +52,7 @@ jobs:
             scikit-learn \
             hmmlearn \
             yfinance \
-            requests \
-            scipy
+            requests
 
       - name: Restore price data cache
         uses: actions/cache@v4
