@@ -2,7 +2,7 @@
   "ga_l2_lambda": 0.5,
   "threshold_offset": 0,
   "mode": "both",
-  "triggered_at": "2026-06-05 00:28:41",
-  "run_count": 4,
-  "reason": "v15: 閾値引き下げ・L2=0.5・PDCA判断ロジック修正 (run#4手動起動)"
+  "triggered_at": "2026-06-05 15:07:16",
+  "run_count": 5,
+  "reason": "v16: Sharpe年率化式修正(sqrt(n/years))でチェリーピック過学習を排除"
 }
