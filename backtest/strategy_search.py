@@ -59,13 +59,13 @@ RESULTS_SWING = HERE / "strategy_results_swing.json"
 RESULTS_DAY   = HERE / "strategy_results_day.json"
 ARTIFACTS_DIR = HERE / "phase_artifacts"
 
-MIN_TRADES     = 25   # v12: day ORB導入でシグナル増加 → 制約を緩め実現可能な戦略を発見
-MIN_TRADES_OOS = 3    # v14: →3 4取引ホールドアウトでSharpe計算可能に
+MIN_TRADES     = 30   # v16: 25→30 実取引数ベースSharpe修正に合わせ最低品質を引き上げ
+MIN_TRADES_OOS = 10   # v16: 3→10 OOS評価の信頼性向上（3取引では標準誤差が大きすぎる）
 BARS_PER_YEAR_DAY   = 9828  # 10min bars/year (252日 × 39本/日) ※Yahoo 1h fallback時は過大だが許容
 BARS_PER_YEAR_SWING = 252   # daily bars/year
 
 # スイング専用パラメータ
-SWING_MIN_TRADES      = 15   # OOS最小トレード数（v9: 10→15 品質向上）
+SWING_MIN_TRADES      = 20   # v16: 15→20 OOS最小取引数引き上げ（信頼性向上）
 _TOFF = int(os.environ.get("THRESHOLD_OFFSET", "0"))
 _TOFF_CLAMPED = max(-8, _TOFF)  # v15: クランプを-5→-8に緩和（閾値引き下げ幅を拡大）
 SWING_BUY_THRESHOLDS  = [max(10, t + _TOFF_CLAMPED) for t in [12, 17, 22, 28, 35]]  # v15: 基準値を大幅引き下げ（トレード数不足を解消）
@@ -951,7 +951,11 @@ def batch_sharpe(ticker_data: dict, wm: np.ndarray, sell_name: str,
         avg = np.where(ok, s / np.where(n > 0, n, 1.), np.nan)
         var = np.where(ok & (n > 1), sq / np.where(n > 0, n, 1.) - avg**2, np.nan)
         std = np.sqrt(np.maximum(var, 0.))
-        factor = np.sqrt(bars_per_year / max(hold_bars, 1))
+        # v16: 年間実取引数ベース年率化。旧式 sqrt(bars/hold_bars) は「常に取引中」仮定で
+        # 取引数が少ないほど Sharpe が膨張し GA がチェリーピックを優先する問題を修正。
+        # 正しい式: sqrt(n_取引/年) — 低頻度戦略は正直に評価される。
+        years = (t_end - t_start) / bars_per_year
+        factor = np.sqrt(np.maximum(n, 1.) / max(years, 0.1))
         shp[:, ti] = np.where(ok & (std > 1e-10), avg / std * factor, np.nan)
 
     return shp
@@ -994,7 +998,8 @@ def detailed_eval_single(ticker_data: dict, w: np.ndarray, sell_name: str,
     avg = s / n
     var = sq / n - avg**2
     std = np.sqrt(max(var, 0.))
-    factor = np.sqrt(bars_per_year / max(hold_bars, 1))
+    years  = (t_end - t_start) / bars_per_year  # v16: 実取引数ベース年率化
+    factor = np.sqrt(n / max(years, 0.1))
     sharpe = (avg / std * factor) if std > 1e-10 else 0.
     pf = round(gross_win / gross_loss, 4) if gross_loss > 1e-8 else (9.999 if gross_win > 0 else 0.)
     return {
