@@ -35,8 +35,9 @@ from backtest.config import (
     BARS_PER_YEAR_DAY,
     WF_N_FOLDS,
     WF_TRAIN_RATIO,
-    GA_POP_SWING, GA_GENS_SWING,
-    GA_POP_DAY,   GA_GENS_DAY,
+    GA_POP_SWING, GA_GENS_SWING, GA_ELITE_SWING,
+    GA_POP_DAY,   GA_GENS_DAY,   GA_ELITE_DAY,
+    GA_TOURN_SIZE, GA_MUT_SIGMA, GA_MUT_PROB,
     GA_L2_LAMBDA,
     MIN_TRADES, MIN_TRADES_OOS, SWING_MIN_TRADES,
     RISK_STOP_IN_REGIME,
@@ -151,6 +152,8 @@ def step_strategy(mode: str) -> dict:
     pop_size = GA_POP_SWING if mode == "swing" else GA_POP_DAY
     n_gens   = GA_GENS_SWING if mode == "swing" else GA_GENS_DAY
 
+    n_elite = GA_ELITE_SWING if mode == "swing" else GA_ELITE_DAY
+
     # --- Walk-Forward 実行 ---
     wf_result = run_walk_forward(
         ticker_data     = ticker_data,
@@ -165,6 +168,10 @@ def step_strategy(mode: str) -> dict:
         pop_size        = pop_size,
         n_gens          = n_gens,
         l2_lambda       = GA_L2_LAMBDA,
+        n_elite         = n_elite,
+        tourn_size      = GA_TOURN_SIZE,
+        mut_sigma       = GA_MUT_SIGMA,
+        mut_prob        = GA_MUT_PROB,
     )
 
     # --- ホールドアウト最終評価 ---
@@ -179,6 +186,10 @@ def step_strategy(mode: str) -> dict:
         pop_size      = pop_size,
         n_gens        = n_gens,
         l2_lambda     = GA_L2_LAMBDA,
+        n_elite       = n_elite,
+        tourn_size    = GA_TOURN_SIZE,
+        mut_sigma     = GA_MUT_SIGMA,
+        mut_prob      = GA_MUT_PROB,
     )
 
     holdout_stats = detailed_eval(

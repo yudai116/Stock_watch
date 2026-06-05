@@ -49,6 +49,7 @@ jobs:
           pip install --upgrade pip
           pip install \
             numpy \
+            scikit-learn \
             hmmlearn \
             yfinance \
             requests \

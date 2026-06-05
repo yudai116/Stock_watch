@@ -37,7 +37,7 @@ def _ema(arr: np.ndarray, period: int) -> np.ndarray:
     if len(valid) < period:
         return out
     start = valid[period - 1]
-    out[start] = np.mean(arr[valid[0]:start + 1])
+    out[start] = np.nanmean(arr[valid[0]:start + 1])
     for i in range(start + 1, len(arr)):
         if np.isnan(arr[i]):
             out[i] = out[i - 1]

@@ -118,8 +118,10 @@ def score_bb_swing(bb_pct: np.ndarray) -> np.ndarray:
 def score_ema200_swing(ema200_pct: np.ndarray) -> np.ndarray:
     """
     EMA200 乖離率 (%) → スイングスコア [0, 25]
-    EMA200 < 現在価格 かつ 乖離率 −15〜−5% が最高点
-    乖離率 < 0 (EMA200 > 現在価格) → 0点 (下降トレンド除外)
+    乖離率 = (Close - EMA200) / EMA200 * 100
+    最高点: −10〜−5% (EMA200直上の押し目ゾーン)
+    EMA200を大幅下回る (< −15%): 危険ゾーンで低得点
+    EMA200より上 (> 0%): 上昇継続中で中程度の得点
     """
     p = np.asarray(ema200_pct, dtype=float)
     out = np.zeros_like(p)

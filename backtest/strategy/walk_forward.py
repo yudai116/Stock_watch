@@ -93,9 +93,7 @@ def run_walk_forward(
           "avg_oos_sharpe": float,
           "wf_stability": float,
           "overfit_ratio": float,
-          "train_sharpe": float,
-          "test_sharpe": float,
-          "test_n_trades": int,
+          "n_folds": int,
         }
     """
     from backtest.strategy.ga_optimizer import (
@@ -151,7 +149,10 @@ def run_walk_forward(
     oos_arr   = np.array(oos_sharpes)
     oos_valid = oos_arr[oos_arr != 0.0]
     if len(oos_valid) >= 2:
-        wf_stability = float(1. - np.std(oos_valid) / (abs(np.mean(oos_valid)) + 1e-6))
+        wf_stability = float(np.clip(
+            1. - np.std(oos_valid) / (abs(np.mean(oos_valid)) + 1e-6),
+            -1.0, 1.0,
+        ))
     else:
         wf_stability = 0.0
 
