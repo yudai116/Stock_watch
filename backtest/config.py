@@ -7,8 +7,8 @@ from pathlib import Path
 HERE = Path(__file__).parent
 
 # ── パス ──────────────────────────────────────────────────────────────────────
-PRICE_DATA_SWING    = HERE / "price_data.json"           # 日足 10年 (swing用)
-PRICE_DATA_DAY      = HERE / "price_data_intraday.json"  # 10min足 2年 (day用)
+PRICE_DATA_SWING    = HERE / "price_data.json"           # 1Hour足 10年 (swing用)
+PRICE_DATA_DAY      = HERE / "price_data_intraday.json"  # 10min足 3年 (day用)
 MACRO_DATA_PATH     = HERE / "macro_data.json"           # マクロ/レジーム用ETF日足
 REGIME_SIGNALS_PATH = HERE / "regime_signals.json"       # HMM出力: {ts, label, prob}
 RESULTS_SWING_PATH  = HERE / "results_swing.json"
@@ -63,7 +63,7 @@ TICKERS_MACRO = [
 
 # ── データ取得設定 ────────────────────────────────────────────────────────────
 SWING_LOOKBACK_YEARS = 10       # スイング: 1Hour足 10年
-DAY_LOOKBACK_YEARS   = 10       # デイトレ: 10min足 10年
+DAY_LOOKBACK_YEARS   = 3        # デイトレ: 10min足 3年
 MACRO_LOOKBACK_YEARS = 12       # マクロ:  日足 12年 (HMM学習バッファ込み)
 
 SWING_TIMEFRAME = "1Hour"       # Alpaca timeframe (1時間足)
