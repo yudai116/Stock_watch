@@ -12,7 +12,7 @@ strategy/indicators.py — テクニカル指標スコア関数
 
 スコア哲学（スイング）: トレンド+押し目戦略。上昇トレンド中の軽い調整を買う。
   - 急落・過売り銘柄は低得点（落下ナイフ除外）
-  - EMA200 > 現在価格 → 0点（下降トレンド除外）
+  - EMA200 < 現在価格 → フラット設計（上昇トレンド内なら乖離率問わず高得点維持）
   - 中程度の売られ過ぎ (RSI 35〜52) が最高点
 
 スコア哲学（デイトレ）: モメンタム+ブレイクアウト戦略。
@@ -120,32 +120,30 @@ def score_ema200_swing(ema200_pct: np.ndarray) -> np.ndarray:
     EMA200 乖離率 (%) → スイングスコア [0, 25]
     乖離率 = (Close - EMA200) / EMA200 * 100
     正 → Close > EMA200 (上昇トレンド), 負 → Close < EMA200 (下降トレンド)
-    最高点: +5〜+15% (EMA200上方の健全な上昇トレンド中の押し目)
-    < 0% は下降トレンドで低得点
+
+    上昇トレンド判定フィルターとして使用。
+    乖離率が大きくなっても急激にスコアが下がらないフラット設計。
+    NVDA/AMD等の常時+30~100%乖離銘柄でもスコアを維持する。
     """
     p = np.asarray(ema200_pct, dtype=float)
     out = np.zeros_like(p)
-    # EMA200を大幅下回る (< -15%): 深い下降トレンド → 0点
-    m0 = p < -15
-    out = np.where(m0, 0, out)
-    # 下降トレンド (-15 to -5%): 低得点
-    m1 = (p >= -15) & (p < -5)
-    out = np.where(m1, _lininterp(p, -15, -5, 0, 5), out)
-    # EMA200付近・下方 (-5 to 0%): 中低得点
-    m2 = (p >= -5) & (p < 0)
-    out = np.where(m2, _lininterp(p, -5, 0, 5, 12), out)
-    # EMA200直上 (0 to +5%): 上昇中
-    m3 = (p >= 0) & (p < 5)
-    out = np.where(m3, _lininterp(p, 0, 5, 12, 20), out)
-    # 最高点: +5 to +15% (健全な上昇トレンド中の押し目)
-    m4 = (p >= 5) & (p < 15)
-    out = np.where(m4, _lininterp(p, 5, 15, 20, 25), out)
-    # 上昇継続・過熱 (+15 to +30%)
-    m5 = (p >= 15) & (p < 30)
-    out = np.where(m5, _lininterp(p, 15, 30, 25, 12), out)
-    # 極度過熱 (>= +30%)
-    m6 = p >= 30
-    out = np.where(m6, _lininterp(p, 30, 60, 12, 3), out)
+    # 下降トレンド (< -5%): 0点
+    # m0: p < -5 → out remains 0
+    # EMA200直下 (-5 to 0%): 線形 0→12pts
+    m1 = (p >= -5) & (p < 0)
+    out = np.where(m1, _lininterp(p, -5, 0, 0, 12), out)
+    # EMA200直上 (0 to +5%): 線形 12→20pts
+    m2 = (p >= 0) & (p < 5)
+    out = np.where(m2, _lininterp(p, 0, 5, 12, 20), out)
+    # 上昇トレンド (5 to 30%): 線形 20→25pts
+    m3 = (p >= 5) & (p < 30)
+    out = np.where(m3, _lininterp(p, 5, 30, 20, 25), out)
+    # 強い上昇トレンド (30 to 80%): 25ptsフラット (NVDA/AMD等を除外しない)
+    m4 = (p >= 30) & (p < 80)
+    out = np.where(m4, 25, out)
+    # 極端な過熱 (>= 80%): 線形 25→18pts (緩やかな低下)
+    m5 = p >= 80
+    out = np.where(m5, _lininterp(p, 80, 150, 25, 18), out)
     return _clip(_fill_nan(out))
 
 

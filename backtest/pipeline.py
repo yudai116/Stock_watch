@@ -41,6 +41,7 @@ from backtest.config import (
     GA_L2_LAMBDA,
     MIN_TRADES, MIN_TRADES_OOS, SWING_MIN_TRADES,
     RISK_STOP_IN_REGIME,
+    SWING_CROSSOVER_ONLY,
 )
 
 HERE = Path(__file__).parent
@@ -166,7 +167,7 @@ def step_strategy(mode: str) -> dict:
         t_holdout       = t_holdout,
         bars_per_year   = bars_per_year,
         min_trades_oos  = min_trades_oos,
-        crossover_only  = (mode == "swing"),
+        crossover_only  = SWING_CROSSOVER_ONLY if mode == "swing" else False,
         n_folds         = WF_N_FOLDS,
         pop_size        = pop_size,
         n_gens          = n_gens,
@@ -185,7 +186,7 @@ def step_strategy(mode: str) -> dict:
         ticker_data, sell_rules, thresholds,
         t_holdout, bars_per_year,
         min_trades    = MIN_TRADES,
-        crossover_only= (mode == "swing"),
+        crossover_only= SWING_CROSSOVER_ONLY if mode == "swing" else False,
         pop_size      = pop_size,
         n_gens        = n_gens,
         l2_lambda     = GA_L2_LAMBDA,
@@ -202,7 +203,7 @@ def step_strategy(mode: str) -> dict:
         opt["best_threshold"],
         t_holdout, T_min,
         bars_per_year,
-        crossover_only=(mode == "swing"),
+        crossover_only=SWING_CROSSOVER_ONLY if mode == "swing" else False,
     )
 
     result = {
