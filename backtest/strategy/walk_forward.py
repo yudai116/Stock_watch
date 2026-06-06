@@ -118,7 +118,10 @@ def run_walk_forward(
             min_trades=max(10, 30 * train_end // t_holdout),
             crossover_only=crossover_only,
             pop_size=pop_size, n_gens=n_gens,
-            l2_lambda=l2_lambda, **ga_kwargs,
+            l2_lambda=l2_lambda,
+            regime_states=regime_states,
+            high_vol_regimes=high_vol_regimes,
+            **ga_kwargs,
         )
         best_w   = opt["best_weights"]
         best_sell = opt["best_sell"]

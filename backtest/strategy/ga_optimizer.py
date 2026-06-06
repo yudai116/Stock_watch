@@ -29,6 +29,8 @@ def batch_sharpe(
     min_trades: int,
     bars_per_year: int,
     crossover_only: bool = False,
+    regime_states: "Optional[np.ndarray]" = None,
+    high_vol_regimes: frozenset = frozenset({2, 3}),
 ) -> np.ndarray:
     """
     重み行列の全個体について Sharpe を一括計算する。
@@ -51,6 +53,11 @@ def batch_sharpe(
         年間バー数 (252=日足, 9828=10min足)
     crossover_only : bool
         True の場合、閾値を「下から越えた」初日のみエントリー (swing 用)
+    regime_states : np.ndarray, optional
+        HMM レジームラベル配列 (長さ T_total)。指定時、high_vol_regimes に含まれる
+        バーはシグナル生成をスキップする (高VIX期間の取引回避)。
+    high_vol_regimes : frozenset
+        スキップ対象のレジーム番号集合。デフォルト {2, 3}。
 
     Returns
     -------
@@ -67,10 +74,21 @@ def batch_sharpe(
 
     wm = weight_matrix.astype(np.float32)
 
+    # レジームフィルターマスク: high_vol_regimes に含まれるバーは取引不可
+    if regime_states is not None:
+        regime_slice = regime_states[t_start:t_end]
+        regime_ok = np.ones(t_end - t_start, dtype=bool)
+        for rv in high_vol_regimes:
+            regime_ok &= (regime_slice != rv)
+    else:
+        regime_ok = None
+
     for td in ticker_data.values():
         ind  = td["ind_scores"][:, t_start:t_end].astype(np.float32)
         sout = td["sell_outcomes"][sell_name][t_start:t_end].astype(np.float32)
         vmask = td["vol_ok"][t_start:t_end]
+        if regime_ok is not None:
+            vmask = vmask & regime_ok
         valid = ~np.isnan(sout) & vmask
 
         comp = wm @ ind  # (N, T_slice)
@@ -223,6 +241,8 @@ def run_ga(
     l2_lambda: float = 0.5,
     prior_weights: Optional[np.ndarray] = None,
     random_seed: int = 42,
+    regime_states: Optional[np.ndarray] = None,
+    high_vol_regimes: frozenset = frozenset({2, 3}),
 ) -> tuple[np.ndarray, float]:
     """
     遺伝的アルゴリズムで最適指標重みを探索する。
@@ -257,6 +277,10 @@ def run_ga(
         初期集団の中心 (DOE や事前知識から)
     random_seed : int
         乱数シード
+    regime_states : np.ndarray, optional
+        HMM レジームラベル配列。指定時、high_vol_regimes のバーはフィットネス計算で除外。
+    high_vol_regimes : frozenset
+        スキップ対象のレジーム番号集合。デフォルト {2, 3}。
 
     Returns
     -------
@@ -284,9 +308,13 @@ def run_ga(
     def fitness(wm: np.ndarray) -> np.ndarray:
         """IS + val 二段階フィットネス - L2 ペナルティ"""
         shp_is  = batch_sharpe(ticker_data, wm, sell_name, thresholds, 0, inner_split,
-                                min_trades, bars_per_year, crossover_only)
+                                min_trades, bars_per_year, crossover_only,
+                                regime_states=regime_states,
+                                high_vol_regimes=high_vol_regimes)
         shp_val = batch_sharpe(ticker_data, wm, sell_name, thresholds, inner_split, t_train_end,
-                                val_min_t, bars_per_year, crossover_only)
+                                val_min_t, bars_per_year, crossover_only,
+                                regime_states=regime_states,
+                                high_vol_regimes=high_vol_regimes)
         fit_is  = np.where(np.isnan(shp_is[:,  0]), -np.inf, shp_is[:,  0])
         fit_val = np.where(np.isnan(shp_val[:, 0]), 0.0,     shp_val[:, 0])
         combined = 0.6 * fit_is + 0.4 * fit_val
@@ -362,10 +390,19 @@ def optimize_all_sells(
     crossover_only: bool = False,
     pop_size: int = 300,
     n_gens: int = 100,
+    regime_states: Optional[np.ndarray] = None,
+    high_vol_regimes: frozenset = frozenset({2, 3}),
     **ga_kwargs,
 ) -> dict:
     """
     全売りルールで GA を実行し、最良の (sell_name, weights, threshold) を返す。
+
+    Parameters
+    ----------
+    regime_states : np.ndarray, optional
+        HMM レジームラベル配列。指定時、high_vol_regimes のバーは probe / GA 訓練で除外。
+    high_vol_regimes : frozenset
+        スキップ対象のレジーム番号集合。デフォルト {2, 3}。
 
     Returns
     -------
@@ -388,7 +425,9 @@ def optimize_all_sells(
     best_thresh_per_sell: dict[str, int] = {}
     for sell_name in sell_rules:
         shp_mat = batch_sharpe(ticker_data, probe_w, sell_name, thresholds, 0, t_train_end,
-                                min_trades, bars_per_year, crossover_only)
+                                min_trades, bars_per_year, crossover_only,
+                                regime_states=regime_states,
+                                high_vol_regimes=high_vol_regimes)
         col_means = np.nanmean(shp_mat, axis=0)
         best_ti   = int(np.nanargmax(col_means)) if not np.all(np.isnan(col_means)) else 0
         best_thresh_per_sell[sell_name] = thresholds[best_ti]
@@ -401,7 +440,10 @@ def optimize_all_sells(
             ticker_data, sell_name, thresh, t_train_end,
             bars_per_year, thresholds=[thresh],
             min_trades=min_trades, crossover_only=crossover_only,
-            pop_size=pop_size, n_gens=n_gens, **ga_kwargs,
+            pop_size=pop_size, n_gens=n_gens,
+            regime_states=regime_states,
+            high_vol_regimes=high_vol_regimes,
+            **ga_kwargs,
         )
         all_results[sell_name] = {
             "weights":   best_w,

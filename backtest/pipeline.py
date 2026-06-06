@@ -221,15 +221,17 @@ def step_strategy(mode: str) -> dict:
     opt = optimize_all_sells(
         ticker_data, sell_rules, thresholds,
         t_holdout, bars_per_year,
-        min_trades    = MIN_TRADES,
-        crossover_only= SWING_CROSSOVER_ONLY if mode == "swing" else False,
-        pop_size      = pop_size,
-        n_gens        = n_gens,
-        l2_lambda     = GA_L2_LAMBDA,
-        n_elite       = n_elite,
-        tourn_size    = GA_TOURN_SIZE,
-        mut_sigma     = GA_MUT_SIGMA,
-        mut_prob      = GA_MUT_PROB,
+        min_trades       = MIN_TRADES,
+        crossover_only   = SWING_CROSSOVER_ONLY if mode == "swing" else False,
+        pop_size         = pop_size,
+        n_gens           = n_gens,
+        l2_lambda        = GA_L2_LAMBDA,
+        n_elite          = n_elite,
+        tourn_size       = GA_TOURN_SIZE,
+        mut_sigma        = GA_MUT_SIGMA,
+        mut_prob         = GA_MUT_PROB,
+        regime_states    = regime_states,
+        high_vol_regimes = frozenset(RISK_STOP_IN_REGIME),
     )
 
     holdout_stats = detailed_eval(
