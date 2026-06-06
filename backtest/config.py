@@ -80,10 +80,10 @@ HMM_RANDOM_SEED = 42    # 再現性シード
 GA_POP_SWING    = 500
 GA_GENS_SWING   = 150
 GA_ELITE_SWING  = 25
-# Day (10min 2年 × 50社: 中規模)
-GA_POP_DAY      = 300
-GA_GENS_DAY     = 100
-GA_ELITE_DAY    = 15
+# Day (10min 3年 × 50社: 中規模)
+GA_POP_DAY      = 150
+GA_GENS_DAY     = 50
+GA_ELITE_DAY    = 10
 # 共通
 GA_TOURN_SIZE   = 7
 GA_MUT_SIGMA    = 0.10

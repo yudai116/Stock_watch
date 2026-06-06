@@ -334,8 +334,8 @@ def run_ga(
         if gen % 30 == 0:
             print(f"    [GA gen {gen + 1:3d}/{n_gens}] best_fit={best_fit:.3f}")
 
-        # 早期停止
-        if best_fit > prev_best * 1.0001:
+        # 早期停止: 絶対閾値1e-4で正/負どちらの fitness でも正しく動作する
+        if best_fit > prev_best + 1e-4:
             no_improve = 0; prev_best = best_fit
         else:
             no_improve += 1
@@ -422,8 +422,14 @@ def optimize_all_sells(
     # ── 訓練データからスコア分布を導出してアダプティブ閾値グリッドを生成 ──────
     # probe_w @ ind を全ティッカーで集め、パーセンタイルを閾値にする。
     # スライスは [0:t_train_end] 限定 → 先読みなし。
+    # サンプル数を上限20万に制限してメモリ消費を抑える (DAY mode: T~25k×50銘柄×300probe)
+    _MAX_SCORE_SAMPLES = 200_000
     score_samples: list[np.ndarray] = []
+    _total_so_far = 0
+    np.random.seed(1)  # 決定論的サブサンプリング
     for td in ticker_data.values():
+        if _total_so_far >= _MAX_SCORE_SAMPLES:
+            break
         ind = td["ind_scores"][:, 0:t_train_end].astype(np.float32)
         comp = probe_w @ ind                          # (300, T_slice)
         vmask = td["vol_ok"][0:t_train_end].copy()
@@ -434,7 +440,12 @@ def optimize_all_sells(
                 rok &= (rslice != rv)
             vmask = vmask & rok
         if vmask.any():
-            score_samples.append(comp[:, vmask].ravel())
+            raw = comp[:, vmask].ravel()
+            budget = _MAX_SCORE_SAMPLES - _total_so_far
+            if len(raw) > budget:
+                raw = raw[np.random.choice(len(raw), budget, replace=False)]
+            score_samples.append(raw)
+            _total_so_far += len(raw)
     if score_samples:
         flat = np.concatenate(score_samples)
         pcts = [30, 40, 50, 60, 70, 80, 85, 90]
