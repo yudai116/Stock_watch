@@ -123,6 +123,34 @@ def step_regime() -> bool:
 
 # ── ステップ 3: 戦略最適化 ──────────────────────────────────────────────────────
 
+def _build_regime_states(ticker_data: dict, mode: str) -> "np.ndarray | None":
+    """ticker_data の dates と regime_signals.json を対応させて regime_states 配列を作成"""
+    if not REGIME_SIGNALS_PATH.exists():
+        return None
+
+    signals = json.loads(REGIME_SIGNALS_PATH.read_text())
+    # {"date": regime_label} の辞書を作成
+    regime_map = {s["timestamp"]: s["regime_label"] for s in signals}
+
+    # 最初のティッカーの dates を使用（全ティッカーで共通日付と仮定）
+    sample_ticker = next(iter(ticker_data.values()))
+    dates = sample_ticker["dates"]
+    T = len(dates)
+
+    # デフォルト0（低ボラ）で初期化
+    regime_states = np.zeros(T, dtype=np.int32)
+    matched = 0
+    for i, d in enumerate(dates):
+        # DAYモードは日付prefix（最初10文字）でマッチング
+        key = d[:10] if mode == "day" else d
+        if key in regime_map:
+            regime_states[i] = regime_map[key]
+            matched += 1
+
+    print(f"  [Regime] {matched}/{T} バーのレジーム信号をマッチング完了")
+    return regime_states
+
+
 def step_strategy(mode: str) -> dict:
     """
     Walk-Forward GA 最適化を実行して結果 dict を返す。
@@ -140,6 +168,9 @@ def step_strategy(mode: str) -> dict:
     if not ticker_data:
         print("  [ERROR] ticker_data が空です")
         return {}
+
+    # --- レジーム状態配列の構築 ---
+    regime_states = _build_regime_states(ticker_data, mode)
 
     # T_min (最短ティッカーのバー数)
     T_min = min(len(v["closes"]) for v in ticker_data.values())
@@ -176,6 +207,7 @@ def step_strategy(mode: str) -> dict:
         tourn_size      = GA_TOURN_SIZE,
         mut_sigma       = GA_MUT_SIGMA,
         mut_prob        = GA_MUT_PROB,
+        regime_states   = regime_states,
     )
 
     # --- ホールドアウト最終評価 ---
@@ -204,6 +236,7 @@ def step_strategy(mode: str) -> dict:
         t_holdout, T_min,
         bars_per_year,
         crossover_only=SWING_CROSSOVER_ONLY if mode == "swing" else False,
+        regime_states=regime_states,
     )
 
     result = {

@@ -99,11 +99,11 @@ BARS_PER_YEAR_SWING = 252       # 日足: 年間252営業日
 BARS_PER_YEAR_DAY   = 9828      # 10min: 252日 × 39本/日
 
 MIN_TRADES        = 30          # in-sample 最低取引数
-MIN_TRADES_OOS    = 10          # OOS 最低取引数
-SWING_MIN_TRADES  = 20          # swing OOS 最低取引数
+MIN_TRADES_OOS    = 30          # OOS 最低取引数
+SWING_MIN_TRADES  = 30          # swing OOS 最低取引数
 
 # ── Walk-Forward 設定 ────────────────────────────────────────────────────────
-WF_N_FOLDS      = 6
+WF_N_FOLDS      = 4
 WF_TRAIN_RATIO  = 0.80          # 80% 訓練, 20% テスト (最終ホールドアウト)
 
 # ── 取引コスト・最大保有期間 ──────────────────────────────────────────────────
