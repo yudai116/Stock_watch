@@ -77,9 +77,9 @@ HMM_RANDOM_SEED = 42    # 再現性シード
 
 # ── GA 設定 ──────────────────────────────────────────────────────────────────
 # Swing (日足10年 × 50社: 大規模データ)
-GA_POP_SWING    = 1000
-GA_GENS_SWING   = 300
-GA_ELITE_SWING  = 30
+GA_POP_SWING    = 500
+GA_GENS_SWING   = 150
+GA_ELITE_SWING  = 25
 # Day (10min 2年 × 50社: 中規模)
 GA_POP_DAY      = 300
 GA_GENS_DAY     = 100

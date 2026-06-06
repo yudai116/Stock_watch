@@ -135,7 +135,8 @@ def run_walk_forward(
             regime_states=regime_states,
             high_vol_regimes=high_vol_regimes,
         )
-        oos_shp = oos_stats["sharpe"] if oos_stats["n_trades"] >= min_trades_oos else 0.0
+        # 取引数が最低要件未満のフォールドは NaN (0.0 に偽造しない)
+        oos_shp = oos_stats["sharpe"] if oos_stats["n_trades"] >= min_trades_oos else float("nan")
 
         wf_folds.append({
             "fold":        fi,
@@ -143,7 +144,7 @@ def run_walk_forward(
             "oos_start":   oos_start,
             "oos_end":     oos_end,
             "train_sharpe": round(train_shp, 4),
-            "oos_sharpe":   round(oos_shp, 4),
+            "oos_sharpe":   (round(oos_shp, 4) if not np.isnan(oos_shp) else None),
             "oos_n_trades": oos_stats["n_trades"],
             "oos_win_rate": oos_stats["win_rate"],
             "best_sell":    best_sell,
@@ -152,12 +153,15 @@ def run_walk_forward(
         })
         oos_sharpes.append(oos_shp)
         train_sharpes.append(train_shp)
-        print(f"    train_sharpe={train_shp:.3f}  oos_sharpe={oos_shp:.3f}  n_trades={oos_stats['n_trades']}")
+        shp_str = f"{oos_shp:.3f}" if not np.isnan(oos_shp) else "nan(low_trades)"
+        print(f"    train_sharpe={train_shp:.3f}  oos_sharpe={shp_str}  n_trades={oos_stats['n_trades']}")
 
-    # WF 統計
-    oos_arr   = np.array(oos_sharpes)
-    oos_valid = oos_arr[np.abs(oos_arr) > 1e-6]
-    if len(oos_valid) >= 2:
+    # WF 統計 — 有効フォールド (NaN除外) のみで計算
+    oos_arr   = np.array(oos_sharpes, dtype=float)
+    oos_valid = oos_arr[~np.isnan(oos_arr)]
+    n_valid   = int(len(oos_valid))
+
+    if n_valid >= 2:
         wf_stability = float(np.clip(
             1. - np.std(oos_valid) / (abs(np.mean(oos_valid)) + 1e-6),
             -1.0, 1.0,
@@ -165,14 +169,15 @@ def run_walk_forward(
     else:
         wf_stability = 0.0
 
-    avg_oos     = float(np.mean(oos_arr)) if len(oos_arr) > 0 else 0.
-    avg_train   = float(np.mean(train_sharpes)) if train_sharpes else 0.
-    overfit_ratio = round(avg_oos / avg_train, 4) if abs(avg_train) > 1e-6 else 0.
+    avg_oos       = float(np.mean(oos_valid)) if n_valid > 0 else None
+    avg_train     = float(np.mean(train_sharpes)) if train_sharpes else 0.
+    overfit_ratio = round(avg_oos / avg_train, 4) if (avg_oos is not None and abs(avg_train) > 1e-6) else None
 
     return {
         "folds":           wf_folds,
-        "avg_oos_sharpe":  round(avg_oos, 4),
+        "avg_oos_sharpe":  round(avg_oos, 4) if avg_oos is not None else None,
         "wf_stability":    round(wf_stability, 4),
         "overfit_ratio":   overfit_ratio,
         "n_folds":         len(wf_folds),
+        "n_valid_folds":   n_valid,
     }

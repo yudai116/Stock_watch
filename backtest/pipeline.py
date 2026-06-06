@@ -269,14 +269,17 @@ def step_strategy(mode: str) -> dict:
     # 印字サマリー
     h = result["holdout"]
     w = result["wf"]
+    avg_oos_str = f"{w['avg_oos_sharpe']:.3f}" if w['avg_oos_sharpe'] is not None else "N/A"
+    overfit_str = f"{w['overfit_ratio']:.3f}" if w['overfit_ratio'] is not None else "N/A"
     print(f"\n  ── {mode.upper()} 結果サマリー ──")
     print(f"  best_sell={result['best_sell']}  threshold={result['best_threshold']}")
     print(f"  train_sharpe={result['train_sharpe']:.3f}")
     print(f"  holdout: sharpe={h['sharpe']:.3f}  n_trades={h['n_trades']}  "
           f"win_rate={h['win_rate']:.2%}  pf={h['profit_factor']:.2f}")
-    print(f"  WF: avg_oos={w['avg_oos_sharpe']:.3f}  "
+    print(f"  WF: avg_oos={avg_oos_str}  "
           f"stability={w['wf_stability']:.3f}  "
-          f"overfit_ratio={w['overfit_ratio']:.3f}")
+          f"overfit_ratio={overfit_str}  "
+          f"n_valid_folds={w.get('n_valid_folds','?')}")
 
     return result
 

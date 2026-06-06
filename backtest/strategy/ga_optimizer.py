@@ -419,6 +419,31 @@ def optimize_all_sells(
     np.random.seed(0)
     probe_w   = np.random.dirichlet(np.ones(n_ind), 300) * 4.0
 
+    # ── 訓練データからスコア分布を導出してアダプティブ閾値グリッドを生成 ──────
+    # probe_w @ ind を全ティッカーで集め、パーセンタイルを閾値にする。
+    # スライスは [0:t_train_end] 限定 → 先読みなし。
+    score_samples: list[np.ndarray] = []
+    for td in ticker_data.values():
+        ind = td["ind_scores"][:, 0:t_train_end].astype(np.float32)
+        comp = probe_w @ ind                          # (300, T_slice)
+        vmask = td["vol_ok"][0:t_train_end].copy()
+        if regime_states is not None:
+            rslice = regime_states[0:t_train_end]
+            rok = np.ones(t_train_end, dtype=bool)
+            for rv in high_vol_regimes:
+                rok &= (rslice != rv)
+            vmask = vmask & rok
+        if vmask.any():
+            score_samples.append(comp[:, vmask].ravel())
+    if score_samples:
+        flat = np.concatenate(score_samples)
+        pcts = [30, 40, 50, 60, 70, 80, 85, 90]
+        adaptive = np.percentile(flat, pcts)
+        adaptive_int = sorted(set(int(round(float(x))) for x in adaptive))
+        if len(adaptive_int) >= 3:
+            thresholds = adaptive_int
+    print(f"  [adaptive thresholds] {thresholds}")
+
     best_thresh_per_sell: dict[str, int] = {}
     for sell_name in sell_rules:
         shp_mat = batch_sharpe(ticker_data, probe_w, sell_name, thresholds, 0, t_train_end,
