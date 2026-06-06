@@ -120,9 +120,19 @@ def detailed_eval(
     t_end: int,
     bars_per_year: int,
     crossover_only: bool = False,
+    regime_states: Optional[np.ndarray] = None,
+    high_vol_regimes: frozenset = frozenset({2, 3}),
 ) -> dict:
     """
     単一重みベクトルの詳細評価 (Sharpe, n_trades, win_rate, avg_return, max_dd, profit_factor)
+
+    Parameters
+    ----------
+    regime_states : np.ndarray, optional
+        HMM レジームラベル配列 (長さ T_total)。指定時、high_vol_regimes に含まれる
+        バーはシグナル生成をスキップする (高VIX期間の取引回避)。
+    high_vol_regimes : frozenset
+        スキップ対象のレジーム番号集合。デフォルト {2, 3}。
     """
     years = (t_end - t_start) / bars_per_year
     n = 0; s = 0.; sq = 0.; wins = 0
@@ -130,12 +140,23 @@ def detailed_eval(
     equity = 1.0; peak = 1.0; max_dd = 0.
     wm = weights.reshape(1, -1).astype(np.float32)
 
+    # レジームフィルターマスク: high_vol_regimes に含まれるバーは取引不可
+    if regime_states is not None:
+        regime_slice = regime_states[t_start:t_end]
+        regime_ok = np.ones(t_end - t_start, dtype=bool)
+        for rv in high_vol_regimes:
+            regime_ok &= (regime_slice != rv)
+    else:
+        regime_ok = None
+
     for td in ticker_data.values():
         ind   = td["ind_scores"][:, t_start:t_end].astype(np.float32)
         sout  = td["sell_outcomes"][sell_name][t_start:t_end].astype(np.float32)
         vmask = td["vol_ok"][t_start:t_end]
         if "edge_bar" in td:
             vmask = vmask & ~td["edge_bar"][t_start:t_end]
+        if regime_ok is not None:
+            vmask = vmask & regime_ok
         valid = ~np.isnan(sout) & vmask
         comp  = (wm @ ind)[0]
 

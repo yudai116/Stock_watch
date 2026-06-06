@@ -67,6 +67,7 @@ def run_walk_forward(
     pop_size: int = 300,
     n_gens: int = 100,
     l2_lambda: float = 0.5,
+    regime_states: Optional[np.ndarray] = None,
     **ga_kwargs,
 ) -> dict:
     """
@@ -85,6 +86,9 @@ def run_walk_forward(
     n_folds : int
     pop_size, n_gens : int
     l2_lambda : float
+    regime_states : np.ndarray, optional
+        HMM レジームラベル配列。指定時、高VIXレジーム ({2,3}) のバーは
+        OOS評価でシグナル生成をスキップする。
 
     Returns
     -------
@@ -120,10 +124,11 @@ def run_walk_forward(
         best_thr  = opt["best_threshold"]
         train_shp = opt["best_fitness"]
 
-        # OOS 評価
+        # OOS 評価 (regime_filter適用)
         oos_stats = detailed_eval(
             ticker_data, best_w, best_sell, best_thr,
             oos_start, oos_end, bars_per_year, crossover_only,
+            regime_states=regime_states,
         )
         oos_shp = oos_stats["sharpe"] if oos_stats["n_trades"] >= min_trades_oos else 0.0
 
