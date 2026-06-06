@@ -71,8 +71,6 @@ def batch_sharpe(
         ind  = td["ind_scores"][:, t_start:t_end].astype(np.float32)
         sout = td["sell_outcomes"][sell_name][t_start:t_end].astype(np.float32)
         vmask = td["vol_ok"][t_start:t_end]
-        if "edge_bar" in td:
-            vmask = vmask & ~td["edge_bar"][t_start:t_end]
         valid = ~np.isnan(sout) & vmask
 
         comp = wm @ ind  # (N, T_slice)
@@ -153,8 +151,6 @@ def detailed_eval(
         ind   = td["ind_scores"][:, t_start:t_end].astype(np.float32)
         sout  = td["sell_outcomes"][sell_name][t_start:t_end].astype(np.float32)
         vmask = td["vol_ok"][t_start:t_end]
-        if "edge_bar" in td:
-            vmask = vmask & ~td["edge_bar"][t_start:t_end]
         if regime_ok is not None:
             vmask = vmask & regime_ok
         valid = ~np.isnan(sout) & vmask

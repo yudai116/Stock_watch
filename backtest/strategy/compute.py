@@ -16,14 +16,20 @@ from __future__ import annotations
 
 import numpy as np
 
+from backtest.config import BARS_PER_YEAR_SWING
 from backtest.strategy.indicators import (
-    SWING_INDICATORS, IND_NAMES_SWING,
-    DAY_INDICATORS,   IND_NAMES_DAY,
+    IND_NAMES_SWING,
+    IND_NAMES_DAY,
     score_rsi_swing,  score_macd_swing,  score_bb_swing,    score_ema200_swing,
     score_mom3m_swing, score_stoch_swing, score_cci_swing,   score_52wk_swing,
     score_rsi_day,    score_macd_day,    score_bb_day,       score_ma_day,
     score_rvol_day,   score_vwap_bull_day, score_orb_day,    score_mom3b_day,
 )
+
+# 日足(252本/年)→ 1時間足(1638本/年) 等、足種変更に対応した期間スケール係数
+_SWING_SCALE = BARS_PER_YEAR_SWING / 252  # 1.0=日足, 6.5=1時間足
+_ROC_PERIOD  = round(63  * _SWING_SCALE)  # 3ヶ月モメンタム (日足63本相当)
+_52WK_PERIOD = round(252 * _SWING_SCALE)  # 52週高安ルックバック (日足252本相当)
 
 
 # ── 内部テクニカル計算ユーティリティ ──────────────────────────────────────────
@@ -250,10 +256,10 @@ def compute_swing_scores(
     raw_macd  = _macd_hist(closes)
     raw_bb    = _bb_pct(closes)
     raw_ema   = _ema200_dev(closes)
-    raw_mom   = _roc(closes, 63)
+    raw_mom   = _roc(closes, _ROC_PERIOD)
     raw_stoch = _stoch_k(closes, highs, lows)
     raw_cci   = _cci(closes, highs, lows)
-    raw_52wk  = _52wk_pct(closes, highs, lows)
+    raw_52wk  = _52wk_pct(closes, highs, lows, period=_52WK_PERIOD)
 
     fn_map = {
         "RSI":    (score_rsi_swing,    raw_rsi),

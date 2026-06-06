@@ -39,7 +39,8 @@ from backtest.config import (
     GA_POP_DAY,   GA_GENS_DAY,   GA_ELITE_DAY,
     GA_TOURN_SIZE, GA_MUT_SIGMA, GA_MUT_PROB,
     GA_L2_LAMBDA,
-    MIN_TRADES, MIN_TRADES_OOS, SWING_MIN_TRADES,
+    MIN_TRADES, MIN_TRADES_OOS,
+    HMM_N_ITER, HMM_RANDOM_SEED,
     RISK_STOP_IN_REGIME,
     SWING_CROSSOVER_ONLY,
 )
@@ -113,6 +114,8 @@ def step_regime() -> bool:
             output_path=REGIME_SIGNALS_PATH,
             min_states=HMM_MIN_STATES,
             max_states=HMM_MAX_STATES,
+            n_iter=HMM_N_ITER,
+            random_seed=HMM_RANDOM_SEED,
         )
         return True
     except Exception as e:
@@ -179,7 +182,7 @@ def step_strategy(mode: str) -> dict:
 
     bars_per_year = BARS_PER_YEAR_SWING if mode == "swing" else BARS_PER_YEAR_DAY
     sell_rules    = SWING_SELL_RULES     if mode == "swing" else DAY_SELL_RULES
-    min_trades_oos = SWING_MIN_TRADES    if mode == "swing" else MIN_TRADES_OOS
+    min_trades_oos = MIN_TRADES_OOS
 
     # BUY 閾値リスト (スコア合計の目安: 8指標×25点=200点、60〜120が現実的)
     thresholds = list(range(60, 121, 5))
@@ -191,23 +194,24 @@ def step_strategy(mode: str) -> dict:
 
     # --- Walk-Forward 実行 ---
     wf_result = run_walk_forward(
-        ticker_data     = ticker_data,
-        sell_rules      = sell_rules,
-        thresholds      = thresholds,
-        T_min           = T_min,
-        t_holdout       = t_holdout,
-        bars_per_year   = bars_per_year,
-        min_trades_oos  = min_trades_oos,
-        crossover_only  = SWING_CROSSOVER_ONLY if mode == "swing" else False,
-        n_folds         = WF_N_FOLDS,
-        pop_size        = pop_size,
-        n_gens          = n_gens,
-        l2_lambda       = GA_L2_LAMBDA,
-        n_elite         = n_elite,
-        tourn_size      = GA_TOURN_SIZE,
-        mut_sigma       = GA_MUT_SIGMA,
-        mut_prob        = GA_MUT_PROB,
-        regime_states   = regime_states,
+        ticker_data      = ticker_data,
+        sell_rules       = sell_rules,
+        thresholds       = thresholds,
+        T_min            = T_min,
+        t_holdout        = t_holdout,
+        bars_per_year    = bars_per_year,
+        min_trades_oos   = min_trades_oos,
+        crossover_only   = SWING_CROSSOVER_ONLY if mode == "swing" else False,
+        n_folds          = WF_N_FOLDS,
+        pop_size         = pop_size,
+        n_gens           = n_gens,
+        l2_lambda        = GA_L2_LAMBDA,
+        n_elite          = n_elite,
+        tourn_size       = GA_TOURN_SIZE,
+        mut_sigma        = GA_MUT_SIGMA,
+        mut_prob         = GA_MUT_PROB,
+        regime_states    = regime_states,
+        high_vol_regimes = frozenset(RISK_STOP_IN_REGIME),
     )
 
     # --- ホールドアウト最終評価 ---
@@ -237,6 +241,7 @@ def step_strategy(mode: str) -> dict:
         bars_per_year,
         crossover_only=SWING_CROSSOVER_ONLY if mode == "swing" else False,
         regime_states=regime_states,
+        high_vol_regimes=frozenset(RISK_STOP_IN_REGIME),
     )
 
     result = {
@@ -255,6 +260,7 @@ def step_strategy(mode: str) -> dict:
             "win_rate":       round(holdout_stats["win_rate"], 4),
             "avg_return":     round(holdout_stats["avg_return"], 6),
             "profit_factor":  round(holdout_stats.get("profit_factor", 0.0), 4),
+            "max_dd":         round(holdout_stats.get("max_dd", 0.0), 4),
         },
     }
 

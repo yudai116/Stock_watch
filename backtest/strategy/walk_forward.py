@@ -68,6 +68,7 @@ def run_walk_forward(
     n_gens: int = 100,
     l2_lambda: float = 0.5,
     regime_states: Optional[np.ndarray] = None,
+    high_vol_regimes: frozenset = frozenset({2, 3}),
     **ga_kwargs,
 ) -> dict:
     """
@@ -129,6 +130,7 @@ def run_walk_forward(
             ticker_data, best_w, best_sell, best_thr,
             oos_start, oos_end, bars_per_year, crossover_only,
             regime_states=regime_states,
+            high_vol_regimes=high_vol_regimes,
         )
         oos_shp = oos_stats["sharpe"] if oos_stats["n_trades"] >= min_trades_oos else 0.0
 

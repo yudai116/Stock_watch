@@ -285,6 +285,8 @@ def run_regime_detection(
     min_states: int = 2,
     max_states: int = 6,
     criterion: str = "bic",
+    n_iter: int = 500,
+    random_seed: int = 42,
 ) -> list[dict]:
     """
     マクロデータからレジーム信号を生成するメイン関数。
@@ -307,6 +309,8 @@ def run_regime_detection(
         min_states=min_states,
         max_states=max_states,
         criterion=criterion,
+        n_iter=n_iter,
+        random_state=random_seed,
     )
     model.fit(X)
 

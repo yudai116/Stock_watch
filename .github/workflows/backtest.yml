@@ -28,6 +28,14 @@ on:
         options:
           - "false"
           - "true"
+      skip_strategy:
+        description: "Skip GA optimization (fetch + regime only)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
   schedule:
     # 毎週月曜 00:00 UTC に自動実行 (週次バックテスト)
@@ -79,8 +87,9 @@ jobs:
         run: |
           MODE="${{ github.event.inputs.mode || 'all' }}"
           ARGS="--mode $MODE"
-          [ "${{ github.event.inputs.skip_fetch }}" = "true" ]  && ARGS="$ARGS --skip-fetch"
-          [ "${{ github.event.inputs.skip_regime }}" = "true" ] && ARGS="$ARGS --skip-regime"
+          [ "${{ github.event.inputs.skip_fetch }}" = "true" ]    && ARGS="$ARGS --skip-fetch"
+          [ "${{ github.event.inputs.skip_regime }}" = "true" ]   && ARGS="$ARGS --skip-regime"
+          [ "${{ github.event.inputs.skip_strategy }}" = "true" ] && ARGS="$ARGS --skip-strategy"
           python -m backtest.pipeline $ARGS
 
       - name: Upload results

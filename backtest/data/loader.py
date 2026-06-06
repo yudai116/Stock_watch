@@ -29,6 +29,7 @@ from backtest.config import (
     PRICE_DATA_SWING, PRICE_DATA_DAY,
     COST_RATE_SWING, COST_RATE_DAY,
     SWING_MAX_HOLD, DAY_MAX_HOLD,
+    BARS_PER_YEAR_SWING, BARS_PER_YEAR_DAY,
 )
 from backtest.strategy.compute import compute_swing_scores, compute_day_scores
 from backtest.strategy.sell_rules import (
@@ -162,7 +163,8 @@ def build_strategy_data(
             continue
         arr = _to_arrays(data)
         T   = len(arr["closes"])
-        min_bars = 504 if mode == "swing" else 4914  # swing: 2年日足, day: 6ヶ月10分足
+        # swing: 2年分の1時間足 / day: 6ヶ月分の10分足
+        min_bars = round(2 * BARS_PER_YEAR_SWING) if mode == "swing" else round(BARS_PER_YEAR_DAY / 2)
         if T < min_bars:
             if verbose:
                 print(f"[loader] {ticker}: データ不足 ({T}本 < {min_bars}) スキップ")

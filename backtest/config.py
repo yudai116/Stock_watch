@@ -15,10 +15,6 @@ RESULTS_SWING_PATH  = HERE / "results_swing.json"
 RESULTS_DAY_PATH    = HERE / "results_day.json"
 ARTIFACTS_DIR       = HERE / "phase_artifacts"
 
-# ── 取引コスト (往復) ─────────────────────────────────────────────────────────
-US_COST = 0.0016   # 米国株: 0.16%
-JP_COST = 0.0030   # 日本株: 0.30%
-
 # ── 銘柄リスト ────────────────────────────────────────────────────────────────
 # 半導体・製造装置 (20)
 TICKERS_SEMIS = [
@@ -66,18 +62,18 @@ TICKERS_MACRO = [
 ]
 
 # ── データ取得設定 ────────────────────────────────────────────────────────────
-SWING_LOOKBACK_YEARS = 10       # スイング: 日足 10年
-DAY_LOOKBACK_YEARS   = 2        # デイトレ: 10min足 2年
+SWING_LOOKBACK_YEARS = 10       # スイング: 1Hour足 10年
+DAY_LOOKBACK_YEARS   = 10       # デイトレ: 10min足 10年
 MACRO_LOOKBACK_YEARS = 12       # マクロ:  日足 12年 (HMM学習バッファ込み)
 
-SWING_TIMEFRAME = "1Day"        # Alpaca timeframe
+SWING_TIMEFRAME = "1Hour"       # Alpaca timeframe (1時間足)
 DAY_TIMEFRAME   = "10Min"
 
 # ── HMM 設定 ─────────────────────────────────────────────────────────────────
 HMM_MIN_STATES  = 2
 HMM_MAX_STATES  = 6
-HMM_N_ITER      = 500
-HMM_RANDOM_SEED = 42
+HMM_N_ITER      = 500   # EM アルゴリズム最大反復数
+HMM_RANDOM_SEED = 42    # 再現性シード
 
 # ── GA 設定 ──────────────────────────────────────────────────────────────────
 # Swing (日足10年 × 50社: 大規模データ)
@@ -95,12 +91,11 @@ GA_MUT_PROB     = 0.25
 GA_L2_LAMBDA    = 0.5   # L2正則化: 指標への過度な集中を抑制
 
 # ── Sharpe 計算 ───────────────────────────────────────────────────────────────
-BARS_PER_YEAR_SWING = 252       # 日足: 年間252営業日
+BARS_PER_YEAR_SWING = 1638      # 1Hour: 252日 × 6.5時間/日
 BARS_PER_YEAR_DAY   = 9828      # 10min: 252日 × 39本/日
 
 MIN_TRADES        = 30          # in-sample 最低取引数
-MIN_TRADES_OOS    = 30          # OOS 最低取引数
-SWING_MIN_TRADES  = 30          # swing OOS 最低取引数
+MIN_TRADES_OOS    = 30          # OOS 最低取引数 (swing / day 共通)
 
 # ── Walk-Forward 設定 ────────────────────────────────────────────────────────
 WF_N_FOLDS      = 4
@@ -109,7 +104,7 @@ WF_TRAIN_RATIO  = 0.80          # 80% 訓練, 20% テスト (最終ホールド�
 # ── 取引コスト・最大保有期間 ──────────────────────────────────────────────────
 COST_RATE_SWING = 0.0016        # 往復コスト (米国株スイング)
 COST_RATE_DAY   = 0.0008        # 往復コスト (デイトレ: ECN割引考慮)
-SWING_MAX_HOLD  = 60            # スイング最大保有バー数 (日足 60日)
+SWING_MAX_HOLD  = 60            # スイング最大保有バー数 (1Hour足 60本 ≈ 2週間)
 DAY_MAX_HOLD    = 8             # デイトレ最大保有バー数 (10min足 8本 = 80分)
 
 # ── リスク管理 ────────────────────────────────────────────────────────────────

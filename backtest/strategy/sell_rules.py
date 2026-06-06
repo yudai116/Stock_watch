@@ -36,39 +36,6 @@ DAY_SELL_RULES = [
     "target3_stop2", "target5_stop3",
 ]
 
-# 売りルール → 最大保有バー数 (Sharpe年率化の代表値として使用しない)
-SWING_SELL_HOLD = {
-    "target5_stop3":   15,
-    "target10_stop5":  25,
-    "target15_stop5":  35,
-    "target20_stop7":  45,
-    "target25_stop10": 60,
-    "trail_5pct":      30,
-}
-DAY_SELL_HOLD = {
-    "hold_2b":      2,
-    "hold_4b":      4,
-    "hold_6b":      6,
-    "hold_8b":      8,
-    "target3_stop2": 4,
-    "target5_stop3": 6,
-}
-
-# 日本語説明
-SELL_RULE_JA = {
-    "target5_stop3":   "利確+5% / ストップ-3%",
-    "target10_stop5":  "利確+10% / ストップ-5%",
-    "target15_stop5":  "利確+15% / ストップ-5%",
-    "target20_stop7":  "利確+20% / ストップ-7%",
-    "target25_stop10": "利確+25% / ストップ-10%",
-    "trail_5pct":      "トレーリングストップ 5%",
-    "hold_2b":         "固定保有 20min",
-    "hold_4b":         "固定保有 40min",
-    "hold_6b":         "固定保有 1時間",
-    "hold_8b":         "固定保有 80min",
-    "target3_stop2":   "利確+3% / ストップ-2%",
-}
-
 
 # ── コア計算 ──────────────────────────────────────────────────────────────────
 
