@@ -262,7 +262,7 @@ def step_strategy(mode: str) -> dict:
             "win_rate":       round(holdout_stats["win_rate"], 4),
             "avg_return":     round(holdout_stats["avg_return"], 6),
             "profit_factor":  round(holdout_stats.get("profit_factor", 0.0), 4),
-            "max_dd":         round(holdout_stats.get("max_dd", 0.0), 4),
+            "max_dd":         round(holdout_stats.get("max_dd") or 0.0, 4),
         },
     }
 

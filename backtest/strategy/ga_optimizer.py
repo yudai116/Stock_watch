@@ -13,6 +13,7 @@ strategy/ga_optimizer.py — 遺伝的アルゴリズムによる指標重み最
 """
 from __future__ import annotations
 
+import math
 import numpy as np
 from typing import Optional
 
@@ -67,6 +68,7 @@ def batch_sharpe(
     N    = len(weight_matrix)
     n_th = len(thresholds)
     years = (t_end - t_start) / bars_per_year
+    n_tickers = max(len(ticker_data), 1)
 
     acc_n   = np.zeros((N, n_th), dtype=np.float64)
     acc_sum = np.zeros((N, n_th), dtype=np.float64)
@@ -120,8 +122,9 @@ def batch_sharpe(
         avg = np.where(ok, s / np.where(n > 0, n, 1.), np.nan)
         var = np.where(ok & (n > 1), sq / np.where(n > 0, n, 1.) - avg ** 2, np.nan)
         std = np.sqrt(np.maximum(var, 0.))
-        # ── 年率化: 実取引数ベース (v16修正) ──────────────────────────────────
-        factor = np.sqrt(np.maximum(n, 1.) / max(years, 0.5))
+        # ── 年率化: 実取引数ベース・銘柄数キャンセル (v17修正) ───────────────
+        trades_per_ticker_year = np.maximum(n, 1.) / n_tickers / max(years, 0.5)
+        factor = np.sqrt(trades_per_ticker_year)
         shp[:, ti] = np.where(ok & (std > 1e-10), avg / std * factor, np.nan)
 
     return shp
@@ -151,9 +154,9 @@ def detailed_eval(
         スキップ対象のレジーム番号集合。デフォルト {2, 3}。
     """
     years = (t_end - t_start) / bars_per_year
+    n_tickers = max(len(ticker_data), 1)
     n = 0; s = 0.; sq = 0.; wins = 0
     gross_win = 0.; gross_loss = 0.
-    equity = 1.0; peak = 1.0; max_dd = 0.
     wm = weights.reshape(1, -1).astype(np.float32)
 
     # レジームフィルターマスク: high_vol_regimes に含まれるバーは取引不可
@@ -192,22 +195,16 @@ def detailed_eval(
         wins += int((tr > 0).sum())
         gross_win  += float(tr[tr > 0].sum()) if (tr > 0).any() else 0.
         gross_loss += float(abs(tr[tr < 0].sum())) if (tr < 0).any() else 0.
-        for r in tr:
-            equity *= (1 + float(r))
-            if equity > peak:
-                peak = equity
-            dd = (peak - equity) / peak
-            if dd > max_dd:
-                max_dd = dd
 
     if n == 0:
         return {"sharpe": 0., "n_trades": 0, "win_rate": 0., "avg_return": 0.,
-                "max_dd": 0., "profit_factor": 0.}
+                "max_dd": None, "profit_factor": 0.}
 
     avg = s / n
     var = sq / n - avg ** 2
     std = np.sqrt(max(var, 0.))
-    factor = np.sqrt(n / max(years, 0.5))
+    trades_per_ticker_year = max(n, 1) / n_tickers / max(years, 0.5)
+    factor = math.sqrt(trades_per_ticker_year)
     sharpe = (avg / std * factor) if std > 1e-10 else 0.
     pf     = (gross_win / gross_loss) if gross_loss > 1e-8 else (9.999 if gross_win > 0 else 0.)
 
@@ -216,7 +213,7 @@ def detailed_eval(
         "n_trades":      n,
         "win_rate":      round(wins / n, 4),
         "avg_return":    round(avg * 100, 4),  # %表示
-        "max_dd":        round(-max_dd * 100, 4),
+        "max_dd":        None,  # TODO: 正しいPFリターン系列ベースのDD算出は別タスク
         "profit_factor": round(pf, 4),
     }
 
