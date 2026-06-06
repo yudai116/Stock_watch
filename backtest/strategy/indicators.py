@@ -119,31 +119,33 @@ def score_ema200_swing(ema200_pct: np.ndarray) -> np.ndarray:
     """
     EMA200 乖離率 (%) → スイングスコア [0, 25]
     乖離率 = (Close - EMA200) / EMA200 * 100
-    最高点: −10〜−5% (EMA200直上の押し目ゾーン)
-    EMA200を大幅下回る (< −15%): 危険ゾーンで低得点
-    EMA200より上 (> 0%): 上昇継続中で中程度の得点
+    正 → Close > EMA200 (上昇トレンド), 負 → Close < EMA200 (下降トレンド)
+    最高点: +5〜+15% (EMA200上方の健全な上昇トレンド中の押し目)
+    < 0% は下降トレンドで低得点
     """
     p = np.asarray(ema200_pct, dtype=float)
     out = np.zeros_like(p)
-    # EMA200乖離率 = (Close - EMA200) / EMA200 → 正なら上昇トレンド中
-    # 最高点: −10〜−5% (EMA200直上の押し目ゾーン)
-    # −30%以下 → 0点、0%以上 → 上昇継続で中程度の得点
-    m1 = (p >= -15) & (p < -10)
-    out = np.where(m1, _lininterp(p, -15, -10, 15, 25), out)
-    m2 = (p >= -10) & (p < -5)
-    out = np.where(m2, _lininterp(p, -10, -5, 25, 21), out)
-    m3 = (p >= -5) & (p < 0)
-    out = np.where(m3, _lininterp(p, -5, 0, 21, 18), out)
-    # EMA200 より上 (上昇継続): 中程度
-    m4 = (p >= 0) & (p < 5)
-    out = np.where(m4, _lininterp(p, 0, 5, 18, 14), out)
-    m5 = (p >= 5) & (p < 15)
-    out = np.where(m5, _lininterp(p, 5, 15, 14, 8), out)
-    m6 = p >= 15
-    out = np.where(m6, _lininterp(p, 15, 30, 8, 3), out)
-    # EMA200 を大幅下回る (< -15%): リスク大
+    # EMA200を大幅下回る (< -15%): 深い下降トレンド → 0点
     m0 = p < -15
-    out = np.where(m0, _lininterp(p, -30, -15, 0, 15), out)
+    out = np.where(m0, 0, out)
+    # 下降トレンド (-15 to -5%): 低得点
+    m1 = (p >= -15) & (p < -5)
+    out = np.where(m1, _lininterp(p, -15, -5, 0, 5), out)
+    # EMA200付近・下方 (-5 to 0%): 中低得点
+    m2 = (p >= -5) & (p < 0)
+    out = np.where(m2, _lininterp(p, -5, 0, 5, 12), out)
+    # EMA200直上 (0 to +5%): 上昇中
+    m3 = (p >= 0) & (p < 5)
+    out = np.where(m3, _lininterp(p, 0, 5, 12, 20), out)
+    # 最高点: +5 to +15% (健全な上昇トレンド中の押し目)
+    m4 = (p >= 5) & (p < 15)
+    out = np.where(m4, _lininterp(p, 5, 15, 20, 25), out)
+    # 上昇継続・過熱 (+15 to +30%)
+    m5 = (p >= 15) & (p < 30)
+    out = np.where(m5, _lininterp(p, 15, 30, 25, 12), out)
+    # 極度過熱 (>= +30%)
+    m6 = p >= 30
+    out = np.where(m6, _lininterp(p, 30, 60, 12, 3), out)
     return _clip(_fill_nan(out))
 
 

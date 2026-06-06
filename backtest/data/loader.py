@@ -162,9 +162,10 @@ def build_strategy_data(
             continue
         arr = _to_arrays(data)
         T   = len(arr["closes"])
-        if T < 60:
+        min_bars = 504 if mode == "swing" else 4914  # swing: 2年日足, day: 6ヶ月10分足
+        if T < min_bars:
             if verbose:
-                print(f"[loader] {ticker}: データ不足 ({T}本) スキップ")
+                print(f"[loader] {ticker}: データ不足 ({T}本 < {min_bars}) スキップ")
             continue
 
         closes  = arr["closes"]

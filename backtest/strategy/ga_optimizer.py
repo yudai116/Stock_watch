@@ -105,7 +105,7 @@ def batch_sharpe(
         var = np.where(ok & (n > 1), sq / np.where(n > 0, n, 1.) - avg ** 2, np.nan)
         std = np.sqrt(np.maximum(var, 0.))
         # ── 年率化: 実取引数ベース (v16修正) ──────────────────────────────────
-        factor = np.sqrt(np.maximum(n, 1.) / max(years, 0.1))
+        factor = np.sqrt(np.maximum(n, 1.) / max(years, 0.5))
         shp[:, ti] = np.where(ok & (std > 1e-10), avg / std * factor, np.nan)
 
     return shp
@@ -172,7 +172,7 @@ def detailed_eval(
     avg = s / n
     var = sq / n - avg ** 2
     std = np.sqrt(max(var, 0.))
-    factor = np.sqrt(n / max(years, 0.1))
+    factor = np.sqrt(n / max(years, 0.5))
     sharpe = (avg / std * factor) if std > 1e-10 else 0.
     pf     = (gross_win / gross_loss) if gross_loss > 1e-8 else (9.999 if gross_win > 0 else 0.)
 

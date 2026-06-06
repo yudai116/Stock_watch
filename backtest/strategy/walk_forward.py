@@ -1,14 +1,15 @@
 """
 strategy/walk_forward.py — Walk-Forward 検証
 
-T_min バー全体を (n_folds × hold_out_ratio) の構造に分割し、
+T_min バー全体を (n_folds+1) 等分して fold_size を決め、
 各フォールドの訓練期間で GA を走らせて OOS で評価する。
 
-【分割方法 (Expanding Window)】
-  fold 0: train=[0, S0)     OOS=[S0, E0)
-  fold 1: train=[0, S1)     OOS=[S1, E1)
+【分割方法 (Expanding Window, n_folds=6)】
+  fold_size = t_holdout // (n_folds + 1)  ← 等分で最終フォールドのOOSが空にならない
+  fold 0: train=[0, S0)     OOS=[S0, E0)   E0-S0 = fold_size
+  fold 1: train=[0, S1)     OOS=[S1, E1)   E1-S1 = fold_size
   ...
-  最終:   train=[0, holdout) OOS=[holdout, T_min)
+  fold 5: train=[0, S5)     OOS=[S5, E5)   E5-S5 = fold_size
 
 WF安定性: 1 - std(OOS_Sharpe) / (|mean(OOS_Sharpe)| + ε)
   1.0=完全安定, <0=フォールドごとに悪化
@@ -41,7 +42,7 @@ def wf_splits(
     list of (train_end, oos_start, oos_end)
     """
     oos_total = t_holdout
-    fold_size = oos_total // n_folds
+    fold_size = oos_total // (n_folds + 1)  # n_folds+1で等分→最終foldのOOSが空にならない
     splits = []
     for k in range(n_folds):
         oos_start = (k + 1) * fold_size
@@ -145,7 +146,7 @@ def run_walk_forward(
 
     # WF 統計
     oos_arr   = np.array(oos_sharpes)
-    oos_valid = oos_arr[oos_arr != 0.0]
+    oos_valid = oos_arr[np.abs(oos_arr) > 1e-6]
     if len(oos_valid) >= 2:
         wf_stability = float(np.clip(
             1. - np.std(oos_valid) / (abs(np.mean(oos_valid)) + 1e-6),
