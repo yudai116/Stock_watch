@@ -176,64 +176,42 @@ def score_mom3m_swing(mom3m_pct: np.ndarray) -> np.ndarray:
 
 
 def score_stoch_swing(stoch_k: np.ndarray) -> np.ndarray:
-    """
-    Stochastic %K (0-100) → スイングスコア [0, 25]
-    20〜30付近が最高点 (適度な売られすぎ)。<10の極端な低値は落下ナイフリスク。
-    """
+    """Stochastic %K (0-100) → スイングスコア [0, 25]. 30〜55が最高点。"""
     k = np.asarray(stoch_k, dtype=float)
     out = np.zeros_like(k)
-    # 極端な低値 (< 10): 落下ナイフリスク → 線形 0→18pts
     m1 = k < 10
-    out = np.where(m1, _lininterp(k, 0, 10, 0, 18), out)
-    # 適度な売られすぎ (10 〜 20): 線形 18→25pts
-    m2 = (k >= 10) & (k < 20)
-    out = np.where(m2, _lininterp(k, 10, 20, 18, 25), out)
-    # 最高点ゾーン (20 〜 30): 25pts フラット
-    m3 = (k >= 20) & (k < 30)
-    out = np.where(m3, 25, out)
-    # 中間帯 (30 〜 50): 線形 25→10pts
-    m4 = (k >= 30) & (k < 50)
-    out = np.where(m4, _lininterp(k, 30, 50, 25, 10), out)
-    # 上昇中 (50 〜 70): 線形 10→5pts
-    m5 = (k >= 50) & (k < 70)
-    out = np.where(m5, _lininterp(k, 50, 70, 10, 5), out)
-    # やや買われすぎ (70 〜 80): 線形 5→2pts
-    m6 = (k >= 70) & (k < 80)
-    out = np.where(m6, _lininterp(k, 70, 80, 5, 2), out)
-    # 買われすぎ (>= 80): 2pts
-    m7 = k >= 80
-    out = np.where(m7, 2, out)
+    out = np.where(m1, _lininterp(k, 0, 10, 0, 8), out)
+    m2 = (k >= 10) & (k < 30)
+    out = np.where(m2, _lininterp(k, 10, 30, 8, 18), out)
+    m3 = (k >= 30) & (k < 55)
+    out = np.where(m3, _lininterp(k, 30, 55, 18, 25), out)
+    m4 = (k >= 55) & (k < 70)
+    out = np.where(m4, _lininterp(k, 55, 70, 25, 15), out)
+    m5 = (k >= 70) & (k < 85)
+    out = np.where(m5, _lininterp(k, 70, 85, 15, 5), out)
+    m6 = k >= 85
+    out = np.where(m6, 3, out)
     return _clip(_fill_nan(out))
 
 
 def score_cci_swing(cci: np.ndarray) -> np.ndarray:
-    """
-    CCI (任意範囲) → スイングスコア [0, 25]
-    -100〜-50付近が最高点 (適度な押し目)。極端な過売り(<-200)は落下ナイフとして低スコア。
-    """
+    """CCI → スイングスコア [0, 25]. +50〜+100が最高点（上昇トレンド確認）。"""
     c = np.asarray(cci, dtype=float)
     out = np.zeros_like(c)
-    # 極端な過売り (< -200): 落下ナイフリスク → 低スコア
     m1 = c < -200
-    out = np.where(m1, 5, out)
-    # 深い売られすぎ (-200 〜 -100): 線形 5→25pts
+    out = np.where(m1, 2, out)
     m2 = (c >= -200) & (c < -100)
-    out = np.where(m2, _lininterp(c, -200, -100, 5, 25), out)
-    # 最高点ゾーン (-100 〜 -50): 25pts フラット
-    m3 = (c >= -100) & (c < -50)
-    out = np.where(m3, 25, out)
-    # 軽い売られすぎ (-50 〜 0): 線形 25→18pts
-    m4 = (c >= -50) & (c < 0)
-    out = np.where(m4, _lininterp(c, -50, 0, 25, 18), out)
-    # ニュートラル (0 〜 50): 線形 18→10pts
-    m5 = (c >= 0) & (c < 50)
-    out = np.where(m5, _lininterp(c, 0, 50, 18, 10), out)
-    # やや買われすぎ (50 〜 100): 線形 10→5pts
-    m6 = (c >= 50) & (c < 100)
-    out = np.where(m6, _lininterp(c, 50, 100, 10, 5), out)
-    # 買われすぎ (>= 100): 3pts
-    m7 = c >= 100
-    out = np.where(m7, 3, out)
+    out = np.where(m2, _lininterp(c, -200, -100, 2, 8), out)
+    m3 = (c >= -100) & (c < 0)
+    out = np.where(m3, _lininterp(c, -100, 0, 8, 18), out)
+    m4 = (c >= 0) & (c < 50)
+    out = np.where(m4, _lininterp(c, 0, 50, 18, 25), out)
+    m5 = (c >= 50) & (c < 100)
+    out = np.where(m5, 25, out)
+    m6 = (c >= 100) & (c < 200)
+    out = np.where(m6, _lininterp(c, 100, 200, 25, 12), out)
+    m7 = c >= 200
+    out = np.where(m7, 5, out)
     return _clip(_fill_nan(out))
 
 

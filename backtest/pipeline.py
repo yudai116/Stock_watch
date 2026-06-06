@@ -142,7 +142,7 @@ def _build_regime_states(ticker_data: dict, mode: str) -> "np.ndarray | None":
     matched = 0
     for i, d in enumerate(dates):
         # DAYモードは日付prefix（最初10文字）でマッチング
-        key = d[:10] if mode == "day" else d
+        key = d[:10]
         if key in regime_map:
             regime_states[i] = regime_map[key]
             matched += 1
