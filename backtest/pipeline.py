@@ -2,7 +2,7 @@
 pipeline.py — 3層アーキテクチャのメインオーケストレーター
 
 【実行フロー】
-  1. [データ層]    マクロデータ / 価格データ取得 (fetch_macro / fetch_alpaca)
+  1. [データ層]    マクロデータ / 価格データ取得 (fetch_macro / fetch_polygon)
   2. [レジーム層]  HMM 学習 → regime_signals.json 保存
   3. [戦略層]      ticker_data 構築 → Walk-Forward GA 最適化
   4. [リスク層]    ポジションサイジング検証
@@ -68,10 +68,10 @@ def step_fetch_macro() -> bool:
 
 
 def step_fetch_price(mode: str) -> bool:
-    """価格データを Alpaca から取得 (増分更新)"""
+    """価格データを Polygon.io から取得 (増分更新)"""
     print(f"\n[Step 1] 価格データ取得 ({mode})")
     try:
-        from backtest.data.fetch_alpaca import fetch_stock_data
+        from backtest.data.fetch_polygon import fetch_stock_data
         from backtest.config import (
             SWING_TIMEFRAME, DAY_TIMEFRAME,
             SWING_LOOKBACK_YEARS, DAY_LOOKBACK_YEARS,

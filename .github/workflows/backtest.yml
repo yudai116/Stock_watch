@@ -67,7 +67,8 @@ jobs:
             scikit-learn \
             hmmlearn \
             yfinance \
-            requests
+            requests \
+            polygon-api-client
 
       - name: Restore price data cache
         uses: actions/cache@v4
@@ -82,8 +83,7 @@ jobs:
 
       - name: Run pipeline
         env:
-          ALPACA_API_KEY:    ${{ secrets.ALPACA_API_KEY }}
-          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+          POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
         run: |
           MODE="${{ github.event.inputs.mode || 'all' }}"
           ARGS="--mode $MODE"
