@@ -320,7 +320,7 @@ def run_ga(
 
     # ── GA ループ ──────────────────────────────────────────────────────────
     PATIENCE   = 50
-    MIN_GENS   = 60
+    MIN_GENS   = min(60, max(10, n_gens // 2))   # DAY(n_gens=50)→25, SWING(150)→60
     no_improve = 0
     prev_best  = -np.inf
 
