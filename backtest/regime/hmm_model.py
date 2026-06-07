@@ -119,7 +119,7 @@ class RegimeHMM:
         best_n     = self.min_states
         best_model = None
 
-        print(f"[HMM] 状態数選択 ({self.criterion.upper()}) — {self.min_states}〜{self.max_states}")
+        print(f"[HMM] 状態数選択 ({self.criterion.upper()}) -- {self.min_states}~{self.max_states}")
         for n in range(self.min_states, self.max_states + 1):
             # 複数初期値で試行してベストを採用
             best_ll = -np.inf
