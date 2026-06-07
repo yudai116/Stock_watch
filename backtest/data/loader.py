@@ -84,6 +84,36 @@ def _to_arrays(raw) -> dict:
     )
 
 
+def _filter_regular_hours(arr: dict) -> dict:
+    """
+    Polygon 1時間足データからプリマーケット・アフターアワーズを除去する。
+    Polygon のタイムスタンプは UTC 形式 "YYYY-MM-DD HH:MM"。
+    NYSE 通常取引時間 ≈ 13:00-20:00 UTC (EDT/EST 両対応) を保持する。
+    EDT: 9AM-4PM ET = 13-20 UTC / EST: 8AM-3PM ET = 13-20 UTC (一部ズレは許容)
+    """
+    dates = arr["dates"]
+    if not dates or len(dates[0]) < 13:
+        return arr  # 時刻成分なし (日足等) → スキップ
+
+    keep = np.array([
+        13 <= int(d[11:13]) <= 20 if len(d) >= 13 else True
+        for d in dates
+    ], dtype=bool)
+
+    if keep.all():
+        return arr
+
+    return {
+        "dates":   [d for d, m in zip(dates, keep) if m],
+        "closes":  arr["closes"][keep],
+        "opens":   arr["opens"][keep],
+        "highs":   arr["highs"][keep],
+        "lows":    arr["lows"][keep],
+        "volumes": arr["volumes"][keep],
+        "returns": arr["returns"][keep],
+    }
+
+
 def _vol_ok_mask(returns: np.ndarray, min_window: int = 20) -> np.ndarray:
     """直近 min_window 本のリターンが揃っているか判定するブールマスク"""
     mask = np.zeros(len(returns), dtype=bool)
@@ -162,9 +192,13 @@ def build_strategy_data(
         if tickers and ticker not in tickers:
             continue
         arr = _to_arrays(data)
+        # SWING: Polygon は拡張時間 (プリマーケット+アフターアワーズ) を含むため
+        #        通常取引時間 (13-20 UTC) のみ残す → BARS_PER_YEAR との整合を回復
+        if mode == "swing":
+            arr = _filter_regular_hours(arr)
         T   = len(arr["closes"])
-        # swing: 2年分の1時間足 / day: 6ヶ月分の10分足
-        min_bars = round(2 * BARS_PER_YEAR_SWING) if mode == "swing" else round(BARS_PER_YEAR_DAY / 2)
+        # swing: 4年分 (GEV等の新興株がT_minを詰めるのを防ぐ) / day: 6ヶ月分
+        min_bars = round(4 * BARS_PER_YEAR_SWING) if mode == "swing" else round(BARS_PER_YEAR_DAY / 2)
         if T < min_bars:
             if verbose:
                 print(f"[loader] {ticker}: データ不足 ({T}本 < {min_bars}) スキップ")

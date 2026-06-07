@@ -14,8 +14,41 @@ strategy/ga_optimizer.py — 遺伝的アルゴリズムによる指標重み最
 from __future__ import annotations
 
 import math
+import os
+import pickle
+from multiprocessing import Pool
 import numpy as np
 from typing import Optional
+
+
+# ── 並列 GA 用 worker 関数 (モジュールトップレベルに置くことで pickle 可能) ─────
+
+_W_TICKER_DATA: "dict | None" = None  # worker プロセス内キャッシュ
+
+
+def _pool_init(pkl: bytes) -> None:
+    """Pool worker 初期化: ticker_data を解凍してグローバルに保持する。"""
+    global _W_TICKER_DATA
+    _W_TICKER_DATA = pickle.loads(pkl)
+
+
+def _ga_task(args: tuple) -> "tuple[str, list, float]":
+    """
+    Pool worker: 1 売りルールの GA を実行して (sell_name, weights, fitness) を返す。
+    ticker_data は _pool_init() でキャッシュ済み → IPC コストはゼロ。
+    """
+    (sell_name, thresh, t_end, bpy, thr_list,
+     min_tr, xonly, pop, ngen, reg_bytes, hvr, seed, ga_kw) = args
+    regime = np.frombuffer(reg_bytes, np.int32).copy() if reg_bytes is not None else None
+    best_w, best_f = run_ga(
+        _W_TICKER_DATA, sell_name, thresh, t_end, bpy,
+        thresholds=thr_list, min_trades=min_tr, crossover_only=xonly,
+        pop_size=pop, n_gens=ngen, random_seed=seed,
+        regime_states=regime, high_vol_regimes=hvr,
+        verbose=False,
+        **ga_kw,
+    )
+    return sell_name, best_w.tolist(), float(best_f)
 
 
 # ── バッチ Sharpe 評価 ────────────────────────────────────────────────────────
@@ -242,6 +275,7 @@ def run_ga(
     random_seed: int = 42,
     regime_states: Optional[np.ndarray] = None,
     high_vol_regimes: frozenset = frozenset({2, 3}),
+    verbose: bool = True,
 ) -> tuple[np.ndarray, float]:
     """
     遺伝的アルゴリズムで最適指標重みを探索する。
@@ -333,7 +367,7 @@ def run_ga(
         elite     = pop[elite_idx].copy()
         best_fit  = float(fit[elite_idx[0]])
 
-        if gen % 30 == 0:
+        if verbose and gen % 30 == 0:
             print(f"    [GA gen {gen + 1:3d}/{n_gens}] best_fit={best_fit:.3f}")
 
         # 早期停止: 絶対閾値1e-4で正/負どちらの fitness でも正しく動作する
@@ -342,7 +376,8 @@ def run_ga(
         else:
             no_improve += 1
         if gen >= MIN_GENS and no_improve >= PATIENCE:
-            print(f"    [GA] 早期停止 gen={gen + 1} (改善停止 {PATIENCE}世代)")
+            if verbose:
+                print(f"    [GA] 早期停止 gen={gen + 1} (改善停止 {PATIENCE}世代)")
             break
 
         # トーナメント選択
@@ -467,25 +502,56 @@ def optimize_all_sells(
         best_ti   = int(np.nanargmax(col_means)) if not np.all(np.isnan(col_means)) else 0
         best_thresh_per_sell[sell_name] = thresholds[best_ti]
 
-    # 各売りルールで GA 実行
-    for i, sell_name in enumerate(sell_rules, 1):
-        thresh = best_thresh_per_sell[sell_name]
-        print(f"  [{i}/{len(sell_rules)}] {sell_name} (thresh={thresh})")
-        best_w, best_f = run_ga(
-            ticker_data, sell_name, thresh, t_train_end,
-            bars_per_year, thresholds=[thresh],
-            min_trades=min_trades, crossover_only=crossover_only,
-            pop_size=pop_size, n_gens=n_gens,
-            regime_states=regime_states,
-            high_vol_regimes=high_vol_regimes,
-            **ga_kwargs,
-        )
-        all_results[sell_name] = {
-            "weights":   best_w,
-            "threshold": thresh,
-            "fitness":   best_f,
-        }
-        print(f"    → fitness={best_f:.4f}")
+    # ── 売りルールを並列実行 (利用可能 CPU 数に合わせてワーカー数を決定) ──────
+    n_jobs = min(len(sell_rules), os.cpu_count() or 1)
+    reg_bytes = regime_states.tobytes() if regime_states is not None else None
+    ga_kw = {k: v for k, v in ga_kwargs.items() if k != "random_seed"}
+
+    tasks = [
+        (sell_name,
+         best_thresh_per_sell[sell_name],
+         t_train_end, bars_per_year,
+         [best_thresh_per_sell[sell_name]],
+         min_trades, crossover_only, pop_size, n_gens,
+         reg_bytes, frozenset(high_vol_regimes),
+         42 + idx,   # worker ごとに異なるシード
+         ga_kw)
+        for idx, sell_name in enumerate(sell_rules)
+    ]
+
+    if n_jobs > 1:
+        print(f"  [並列GA] {n_jobs} worker × {len(sell_rules)} 売りルール 同時実行")
+        pkl = pickle.dumps(ticker_data)
+        with Pool(n_jobs, initializer=_pool_init, initargs=(pkl,)) as pool:
+            raw = pool.map(_ga_task, tasks)
+        for sell_name, w_list, best_f in raw:
+            thresh = best_thresh_per_sell[sell_name]
+            print(f"  {sell_name} (thresh={thresh}) → fitness={best_f:.4f}")
+            all_results[sell_name] = {
+                "weights":   np.array(w_list, dtype=np.float32),
+                "threshold": thresh,
+                "fitness":   best_f,
+            }
+    else:
+        # フォールバック: 逐次実行
+        for i, sell_name in enumerate(sell_rules, 1):
+            thresh = best_thresh_per_sell[sell_name]
+            print(f"  [{i}/{len(sell_rules)}] {sell_name} (thresh={thresh})")
+            best_w, best_f = run_ga(
+                ticker_data, sell_name, thresh, t_train_end,
+                bars_per_year, thresholds=[thresh],
+                min_trades=min_trades, crossover_only=crossover_only,
+                pop_size=pop_size, n_gens=n_gens,
+                regime_states=regime_states,
+                high_vol_regimes=high_vol_regimes,
+                **ga_kwargs,
+            )
+            all_results[sell_name] = {
+                "weights":   best_w,
+                "threshold": thresh,
+                "fitness":   best_f,
+            }
+            print(f"    → fitness={best_f:.4f}")
 
     # 最良選択
     best_sell = max(all_results, key=lambda k: all_results[k]["fitness"])
