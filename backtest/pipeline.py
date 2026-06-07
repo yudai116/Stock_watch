@@ -302,7 +302,7 @@ def step_risk_summary(ticker_data: dict, mode: str) -> None:
         bars_per_year  = BARS_PER_YEAR_SWING if mode == "swing" else BARS_PER_YEAR_DAY,
     )
 
-    print(f"\n[Step 4] リスク検証 ({mode}) — サンプル5銘柄")
+    print(f"\n[Step 4] リスク検証 ({mode}) -- サンプル5銘柄")
     for ticker, arr in list(ticker_data.items())[:5]:
         rets  = arr["returns"]
         price = float(arr["closes"][-1])

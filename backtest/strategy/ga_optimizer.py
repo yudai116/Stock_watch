@@ -125,7 +125,9 @@ def batch_sharpe(
         # ── 年率化: 実取引数ベース・銘柄数キャンセル (v17修正) ───────────────
         trades_per_ticker_year = np.maximum(n, 1.) / n_tickers / max(years, 0.5)
         factor = np.sqrt(trades_per_ticker_year)
-        shp[:, ti] = np.where(ok & (std > 1e-10), avg / std * factor, np.nan)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            raw = np.where(std > 1e-10, avg / std * factor, np.nan)
+        shp[:, ti] = np.where(ok, raw, np.nan)
 
     return shp
 
