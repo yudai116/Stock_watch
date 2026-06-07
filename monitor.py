@@ -21,9 +21,16 @@ if sys.platform == "win32" and hasattr(sys.stdout, "buffer"):
 
 HERE = Path(__file__).parent
 
-# ── ANSI カラー (Windows 10+/Windows Terminal 対応) ─────────────────────────
+# ── ANSI カラー: Windows Terminal / COLORTERM のみ有効、それ以外はプレーンテキスト
+_USE_ANSI = (
+    sys.platform != "win32"
+    or bool(os.environ.get("WT_SESSION"))    # Windows Terminal
+    or bool(os.environ.get("COLORTERM"))     # VS Code terminal など
+    or bool(os.environ.get("TERM_PROGRAM"))
+)
+
 def _ansi(code: str, text: str) -> str:
-    return f"\033[{code}m{text}\033[0m"
+    return f"\033[{code}m{text}\033[0m" if _USE_ANSI else text
 
 def cyan(t):    return _ansi("96", t)
 def green(t):   return _ansi("92", t)
