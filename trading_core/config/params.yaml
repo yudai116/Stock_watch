@@ -1,0 +1,99 @@
+# Search parameter space (SPEC §4-6). GA explores ONLY what is listed under
+# `ga_search`. Everything under `fixed` is out of GA scope by design.
+
+ga_search:
+  # trend_follow (long breakout)
+  donchian_entry_period: {type: int, low: 20, high: 55}
+  atr_period: {type: int, low: 14, high: 28}
+  chandelier_k: {type: float, low: 2.5, high: 3.5}
+  time_stop_days: {type: int, low: 10, high: 20}
+  partial_take_profit: {type: choice, options: [none, half_at_2R]}
+  rs_top_fraction: {type: float, low: 0.2, high: 0.5}     # relative-strength top quantile
+  volume_z_min: {type: float, low: 0.0, high: 1.5}        # volume confirmation threshold
+
+  # mean_revert (range regime)
+  mr_enabled: {type: choice, options: [true, false]}       # GA may choose reduced ops instead
+  mr_rsi_period: {type: int, low: 2, high: 14}
+  mr_rsi_entry: {type: float, low: 10, high: 35}
+  mr_zscore_entry: {type: float, low: -2.5, high: -1.0}
+
+  # short_breakdown (bear regime)
+  short_donchian_period: {type: int, low: 20, high: 55}
+
+  # risk
+  risk_per_trade_pct: {type: float, low: 0.5, high: 1.0}   # % of equity per trade
+
+fixed:
+  # Gates (SPEC §5.4): fixed, NOT searched by GA
+  earnings_blackout_days: 3
+  news_shock_neg_threshold: -0.6        # aggregated FinBERT score
+  news_shock_stop_tighten_factor: 0.7   # multiply trailing-stop distance
+  squeeze_guard_pos_threshold: 0.6      # no new shorts right after strong positive news
+
+  # Short asymmetric constraints (SPEC §6.4)
+  short_size_cap_vs_long: 0.6           # 50-70% band midpoint; ablation may test edges
+  short_time_stop_factor: 0.6           # short time stop = long * factor
+
+  # Confidence multiplier (SPEC §6.3): range fixed
+  confidence_multiplier_min: 0.5
+  confidence_multiplier_max: 1.5
+
+  # Portfolio limits (SPEC §6.2)
+  max_concurrent_positions: 8
+  max_sector_positions: 3
+  portfolio_heat_max_pct: 6.0           # sum of open-position risk as % of equity
+  dd_soft_pct: 10.0                     # start scaling risk down
+  dd_hard_pct: 20.0                     # new entries suspended
+  dd_scale_floor: 0.3                   # min risk multiplier under drawdown control
+
+hmm:
+  # Market-level inputs ONLY, 4-6 dims total (SPEC §4). Baseline (Phase 3)
+  # uses the first 4; sentiment dims are added in Phase 4 ablation.
+  inputs_baseline: [market_return, realized_vol, vix, breadth]
+  inputs_altdata: [news_sentiment_z, negative_article_ratio]
+  n_states_range: [3, 6]                # selected by BIC, never hardcoded
+  covariance_type: full
+  refit_frequency: monthly              # walk-forward refit; only past data used
+  min_train_days: 756                   # >= 3y daily obs before first inference
+
+features:
+  realized_vol_days: 20
+  rs_long_days: 200
+  hourly_ma_slope_period: 50
+  zscore_window: 100
+
+validation:
+  wfa_folds: 4
+  wfa_anchored: true
+  train_fraction: 0.8
+  cpcv_groups: 8
+  cpcv_test_groups: 2
+  purge_days: 15                        # >= max holding period (3 weeks ~ 15 bdays)
+  embargo_days: 5
+  holdout_years: 1.5                    # untouched until final single evaluation
+  dsr_confidence: 0.95
+
+objective:
+  primary: calmar
+  dd_penalty_threshold_pct: 20.0
+  reject_if_dsr_leq: 0.0
+
+targets:
+  sharpe_oos: [1.0, 1.5]
+  sortino_oos: [1.5, 2.2]
+  max_dd_pct: 20.0
+  max_dd_hard_pct: 25.0
+  wf_efficiency_min: 0.5
+
+sentiment:
+  model_name: ProsusAI/finbert
+  # IMPORTANT: replace with the actual commit hash after the first download
+  # (huggingface hub -> Files -> copy commit SHA). The score cache is keyed on
+  # this string; backtests must never run against a moving "main".
+  model_revision: "PIN_ME_ON_FIRST_DOWNLOAD"
+  news_latency_minutes: 5               # feed latency before bar assignment
+
+adoption:
+  # SPEC §8.3: alt-data family adopted only if OOS Calmar +15% and no DD worsening
+  calmar_improvement_min: 0.15
+  ablation_order: [fundamental_quality, news_gates, sentiment_hmm, trends]

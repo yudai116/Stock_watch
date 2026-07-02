@@ -1,0 +1,12 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+datastore/
+*.parquet
+*.sqlite
+*.sqlite3
+*.db
+reports/
+.cache/

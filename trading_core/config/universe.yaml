@@ -1,0 +1,63 @@
+# PIT universe construction rules (SPEC §3.4).
+# The universe is rebuilt quarterly using ONLY information available at the
+# rebalance timestamp (bitemporal store enforces available_date <= as_of).
+
+rebalance:
+  frequency: quarterly          # rebalance on the first trading day of each quarter
+  min_names: 25
+  max_names: 40
+
+eligibility:
+  country: US
+  exchanges: [NASDAQ, NYSE, AMEX]
+  # Liquidity/size screens computed from trailing windows ending at as_of.
+  min_median_dollar_volume_20d: 20000000   # USD, 20-day median
+  min_price: 5.0                           # avoid microcaps / delisting-risk pennies
+  min_history_days: 126                    # need >= 6 months of bars before inclusion
+  market_cap_rank_within_sectors: 60       # take top-N by dollar-volume proxy before final cut
+
+# Target sector taxonomy (US tech). Keyword matching is applied to
+# exchange/industry metadata available at as_of; the seed lists below are
+# hints only, NOT a fixed universe (D5: fixed 25 tickers abolished).
+sectors:
+  semiconductors:
+    seed: [NVDA, AMD, AVGO, QCOM, MU, ARM, AMAT, LRCX, KLAC, MRVL, ASML, TSM, INTC, SMCI, MCHP, SWKS, MPWR, ENTG, ONTO, TXN]
+  ai_cloud_software:
+    seed: [MSFT, GOOGL, META, AAPL, AMZN, PLTR, CRM, DDOG, CRWD, SNOW, SOUN, IONQ, NOW, PANW, ORCL]
+  space_defense:
+    seed: [RKLB, LUNR, KTOS, HII, BA, NOC, LMT, RTX]
+  fusion_clean_energy:
+    seed: [CEG, VST, GEV, OKLO, SMR]
+  memory_storage:
+    seed: [WDC, STX]
+  materials:
+    seed: []
+
+concentration:
+  max_per_sector_fraction: 0.4   # at most 40% of universe names from one sector
+
+# Benchmarks used for relative strength and HMM market-level inputs.
+benchmarks:
+  market: SPY
+  tech: QQQ
+  semis: SMH
+  vix: VIXY        # VIX proxy tradable series; raw ^VIX ingested separately if available
+
+# Delisted/acquired names that MUST be checked in the Phase 1 coverage audit
+# (survivorship-bias guard). event years approximate.
+delisted_audit_list:
+  - {symbol: XLNX,  note: "acquired by AMD 2022"}
+  - {symbol: MXIM,  note: "acquired by ADI 2021"}
+  - {symbol: ALTR,  note: "acquired by Intel 2015 (relisted 2024? treat pre-2015)"}
+  - {symbol: BRCM,  note: "Broadcom Corp, merged with Avago 2016"}
+  - {symbol: ATVI,  note: "acquired by MSFT 2023"}
+  - {symbol: VMW,   note: "acquired by Broadcom 2023"}
+  - {symbol: SGEN,  note: "acquired 2023 (biotech control sample)"}
+  - {symbol: TWTR,  note: "taken private 2022"}
+  - {symbol: CTXS,  note: "taken private 2022"}
+  - {symbol: NUAN,  note: "acquired by MSFT 2022"}
+  - {symbol: SLAB,  note: "still listed (control sample)"}
+  - {symbol: CY,    note: "Cypress Semi, acquired by Infineon 2020"}
+  - {symbol: IPHI,  note: "Inphi, acquired by Marvell 2021"}
+  - {symbol: XPER,  note: "restructured 2022"}
+  - {symbol: OLED,  note: "still listed (control sample)"}

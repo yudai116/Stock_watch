@@ -1,0 +1,31 @@
+# Saxo CFD cost model (SPEC §6.4, §7). Update the financing/borrow figures
+# from Saxo's live schedule before Phase 5; keep history in git for audit.
+
+commission:
+  pct_of_notional: 0.0008        # 0.08% per side (Saxo US stock CFD, classic tier)
+  min_usd: 3.0
+
+spread:
+  # Half-spread paid on each fill, as fraction of price.
+  half_spread_pct: 0.0003
+
+slippage:
+  # SPEC §7: 0.05-0.1% band. Backtests must use >= low; stress tests use high.
+  low_pct: 0.0005
+  high_pct: 0.0010
+  default_pct: 0.0008
+
+financing:
+  # CFD overnight financing, annualized. long pays (benchmark + markup),
+  # short receives (benchmark - markup) but pays borrow.
+  benchmark_rate_annual: 0.0433      # SOFR, update from live data
+  long_markup_annual: 0.025
+  short_markdown_annual: 0.025
+  borrow_cost_annual_default: 0.005  # easy-to-borrow default; HTB set per symbol
+  day_count: 360
+  # Financing accrues for each calendar day a position is held overnight
+  # (weekend = 3 days on Friday holds, handled by calendar-day diff).
+
+fx:
+  account_currency: USD
+  conversion_fee_pct: 0.0
