@@ -20,7 +20,8 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 
 from data.bitemporal_store import BitemporalStore, Record
-from data.config_loader import data_root, load_config, load_dotenv_if_present
+from data.config_loader import (alpaca_credentials, data_root, load_config,
+                                load_dotenv_if_present)
 
 UTC = timezone.utc
 
@@ -30,7 +31,7 @@ def fetch_news(symbols: list[str], start: datetime, end: datetime) -> list[Recor
     from alpaca.data.requests import NewsRequest
 
     latency = pd.Timedelta(minutes=load_config("params")["sentiment"]["news_latency_minutes"])
-    client = NewsClient(os.environ["ALPACA_API_KEY"], os.environ["ALPACA_SECRET_KEY"])
+    client = NewsClient(*alpaca_credentials())
     records: list[Record] = []
     page_token = None
     while True:

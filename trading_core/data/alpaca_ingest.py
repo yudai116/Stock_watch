@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 
 from data.bitemporal_store import BitemporalStore, Record
-from data.config_loader import data_root, load_dotenv_if_present
+from data.config_loader import alpaca_credentials, data_root, load_dotenv_if_present
 
 UTC = timezone.utc
 
@@ -29,8 +29,7 @@ BAR_LATENCY = pd.Timedelta(minutes=1)
 def _clients():
     from alpaca.data.historical import StockHistoricalDataClient
 
-    key = os.environ["ALPACA_API_KEY"]
-    secret = os.environ["ALPACA_SECRET_KEY"]
+    key, secret = alpaca_credentials()
     return StockHistoricalDataClient(key, secret)
 
 
@@ -69,8 +68,7 @@ def fetch_corporate_actions(symbols: list[str], start: datetime, end: datetime) 
     from alpaca.trading.client import TradingClient
     from alpaca.trading.requests import GetCorporateAnnouncementsRequest
 
-    key = os.environ["ALPACA_API_KEY"]
-    secret = os.environ["ALPACA_SECRET_KEY"]
+    key, secret = alpaca_credentials()
     client = TradingClient(key, secret, paper=True)
     records: list[Record] = []
     # API window is limited to 90 days per request

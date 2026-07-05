@@ -35,3 +35,20 @@ def load_dotenv_if_present() -> None:
     except ImportError:  # pragma: no cover
         return
     load_dotenv(REPO_ROOT / ".env")
+
+
+def alpaca_credentials() -> tuple[str, str]:
+    """Return (api_key, secret_key), tolerant of the several naming schemes
+    seen in the wild (this repo's canonical names, the old Stock_watch names,
+    and Alpaca's own APCA_* names). Raises a clear error if unset."""
+    load_dotenv_if_present()
+    key = os.environ.get("ALPACA_API_KEY") or os.environ.get("APCA_API_KEY_ID")
+    secret = (os.environ.get("ALPACA_SECRET_KEY")
+              or os.environ.get("ALPACA_API_SECRET")      # old Stock_watch name
+              or os.environ.get("APCA_API_SECRET_KEY"))   # Alpaca SDK name
+    if not key or not secret:
+        raise RuntimeError(
+            "Alpaca credentials not found. Set ALPACA_API_KEY and "
+            "ALPACA_SECRET_KEY (in .env or as environment variables)."
+        )
+    return key, secret
