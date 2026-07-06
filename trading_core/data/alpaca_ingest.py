@@ -33,6 +33,12 @@ def _clients():
     return StockHistoricalDataClient(key, secret)
 
 
+def _feed() -> str:
+    """Data feed. Free/paper accounts only have IEX; SIP needs a paid data
+    subscription. Default IEX; override with ALPACA_FEED=sip when subscribed."""
+    return os.environ.get("ALPACA_FEED", "iex").lower()
+
+
 def fetch_bars(
     symbols: list[str],
     timeframe: str,
@@ -51,11 +57,21 @@ def fetch_bars(
         start=start,
         end=end,
         adjustment="raw",
-        feed="sip",
+        feed=_feed(),
     )
     barset = client.get_stock_bars(req)
     out: dict[str, pd.DataFrame] = {}
-    df = barset.df.reset_index()
+    df = barset.df
+    if df is None or df.empty:
+        raise RuntimeError(
+            f"Alpaca returned no {timeframe} bars for {symbols} on feed "
+            f"'{_feed()}'. Free/paper accounts must use IEX (the default); "
+            f"if you set ALPACA_FEED=sip you need a paid SIP data subscription."
+        )
+    df = df.reset_index()
+    if "symbol" not in df.columns:
+        # single-symbol responses index by timestamp only
+        df["symbol"] = symbols[0] if len(symbols) == 1 else df.get("symbol")
     for sym, g in df.groupby("symbol"):
         g = g.rename(columns={"timestamp": "ts"})
         out[str(sym)] = g[["ts", "open", "high", "low", "close", "volume"]].reset_index(drop=True)
