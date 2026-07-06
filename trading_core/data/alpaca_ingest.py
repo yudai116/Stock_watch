@@ -125,12 +125,16 @@ def fetch_corporate_actions(symbols: list[str], start: datetime, end: datetime) 
     return records
 
 
-def ingest(symbols: list[str], years: int, store: BitemporalStore | None = None) -> None:
+def ingest(symbols: list[str], years: int, store: BitemporalStore | None = None,
+           timeframes: tuple[str, ...] = ("1h", "1d")) -> None:
+    """Ingest bars + corporate actions. ``timeframes`` selects which bar
+    sizes to fetch; Phase 3 backtesting needs only "1d" (signals are daily,
+    R2), so ``--timeframes 1d`` skips the heavy 1h download."""
     load_dotenv_if_present()
     store = store or BitemporalStore(data_root())
     end = datetime.now(UTC)
     start = end - timedelta(days=int(years * 365.25))
-    for tf in ("1h", "1d"):
+    for tf in timeframes:
         bars = fetch_bars(symbols, tf, start, end)
         for sym, df in bars.items():
             store.put_bars(sym, tf, df, latency=BAR_LATENCY)
@@ -145,8 +149,12 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--symbols", required=True, help="comma separated")
     p.add_argument("--years", type=int, default=10)
+    p.add_argument("--timeframes", default="1h,1d",
+                   help="comma separated subset of {1h,1d}; use '1d' for fast "
+                        "Phase-3 data prep")
     args = p.parse_args()
-    ingest([s.strip().upper() for s in args.symbols.split(",")], args.years)
+    ingest([s.strip().upper() for s in args.symbols.split(",")], args.years,
+           timeframes=tuple(t.strip() for t in args.timeframes.split(",")))
 
 
 if __name__ == "__main__":
