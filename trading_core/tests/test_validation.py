@@ -123,3 +123,35 @@ def test_adoption_rule():
     assert compare(base, good)["adopted"]
     assert not compare(base, bad_dd)["adopted"]
     assert not compare(base, small)["adopted"]
+
+
+# --------------------------------------- R5: QQQ gate + branch (flow F)
+
+def test_qqq_gate_requires_both_sharpe_and_dd():
+    from validation.baseline_compare import qqq_gate
+
+    qqq = {"sharpe": 0.9, "max_dd": -0.30}
+    assert qqq_gate({"sharpe": 1.1, "max_dd": -0.20}, qqq)["passed"]
+    # better Sharpe but deeper DD -> fail
+    g = qqq_gate({"sharpe": 1.1, "max_dd": -0.35}, qqq)
+    assert not g["passed"] and g["sharpe_ok"] and not g["dd_ok"]
+    # shallower DD but lower Sharpe -> fail
+    g = qqq_gate({"sharpe": 0.7, "max_dd": -0.15}, qqq)
+    assert not g["passed"] and not g["sharpe_ok"] and g["dd_ok"]
+
+
+def test_branch_classification():
+    from validation.baseline_compare import classify_branch
+
+    assert classify_branch(0.9, gate_passed=True) == "A"
+    assert classify_branch(0.9, gate_passed=False) == "B"   # near-miss gate fail
+    assert classify_branch(0.6, gate_passed=True) == "B"    # 0.4-0.8 band
+    assert classify_branch(0.3, gate_passed=True) == "C"
+    assert classify_branch(0.3, gate_passed=False) == "C"
+
+
+def test_overfit_alert():
+    from validation.baseline_compare import overfit_alert
+
+    assert overfit_alert(2.5)          # IS Sharpe > 2.0 -> alarm (R5)
+    assert not overfit_alert(1.5)

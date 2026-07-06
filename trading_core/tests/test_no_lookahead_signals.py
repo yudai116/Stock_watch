@@ -80,14 +80,16 @@ def test_squeeze_guard_blocks_shorts_only():
 # ------------------------------------------------------------ regime gate
 
 def test_regime_gate_matrix():
+    """v2 (R1): single-stock shorting abolished — bear/crisis switch on the
+    index hedge instead."""
     assert gate("bull", True).allow_long_tf
-    assert not gate("bull", True).allow_short
+    assert not gate("bull", True).hedge_on
     assert gate("range", True).allow_long_mr
-    assert not gate("range", False).allow_long_mr      # GA disabled MR
+    assert not gate("range", False).allow_long_mr      # grid disabled MR
     bear = gate("bear", True)
-    assert bear.allow_short and not bear.allow_long_tf and not bear.allow_long_mr
+    assert bear.hedge_on and not bear.allow_long_tf and not bear.allow_long_mr
     crisis = gate("crisis", True)
-    assert crisis.scale_down_existing
-    assert not (crisis.allow_long_tf or crisis.allow_long_mr or crisis.allow_short)
+    assert crisis.scale_down_existing and crisis.hedge_on
+    assert not (crisis.allow_long_tf or crisis.allow_long_mr)
     unknown = gate("warmup", True)
-    assert not (unknown.allow_long_tf or unknown.allow_long_mr or unknown.allow_short)
+    assert not (unknown.allow_long_tf or unknown.allow_long_mr or unknown.hedge_on)

@@ -15,14 +15,8 @@ PARAMS = {"risk_per_trade_pct": 1.0, "chandelier_k": 3.0}
 
 def test_vol_target_size_hand_computed():
     # size = (100_000 * 1%) / (3 * ATR 2.0) = 166.66 shares
-    q = vol_target_sizer.position_size(100_000, 2.0, PARAMS, side=1)
+    q = vol_target_sizer.position_size(100_000, 2.0, PARAMS)
     assert q == pytest.approx(100_000 * 0.01 / 6.0)
-
-
-def test_short_size_cap():
-    ql = vol_target_sizer.position_size(100_000, 2.0, PARAMS, side=1)
-    qs = vol_target_sizer.position_size(100_000, 2.0, PARAMS, side=-1)
-    assert qs == pytest.approx(ql * 0.6)      # params.yaml short_size_cap_vs_long
 
 
 def test_size_guards():

@@ -2,6 +2,7 @@
 
 Method: future perturbation. Compute features on a series, then modify all
 bars AFTER index k and recompute — rows <= k must be bit-identical.
+v2: production signal features are DAILY (SPEC_ADDENDUM_v2 R2).
 """
 
 import numpy as np
@@ -10,20 +11,20 @@ import pytest
 
 from features import daily_features as dfeat
 from features import hourly_features as hfeat
+from features.simple_regime import simple_regime
 
-K = 120
-PARAMS = {"atr_period": 14, "donchian_entry_period": 20,
-          "short_donchian_period": 20, "mr_rsi_period": 14}
+K = 220
+PARAMS = {"atr_period": 14, "donchian_entry_period": 20, "mr_rsi_period": 14}
 
 
-def _hourly_bars(n=200, seed=3):
+def _daily_bars(n=320, seed=3):
     rng = np.random.default_rng(seed)
-    close = 100 * np.cumprod(1 + rng.normal(0, 0.01, n))
-    ts = pd.date_range("2024-01-02 14:00", periods=n, freq="1h", tz="UTC")
+    close = 100 * np.cumprod(1 + rng.normal(0.0005, 0.015, n))
+    ts = pd.bdate_range("2023-01-02", periods=n, tz="UTC")
     return pd.DataFrame({
         "ts": ts,
-        "open": close * (1 + rng.normal(0, 0.002, n)),
-        "high": close * 1.01, "low": close * 0.99,
+        "open": close * (1 + rng.normal(0, 0.003, n)),
+        "high": close * 1.012, "low": close * 0.988,
         "close": close, "volume": rng.integers(1000, 5000, n).astype(float),
     })
 
@@ -35,20 +36,19 @@ def _perturb(bars):
     return out
 
 
-def test_hourly_features_ignore_future():
-    a = hfeat.build_hourly_frame(_hourly_bars(), PARAMS)
-    b = hfeat.build_hourly_frame(_perturb(_hourly_bars()), PARAMS)
+def test_daily_signal_frame_ignores_future():
+    a = dfeat.build_signal_frame(_daily_bars(), PARAMS)
+    b = dfeat.build_signal_frame(_perturb(_daily_bars()), PARAMS)
     pd.testing.assert_frame_equal(a.iloc[: K + 1], b.iloc[: K + 1])
 
 
 def test_donchian_excludes_current_bar():
     """A breakout must be vs PRIOR bars: current high must not enter the channel."""
-    bars = _hourly_bars(60)
+    bars = _daily_bars(60)
     dc = hfeat.donchian(bars, 20)
     i = 50
     prior_high = bars["high"].iloc[i - 20: i].max()
     assert dc["donchian_high"].iloc[i] == pytest.approx(prior_high)
-    # even if the current bar spikes, its own channel value is unchanged
     spiked = bars.copy()
     spiked.loc[i, "high"] *= 10
     dc2 = hfeat.donchian(spiked, 20)
@@ -87,3 +87,43 @@ def test_rs_rank_and_breadth_ignore_future():
     b2 = dfeat.breadth(closes2, 50)
     pd.testing.assert_frame_equal(r1.iloc[: K + 1], r2.iloc[: K + 1])
     pd.testing.assert_series_equal(b1.iloc[: K + 1], b2.iloc[: K + 1])
+
+
+# ---------------------------------------------- simple regime filter (R4)
+
+def _qqq_and_vix(n=520, seed=11):
+    rng = np.random.default_rng(seed)
+    idx = pd.bdate_range("2022-01-03", periods=n, tz="UTC")
+    close = pd.Series(300 * np.cumprod(1 + rng.normal(0.0006, 0.012, n)), index=idx)
+    vix = pd.Series(np.clip(rng.normal(18, 5, n), 10, 60), index=idx)
+    return close, vix
+
+
+def test_simple_regime_rule():
+    close, vix = _qqq_and_vix()
+    labels = simple_regime(close, vix)
+    ma = close.rolling(200).mean()
+    # verify the definition on a sample of days
+    for ts in labels.index[::37]:
+        if close[ts] > ma[ts] and vix[ts] < 25.0:
+            assert labels[ts] == "bull"
+        elif close[ts] < ma[ts]:
+            assert labels[ts] == "bear"
+
+
+def test_simple_regime_ignores_future():
+    close, vix = _qqq_and_vix()
+    a = simple_regime(close, vix)
+    close2, vix2 = close.copy(), vix.copy()
+    close2.iloc[400:] *= 0.3
+    vix2.iloc[400:] = 55.0
+    b = simple_regime(close2, vix2)
+    cut = close.index[399]
+    pd.testing.assert_series_equal(a.loc[:cut], b.loc[:cut])
+
+
+def test_simple_regime_vol_proxy_fallback():
+    close, _ = _qqq_and_vix()
+    labels = simple_regime(close, vix=None)      # realized-vol proxy path
+    assert set(labels.unique()) <= {"bull", "bear", "range"}
+    assert len(labels) > 0

@@ -1,6 +1,12 @@
-"""Saxo Bank OpenAPI client (D2): OAuth code flow via localhost:8765
-callback, token refresh, CFD order placement. Phase 5 runs this against the
-SIM environment for >= 1 month of paper trading before any live order.
+"""Saxo Bank OpenAPI client (D2, revised by SPEC_ADDENDUM_v2 R1):
+OAuth code flow via localhost:8765 callback, token refresh, and order
+placement for BOTH asset types:
+
+  * ``Stock``      — cash equity (all long stock positions; no financing)
+  * ``CfdOnIndex`` — index-tracker CFD (bear-regime QQQ/SMH hedge shorts)
+
+Phase 5 runs this against the SIM environment for >= 3 months of paper
+trading (addendum G) before any live order.
 
 Environment: SAXO_APP_KEY / SAXO_APP_SECRET / SAXO_ENV / SAXO_REDIRECT_URI in .env
 """
@@ -132,22 +138,31 @@ class SaxoClient:
     def account_key(self) -> str:
         return self.get("/port/v1/accounts/me")["Data"][0]["AccountKey"]
 
-    def find_cfd_uic(self, symbol: str) -> int:
-        data = self.get("/ref/v1/instruments",
-                        {"Keywords": symbol, "AssetTypes": "CfdOnStock"})
-        for item in data.get("Data", []):
-            if item.get("Symbol", "").split(":")[0].upper() == symbol.upper():
-                return int(item["Identifier"])
-        raise LookupError(f"no CFD instrument for {symbol}")
+    def find_uic(self, symbol: str, asset_type: str = "Stock") -> int:
+        """asset_type: "Stock" (cash equity) or "CfdOnIndex"/"CfdOnEtf"
+        (hedge). QQQ/SMH trade as ETFs, so the CFD lookup tries CfdOnEtf
+        as a fallback for CfdOnIndex."""
+        tries = [asset_type]
+        if asset_type == "CfdOnIndex":
+            tries.append("CfdOnEtf")
+        for at in tries:
+            data = self.get("/ref/v1/instruments",
+                            {"Keywords": symbol, "AssetTypes": at})
+            for item in data.get("Data", []):
+                if item.get("Symbol", "").split(":")[0].upper() == symbol.upper():
+                    return int(item["Identifier"])
+        raise LookupError(f"no {asset_type} instrument for {symbol}")
 
     def place_market_order(self, symbol: str, side: int, qty: float,
+                           asset_type: str = "Stock",
                            stop_price: float | None = None) -> dict:
-        """side: +1 buy, -1 sell. Optionally attaches a stop-loss order."""
-        uic = self.find_cfd_uic(symbol)
+        """side: +1 buy, -1 sell. asset_type "Stock" for cash longs,
+        "CfdOnIndex" for the hedge. Optionally attaches a stop-loss order."""
+        uic = self.find_uic(symbol, asset_type)
         order: dict = {
             "AccountKey": self.account_key(),
             "Uic": uic,
-            "AssetType": "CfdOnStock",
+            "AssetType": asset_type,
             "BuySell": "Buy" if side > 0 else "Sell",
             "Amount": qty,
             "OrderType": "Market",
@@ -157,7 +172,7 @@ class SaxoClient:
         if stop_price is not None:
             order["Orders"] = [{
                 "AccountKey": order["AccountKey"], "Uic": uic,
-                "AssetType": "CfdOnStock",
+                "AssetType": asset_type,
                 "BuySell": "Sell" if side > 0 else "Buy",
                 "Amount": qty, "OrderType": "Stop",
                 "OrderPrice": stop_price,

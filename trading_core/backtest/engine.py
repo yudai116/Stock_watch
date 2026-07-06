@@ -1,18 +1,23 @@
-"""Event-driven backtest engine (SPEC §7).
+"""Event-driven backtest engine (SPEC §7, SPEC_ADDENDUM_v2 R2).
 
 Timing contract (the no-lookahead core):
   * strategy decides at bar CLOSE t, seeing bars with close <= t only
-  * resulting orders fill at the NEXT bar's OPEN, at cost-adjusted prices
-  * CFD financing accrues per calendar day boundary crossed while holding
+  * market orders fill at the NEXT bar's OPEN, at cost-adjusted prices
+  * resting STOP orders (meta order_type="stop") are monitored intrabar:
+    a long-exit stop triggers when the bar's low touches the stop level and
+    fills at the stop, or at the open if the bar gapped through it (R2b:
+    intraday stop monitoring)
+  * financing accrues per calendar day boundary crossed while holding
+    (instrument-aware: cash longs accrue nothing)
 
-The engine is timeframe-agnostic: it walks whatever bars it is given
-(hourly for production, daily for acceptance tests).
+The engine is timeframe-agnostic: production signals run on DAILY bars (R2);
+the same engine serves the hand-verified acceptance tests.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Callable, Protocol
+from dataclasses import dataclass
+from typing import Protocol
 
 import numpy as np
 import pandas as pd
@@ -46,10 +51,12 @@ class MarketSnapshot:
     def position(self, symbol: str):
         return self.broker.positions.get(symbol)
 
+    def marks(self) -> dict[str, float]:
+        return {s: float(self._panel[s]["close"].iloc[i - 1])
+                for s, i in self._upto.items() if i > 0}
+
     def equity(self) -> float:
-        marks = {s: self._panel[s]["close"].iloc[i - 1]
-                 for s, i in self._upto.items() if i > 0}
-        return self.broker.equity(marks)
+        return self.broker.equity(self.marks())
 
 
 class Strategy(Protocol):
@@ -75,7 +82,7 @@ def run_backtest(
     strategy: Strategy,
     initial_cash: float,
     cost_model: CostModel | None = None,
-    bar_duration: pd.Timedelta = pd.Timedelta(hours=1),
+    bar_duration: pd.Timedelta = pd.Timedelta(days=1),
     close_at_end: bool = False,
 ) -> BacktestResult:
     """``prices``: symbol -> bars with columns ts/open/high/low/close/volume,
@@ -97,8 +104,9 @@ def run_backtest(
         raise ValueError("no bars")
 
     pending: list[Order] = []
+    stop_book: dict[str, Order] = {}   # symbol -> resting stop (close) order
     equity_pts: list[tuple[pd.Timestamp, float]] = []
-    upto: dict[str, int] = {s: 0 for s in panel}   # bars visible (closed) per symbol
+    upto: dict[str, int] = {s: 0 for s in panel}       # bars visible per symbol
     pos_in_ts: dict[str, int] = {s: 0 for s in panel}  # cursor into open_ts
     prev_date = None
 
@@ -111,7 +119,7 @@ def run_backtest(
             broker.accrue_financing(days, marks)
         prev_date = cur_date
 
-        # ---- fill pending orders at this bar's open
+        # ---- fill pending market orders at this bar's open
         if pending:
             still: list[Order] = []
             for od in pending:
@@ -124,6 +132,29 @@ def run_backtest(
                     still.append(od)  # symbol has no bar now (halt); retry next bar
             pending = still
 
+        # ---- intrabar stop monitoring (R2b)
+        for sym in list(stop_book):
+            pos = broker.positions.get(sym)
+            if pos is None:
+                del stop_book[sym]          # position gone: stale stop
+                continue
+            ix = pos_in_ts[sym]
+            if ix >= len(open_ts[sym]) or open_ts[sym][ix] != t_open:
+                continue                    # no bar for this symbol now
+            od = stop_book[sym]
+            stop_px = float(od.meta["stop_price"])
+            row = panel[sym].iloc[ix]
+            if pos.side > 0:                # long exit: sell stop below
+                triggered = float(row["low"]) <= stop_px
+                base = min(float(row["open"]), stop_px)
+            else:                           # short exit: buy stop above
+                triggered = float(row["high"]) >= stop_px
+                base = max(float(row["open"]), stop_px)
+            if triggered:
+                fill = costs.fill_price(base, od.side, pos.instrument)
+                broker.execute(od, base, t_open, fill_price=fill)
+                del stop_book[sym]
+
         # ---- advance visibility: this bar closes at t_open + duration
         t_close = t_open + bar_duration
         for sym in panel:
@@ -134,9 +165,11 @@ def run_backtest(
 
         # ---- decision at bar close
         snap = MarketSnapshot(panel, dict(upto), t_close, broker)
-        new_orders = strategy.on_bar_close(snap)
-        if new_orders:
-            pending.extend(new_orders)
+        for od in strategy.on_bar_close(snap) or []:
+            if od.meta.get("order_type") == "stop":
+                stop_book[od.symbol] = od   # cancel/replace semantics
+            else:
+                pending.append(od)
 
         marks = {s: float(panel[s]["close"].iloc[upto[s] - 1]) for s in panel if upto[s] > 0}
         equity_pts.append((t_close, broker.equity(marks)))
@@ -148,7 +181,7 @@ def run_backtest(
         marks = {s: float(panel[s]["close"].iloc[upto[s] - 1]) for s in panel if upto[s] > 0}
         for sym, pos in list(broker.positions.items()):
             broker.execute(Order(sym, -pos.side, pos.qty, reason="end_of_data",
-                                 meta={"close": True}),
+                                 instrument=pos.instrument, meta={"close": True}),
                            marks.get(sym, pos.entry_price), last_ts)
         equity_pts[-1] = (last_ts, broker.equity(marks))
 
@@ -189,3 +222,11 @@ def performance_metrics(result: BacktestResult, bars_per_year: float) -> dict:
     return {"sharpe": sharpe, "sortino": sortino, "cagr": cagr, "max_dd": max_dd,
             "calmar": calmar, "win_rate": win_rate, "payoff": payoff,
             "n_trades": len(result.trades)}
+
+
+def equity_metrics(curve: pd.Series, bars_per_year: float) -> dict:
+    """Metrics for a raw equity curve (e.g. QQQ buy&hold benchmark)."""
+    fake = BacktestResult(equity_curve=curve, trades=[], total_commission=0.0,
+                          total_financing=0.0, final_equity=float(curve.iloc[-1]),
+                          initial_equity=float(curve.iloc[0]))
+    return performance_metrics(fake, bars_per_year)

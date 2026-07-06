@@ -48,6 +48,33 @@ def breadth(closes: dict[str, pd.Series], ma_days: int = 50) -> pd.Series:
     return above.sum(axis=1) / valid.sum(axis=1).replace(0, np.nan)
 
 
+def build_signal_frame(bars: pd.DataFrame, params: dict) -> pd.DataFrame:
+    """All DAILY signal features for one symbol, row-aligned with ``bars``
+    (SPEC_ADDENDUM_v2 R2: signals/features/regime are daily).
+
+    ``params`` carries the grid individual's values (donchian_entry_period)
+    plus fixed constants (atr_period, mr_rsi_period).
+    """
+    from features.hourly_features import (atr, donchian, ma_slope,
+                                          price_zscore, roc, rsi,
+                                          volume_zscore)
+
+    cfg = load_config("params")["features"]
+    out = pd.DataFrame(index=bars.index)
+    out["ts"] = bars["ts"]
+    out["close"] = bars["close"]
+    out["atr"] = atr(bars, int(params["atr_period"]))
+    dc = donchian(bars, int(params["donchian_entry_period"]))
+    out["donchian_high"] = dc["donchian_high"]
+    out["donchian_width"] = dc["donchian_width"]
+    out["rsi"] = rsi(bars["close"], int(params.get("mr_rsi_period", 14)))
+    out["roc"] = roc(bars["close"], 20)
+    out["volume_z"] = volume_zscore(bars["volume"], cfg["zscore_window"])
+    out["ma_slope"] = ma_slope(bars["close"], cfg["ma_slope_period"])
+    out["price_z"] = price_zscore(bars["close"], cfg["zscore_window"])
+    return out
+
+
 def build_daily_frame(close: pd.Series, bench_tech: pd.Series, bench_semi: pd.Series) -> pd.DataFrame:
     """Per-symbol daily feature frame."""
     cfg = load_config("params")["features"]

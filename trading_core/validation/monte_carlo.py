@@ -38,7 +38,7 @@ def block_bootstrap(returns: pd.Series, n_sims: int = 2000,
 
 
 def summarize(sims: pd.DataFrame, bars_per_year: float) -> dict:
-    hard_dd = float(load_config("params")["targets"]["max_dd_hard_pct"]) / 100.0
+    hard_dd = float(load_config("params")["targets"]["max_dd_pct"]) / 100.0
     ann = np.sqrt(bars_per_year)
     return {
         "sharpe_p05": float(sims["sharpe_per_bar"].quantile(0.05) * ann),

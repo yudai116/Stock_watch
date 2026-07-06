@@ -1,4 +1,9 @@
-"""Hourly features (SPEC §4): ATR, Donchian, RSI/ROC, volume z, MA slope, price z.
+"""TA primitives: ATR, Donchian, RSI/ROC, volume z, MA slope, price z.
+
+v2 (SPEC_ADDENDUM_v2 R2): production signals run on DAILY bars — see
+features/daily_features.build_signal_frame. The 1h timeframe is reserved for
+(a) entry execution timing and (b) intraday stop monitoring; these functions
+are timeframe-agnostic and shared by both.
 
 No-lookahead contract: row t uses bars with ts <= t only. Donchian channels
 EXCLUDE the current bar (shift(1)) so "close > donchian_high" is a true
@@ -58,25 +63,3 @@ def price_zscore(close: pd.Series, window: int) -> pd.Series:
     return (close - mu) / sd.replace(0, np.nan)
 
 
-def build_hourly_frame(bars: pd.DataFrame, params: dict) -> pd.DataFrame:
-    """All hourly features for one symbol, indexed like ``bars``.
-
-    ``params`` carries the GA individual's values (atr_period,
-    donchian_entry_period, short_donchian_period, mr_rsi_period).
-    """
-    cfg = load_config("params")["features"]
-    out = pd.DataFrame(index=bars.index)
-    out["ts"] = bars["ts"]
-    out["close"] = bars["close"]
-    out["atr"] = atr(bars, int(params["atr_period"]))
-    dc = donchian(bars, int(params["donchian_entry_period"]))
-    out["donchian_high"] = dc["donchian_high"]
-    out["donchian_width"] = dc["donchian_width"]
-    dc_s = donchian(bars, int(params["short_donchian_period"]))
-    out["donchian_low_s"] = dc_s["donchian_low"]
-    out["rsi"] = rsi(bars["close"], int(params.get("mr_rsi_period", 14)))
-    out["roc"] = roc(bars["close"], 20)
-    out["volume_z"] = volume_zscore(bars["volume"], cfg["zscore_window"])
-    out["ma_slope"] = ma_slope(bars["close"], cfg["hourly_ma_slope_period"])
-    out["price_z"] = price_zscore(bars["close"], cfg["zscore_window"])
-    return out

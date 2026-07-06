@@ -1,7 +1,15 @@
-"""Saxo CFD cost model: commission + spread + slippage + daily financing.
+"""Execution cost model, v2 (SPEC_ADDENDUM_v2 R1).
 
-All parameters come from config/costs.yaml (no hardcoding). Sign convention:
-returned costs are POSITIVE = charge to the trader.
+Two instrument profiles routed by ``instrument``:
+
+  * ``cash``  — Saxo cash equity: commission (0.08%, min $1) + spread +
+                slippage. NO overnight financing. All stock longs.
+  * ``cfd``   — Saxo index CFD (QQQ/SMH hedge): spread + slippage +
+                financing. Long CFD pays benchmark+markup daily; short CFD
+                is conservatively booked at ZERO financing (no credit).
+
+All parameters come from config/costs.yaml. Sign convention: returned costs
+are POSITIVE = charge to the trader.
 """
 
 from __future__ import annotations
@@ -10,59 +18,88 @@ from dataclasses import dataclass
 
 from data.config_loader import load_config
 
+CASH = "cash"
+CFD = "cfd"
+
 
 @dataclass(frozen=True)
-class CostModel:
+class InstrumentCosts:
     commission_pct: float
     commission_min: float
     half_spread_pct: float
     slippage_pct: float
-    benchmark_rate: float
-    long_markup: float
-    short_markdown: float
-    borrow_default: float
-    day_count: int
-
-    @classmethod
-    def from_config(cls, slippage: str = "default") -> "CostModel":
-        c = load_config("costs")
-        return cls(
-            commission_pct=c["commission"]["pct_of_notional"],
-            commission_min=c["commission"]["min_usd"],
-            half_spread_pct=c["spread"]["half_spread_pct"],
-            slippage_pct=c["slippage"][f"{slippage}_pct"],
-            benchmark_rate=c["financing"]["benchmark_rate_annual"],
-            long_markup=c["financing"]["long_markup_annual"],
-            short_markdown=c["financing"]["short_markdown_annual"],
-            borrow_default=c["financing"]["borrow_cost_annual_default"],
-            day_count=c["financing"]["day_count"],
-        )
-
-    # ------------------------------------------------------------- execution
+    financing_enabled: bool = False
+    benchmark_rate: float = 0.0
+    long_markup: float = 0.0
+    short_rate: float = 0.0          # conservative: 0 credit for hedge shorts
+    day_count: int = 360
 
     def fill_price(self, ref_price: float, side: int) -> float:
-        """Executable price given reference (next bar open). side=+1 buy, -1 sell."""
+        """Executable price given reference (next bar open). side=+1 buy."""
         impact = self.half_spread_pct + self.slippage_pct
         return ref_price * (1.0 + side * impact)
 
     def commission(self, notional: float) -> float:
+        if self.commission_pct == 0.0 and self.commission_min == 0.0:
+            return 0.0
         return max(self.commission_min, abs(notional) * self.commission_pct)
 
-    # ------------------------------------------------------------- financing
-
-    def financing_cost(self, notional: float, position_side: int, calendar_days: int,
-                       borrow_annual: float | None = None) -> float:
-        """Overnight CFD financing for ``calendar_days`` (weekend=3 on Fri).
-
-        Long pays benchmark + markup. Short receives benchmark - markdown but
-        pays borrow; net credit is returned as a negative cost.
-        """
-        if calendar_days <= 0:
+    def financing_cost(self, notional: float, position_side: int,
+                       calendar_days: int) -> float:
+        """Overnight financing for ``calendar_days`` (weekend=3 on Fri)."""
+        if not self.financing_enabled or calendar_days <= 0:
             return 0.0
-        notional = abs(notional)
-        if position_side > 0:
-            rate = self.benchmark_rate + self.long_markup
-        else:
-            borrow = self.borrow_default if borrow_annual is None else borrow_annual
-            rate = borrow + self.short_markdown - self.benchmark_rate
-        return notional * rate * calendar_days / self.day_count
+        rate = (self.benchmark_rate + self.long_markup) if position_side > 0 \
+            else self.short_rate
+        return abs(notional) * rate * calendar_days / self.day_count
+
+
+@dataclass(frozen=True)
+class CostModel:
+    """Routes cost math to the right instrument profile."""
+
+    profiles: dict  # instrument name -> InstrumentCosts
+
+    @classmethod
+    def from_config(cls, slippage: str = "default") -> "CostModel":
+        c = load_config("costs")
+        eq = c["cash_equity"]
+        cfd = c["index_cfd"]
+        return cls(profiles={
+            CASH: InstrumentCosts(
+                commission_pct=eq["commission"]["pct_of_notional"],
+                commission_min=eq["commission"]["min_usd"],
+                half_spread_pct=eq["spread"]["half_spread_pct"],
+                slippage_pct=eq["slippage"][f"{slippage}_pct"],
+                financing_enabled=bool(eq["financing"]["enabled"]),
+            ),
+            CFD: InstrumentCosts(
+                commission_pct=cfd["commission"]["pct_of_notional"],
+                commission_min=cfd["commission"]["min_usd"],
+                half_spread_pct=cfd["spread"]["half_spread_pct"],
+                slippage_pct=cfd["slippage"][f"{slippage}_pct"],
+                financing_enabled=bool(cfd["financing"]["enabled"]),
+                benchmark_rate=cfd["financing"]["benchmark_rate_annual"],
+                long_markup=cfd["financing"]["long_markup_annual"],
+                short_rate=cfd["financing"]["short_rate_annual"],
+                day_count=cfd["financing"]["day_count"],
+            ),
+        })
+
+    def profile(self, instrument: str) -> InstrumentCosts:
+        try:
+            return self.profiles[instrument]
+        except KeyError:
+            raise ValueError(f"unknown instrument {instrument!r}; "
+                             f"known: {sorted(self.profiles)}") from None
+
+    def fill_price(self, ref_price: float, side: int, instrument: str = CASH) -> float:
+        return self.profile(instrument).fill_price(ref_price, side)
+
+    def commission(self, notional: float, instrument: str = CASH) -> float:
+        return self.profile(instrument).commission(notional)
+
+    def financing_cost(self, notional: float, position_side: int,
+                       calendar_days: int, instrument: str = CASH) -> float:
+        return self.profile(instrument).financing_cost(notional, position_side,
+                                                       calendar_days)
