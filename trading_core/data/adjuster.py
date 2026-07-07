@@ -35,6 +35,10 @@ def extract_actions(view: AsOfView, symbol: str) -> pd.DataFrame:
         elif p.get("type") == "dividend":
             rows.append({"event_ts": r["event_ts"], "type": "dividend", "ratio": 1.0,
                          "cash": float(p.get("cash", 0) or 0)})
+    if not rows:
+        # actions exist in the store, but none for THIS symbol (e.g. a stock
+        # that never split nor paid a dividend)
+        return pd.DataFrame(columns=["event_ts", "type", "ratio", "cash"])
     return pd.DataFrame(rows).sort_values("event_ts").reset_index(drop=True)
 
 

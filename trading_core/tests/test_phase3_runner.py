@@ -85,6 +85,32 @@ def test_benchmarks_never_tradable(panel):
     assert "SMH" not in inputs["rs_rank"].columns
 
 
+def test_universe_provider_gates_candidates(panel):
+    """A symbol outside the PIT universe must never be traded, even if it is
+    the strongest momentum name."""
+    from backtest.costs import CostModel
+    from backtest.engine import run_backtest
+    from validation.phase3_runner import default_params, make_strategy
+
+    bars, vix = panel
+    inputs = build_inputs(bars, vix)
+    allowed = {"BBB", "CCC", "DDD"}                 # AAA (top momentum) excluded
+    strat = make_strategy("3a", inputs, default_params("3a"),
+                          universe_provider=lambda ts: allowed)
+    res = run_backtest(bars, strat, 100_000.0, CostModel.from_config(),
+                       close_at_end=True)
+    traded = {t.symbol for t in res.trades}
+    assert "AAA" not in traded
+    assert traded <= allowed
+
+
+def test_report_flags_static_universe(panel):
+    bars, vix = panel
+    report = run_phase3(bars, vix, use_grid=False, variants=("3a",))
+    assert "SURVIVORSHIP" in report["universe_mode"]
+    assert "WARNING" in render_report(report)
+
+
 def test_holdout_one_shot_eval(panel):
     from validation.phase3_runner import default_params, evaluate_holdout
 

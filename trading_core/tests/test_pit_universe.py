@@ -65,6 +65,33 @@ def test_late_data_backfill_cannot_change_past_universe(store):
     assert set(before) <= set(after)
 
 
+def test_membership_provider_bisects_quarters(tmp_path):
+    from datetime import datetime, timezone
+
+    from data.bitemporal_store import Record
+    from data.pit_universe import membership_provider
+
+    s = BitemporalStore(tmp_path)
+    q1 = pd.Timestamp("2023-01-01", tz="UTC")
+    q2 = pd.Timestamp("2023-04-01", tz="UTC")
+    s.put_records("universe", [
+        Record("NVDA", q1, q1, {}), Record("XLNX", q1, q1, {}),
+        Record("NVDA", q2, q2, {}), Record("RKLB", q2, q2, {}),
+    ])
+    provider = membership_provider(s)
+    assert provider.n_quarters == 2
+    assert provider(pd.Timestamp("2022-12-01", tz="UTC")) == set()
+    assert provider(pd.Timestamp("2023-02-15", tz="UTC")) == {"NVDA", "XLNX"}
+    assert provider(pd.Timestamp("2023-04-01", tz="UTC")) == {"NVDA", "RKLB"}
+    assert provider(pd.Timestamp("2024-01-01", tz="UTC")) == {"NVDA", "RKLB"}
+
+
+def test_membership_provider_none_when_empty(tmp_path):
+    from data.pit_universe import membership_provider
+
+    assert membership_provider(BitemporalStore(tmp_path)) is None
+
+
 def test_quarter_starts():
     qs = quarter_starts(pd.Timestamp("2023-01-01", tz="UTC"),
                         pd.Timestamp("2024-01-01", tz="UTC"))

@@ -53,6 +53,18 @@ def test_dividend_total_return_adjustment():
     assert adj["close"].iloc[-1] == pytest.approx(100.0)
 
 
+def test_symbol_without_actions_when_store_has_others(store):
+    """PRODUCTION regression: the corporate_actions dataset is non-empty
+    (NVDA has a split) but the requested symbol has no actions at all —
+    must return an empty frame, not KeyError('event_ts')."""
+    store.put_bars("AMD", "1d", _bars())
+    view = store.view(datetime(2024, 1, 12, 21, 0, tzinfo=UTC))
+    actions = extract_actions(view, "AMD")
+    assert actions.empty
+    adj = adjusted_bars_asof(view, "AMD", "1d")
+    assert (adj["close"] == 100.0).all()          # bars pass through unadjusted
+
+
 def test_future_split_invisible_at_earlier_asof(store):
     # decision BEFORE the split ex-date: raw prices, no adjustment
     view_before = store.view(datetime(2024, 1, 5, 21, 0, tzinfo=UTC))

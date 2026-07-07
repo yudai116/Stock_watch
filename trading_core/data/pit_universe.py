@@ -117,6 +117,29 @@ def members_asof(view, as_of_quarter_lookback_days: int = 100) -> list[str]:
     return sorted(df[df["event_ts"] == latest_q]["key"].unique().tolist())
 
 
+def membership_provider(store: BitemporalStore):
+    """Return ``provider(ts) -> set[str]`` for backtests: the universe as it
+    was known AT ts (latest quarterly rebalance with event_ts <= ts).
+
+    Membership records carry available_ts = quarter start, so bisecting on
+    event_ts is PIT-correct. Returns None when no universe has been built.
+    """
+    df = store.get_records_asof("universe", datetime.now(UTC))
+    if df.empty:
+        return None
+    by_q = df.groupby("event_ts")["key"].apply(set).sort_index()
+    quarters = by_q.index
+    sets = list(by_q.values)
+
+    def provider(ts) -> set:
+        i = quarters.searchsorted(pd.Timestamp(ts), side="right") - 1
+        return sets[i] if i >= 0 else set()
+
+    provider.n_quarters = len(quarters)          # introspection for reports
+    provider.first_quarter = quarters[0]
+    return provider
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--start", default="2016-01-01")

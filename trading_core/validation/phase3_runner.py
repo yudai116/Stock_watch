@@ -103,13 +103,16 @@ def _run_once(daily_bars: dict[str, pd.DataFrame], strategy) -> pd.Series:
     return result.equity_curve
 
 
-def make_strategy(variant: str, inputs: dict, params: dict):
+def make_strategy(variant: str, inputs: dict, params: dict,
+                  universe_provider=None):
     if variant == "3a":
         return RotationStrategy(regime=inputs["regime"], params=params,
-                                benchmark_symbols=BENCHMARKS)
+                                benchmark_symbols=BENCHMARKS,
+                                universe_provider=universe_provider)
     return SwingStrategy(features=inputs["features"], regime=inputs["regime"],
                          rs_rank=inputs["rs_rank"], params=params,
-                         betas=inputs["betas"])
+                         betas=inputs["betas"],
+                         universe_provider=universe_provider)
 
 
 def default_params(variant: str) -> dict:
@@ -123,7 +126,8 @@ def default_params(variant: str) -> dict:
 
 def evaluate_variant(variant: str, daily_bars: dict[str, pd.DataFrame],
                      vix: pd.Series | None, use_grid: bool,
-                     logger: TrialLogger, run_id: str) -> dict:
+                     logger: TrialLogger, run_id: str,
+                     universe_provider=None) -> dict:
     base_params = default_params(variant)
     inputs = build_inputs(daily_bars, vix,
                           features_params=base_params if variant == "3b" else None)
@@ -147,7 +151,8 @@ def evaluate_variant(variant: str, daily_bars: dict[str, pd.DataFrame],
                 pp = merged_params(p) if variant == "3b" else p
                 inp = (build_inputs(daily_bars, vix, features_params=pp)
                        if variant == "3b" else inputs)
-                curve = _run_once(daily_bars, make_strategy(variant, inp, pp))
+                curve = _run_once(daily_bars,
+                                  make_strategy(variant, inp, pp, universe_provider))
                 m = slice_curve_metrics(curve, f.train_start, f.train_end)
                 return m or {"calmar": -9.0, "max_dd": -1.0, "sharpe": -9.0}
 
@@ -162,7 +167,8 @@ def evaluate_variant(variant: str, daily_bars: dict[str, pd.DataFrame],
 
         inp = (inputs if variant == "3a" or params == base_params
                else build_inputs(daily_bars, vix, features_params=params))
-        curve = _run_once(daily_bars, make_strategy(variant, inp, params))
+        curve = _run_once(daily_bars,
+                          make_strategy(variant, inp, params, universe_provider))
         m_oos = slice_curve_metrics(curve, f.test_start, f.test_end)
         m_is = slice_curve_metrics(curve, f.train_start, f.train_end)
         if m_oos:
@@ -224,13 +230,19 @@ def evaluate_holdout(variant: str, daily_bars: dict[str, pd.DataFrame],
 def run_phase3(daily_bars: dict[str, pd.DataFrame],
                vix: pd.Series | None = None,
                use_grid: bool = False,
-               variants: tuple = ("3a", "3b")) -> dict:
+               variants: tuple = ("3a", "3b"),
+               universe_provider=None) -> dict:
     logger = TrialLogger()
     run_id = f"phase3-{datetime.now(UTC):%Y%m%d-%H%M%S}"
-    report = {"run_id": run_id, "use_grid": use_grid, "variants": {}}
+    universe_mode = (f"PIT quarterly ({universe_provider.n_quarters} quarters)"
+                     if universe_provider is not None
+                     else "STATIC all-stored symbols (SURVIVORSHIP-BIASED)")
+    report = {"run_id": run_id, "use_grid": use_grid,
+              "universe_mode": universe_mode, "variants": {}}
     for v in variants:
         report["variants"][v] = evaluate_variant(
-            v, daily_bars, vix, use_grid, logger, run_id)
+            v, daily_bars, vix, use_grid, logger, run_id,
+            universe_provider=universe_provider)
     return report
 
 
@@ -239,7 +251,12 @@ def run_phase3(daily_bars: dict[str, pd.DataFrame],
 def render_report(report: dict) -> str:
     t = load_config("params")["targets"]
     lines = [f"# Phase 3 Report — {report['run_id']}",
-             f"grid: {report['use_grid']}", ""]
+             f"grid: {report['use_grid']}",
+             f"universe: {report.get('universe_mode', 'unknown')}", ""]
+    if "SURVIVORSHIP" in report.get("universe_mode", ""):
+        lines += ["> **WARNING**: static universe of currently-listed names — "
+                  "results are UPWARD-BIASED. Build the PIT universe "
+                  "(--rebuild-universe) before trusting these numbers.", ""]
     for v, r in report["variants"].items():
         oos, gate, dsr = r["oos"], r["gate"], r["dsr"]
         lines += [
@@ -269,12 +286,19 @@ def main() -> None:
     from data.bitemporal_store import BitemporalStore
     from data.config_loader import data_root
     from data.adjuster import adjusted_bars_asof
+    from data.pit_universe import membership_provider, rebuild_all
     from data.vix_ingest import vix_series_asof
 
     p = argparse.ArgumentParser()
     p.add_argument("--grid", action="store_true",
                    help="per-fold grid + plateau selection (slow)")
     p.add_argument("--variants", default="3a,3b")
+    p.add_argument("--rebuild-universe", action="store_true",
+                   help="(re)build quarterly PIT universe records from stored "
+                        "daily bars before measuring")
+    p.add_argument("--static-universe", action="store_true",
+                   help="explicitly accept a survivorship-biased static "
+                        "universe (results flagged in the report)")
     args = p.parse_args()
 
     store = BitemporalStore(data_root())
@@ -287,9 +311,21 @@ def main() -> None:
             bars[sym] = b
     if "QQQ" not in bars:
         raise SystemExit("QQQ daily bars are required (ingest them first)")
+
+    if args.rebuild_universe:
+        first = min(b["ts"].min() for b in bars.values())
+        rebuild_all(store, first, as_of)
+    provider = membership_provider(store)
+    if provider is None and not args.static_universe:
+        raise SystemExit(
+            "No PIT universe in the store. Run with --rebuild-universe "
+            "(recommended; ingest delisted names first for full coverage), "
+            "or pass --static-universe to knowingly accept survivorship bias.")
+
     vix = vix_series_asof(view)
     report = run_phase3(bars, vix if len(vix) else None, use_grid=args.grid,
-                        variants=tuple(args.variants.split(",")))
+                        variants=tuple(args.variants.split(",")),
+                        universe_provider=provider)
     text = render_report(report)
     out = REPO_ROOT / "reports"
     out.mkdir(exist_ok=True)
