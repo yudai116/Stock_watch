@@ -59,8 +59,19 @@ def test_run_grid_logs_every_trial(tmp_path):
 
 
 def test_real_config_grids_respect_limit():
-    for name in ("rotation", "composite"):
+    for name in ("rotation", "composite", "composite_b1"):
         grid = gr.grid_for(name)
         assert 1 <= len(grid) <= gr.MAX_PARAMS
         for levels in grid.values():
-            assert 2 <= len(levels) <= 5      # coarse grid: 3-5 levels (2 for binary)
+            assert 1 <= len(levels) <= 5      # 1 = pinned (ladder B1), 3-5 searched
+
+
+def test_b1_ladder_grid_is_tractable():
+    """Flow-F rung B1: time stop & partial TP pinned -> 81 combos, 4 free dims."""
+    grid = gr.grid_for("composite_b1")
+    combos = gr.enumerate_grid(grid)
+    assert len(combos) == 81
+    assert grid["time_stop_days"] == [15]
+    assert grid["partial_take_profit"] == ["none"]
+    free = [k for k, v in grid.items() if len(v) > 1]
+    assert len(free) == 4

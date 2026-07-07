@@ -151,7 +151,8 @@ def evaluate_variant(variant: str, daily_bars: dict[str, pd.DataFrame],
                      vix: pd.Series | None, use_grid: bool,
                      logger: TrialLogger, run_id: str,
                      universe_provider=None,
-                     regime_series: pd.Series | None = None) -> dict:
+                     regime_series: pd.Series | None = None,
+                     composite_grid: str = "composite") -> dict:
     base_params = default_params(variant)
     inputs = build_inputs(daily_bars, vix,
                           features_params=base_params if variant == "3b" else None,
@@ -170,7 +171,7 @@ def evaluate_variant(variant: str, daily_bars: dict[str, pd.DataFrame],
 
     for f in folds:
         if use_grid:
-            grid_name = "rotation" if variant == "3a" else "composite"
+            grid_name = "rotation" if variant == "3a" else composite_grid
 
             def eval_train(p):
                 pp = merged_params(p) if variant == "3b" else p
@@ -259,7 +260,8 @@ def run_phase3(daily_bars: dict[str, pd.DataFrame],
                use_grid: bool = False,
                variants: tuple = ("3a", "3b"),
                universe_provider=None,
-               regime: str = "simple") -> dict:
+               regime: str = "simple",
+               composite_grid: str = "composite") -> dict:
     logger = TrialLogger()
     run_id = f"phase3-{datetime.now(UTC):%Y%m%d-%H%M%S}"
     universe_mode = (f"PIT quarterly ({universe_provider.n_quarters} quarters)"
@@ -271,11 +273,13 @@ def run_phase3(daily_bars: dict[str, pd.DataFrame],
         regime_series = hmm_regime_series(daily_bars, vix)
     report = {"run_id": run_id, "use_grid": use_grid,
               "universe_mode": universe_mode, "regime_mode": regime,
+              "composite_grid": composite_grid,
               "variants": {}}
     for v in variants:
         report["variants"][v] = evaluate_variant(
             v, daily_bars, vix, use_grid, logger, run_id,
-            universe_provider=universe_provider, regime_series=regime_series)
+            universe_provider=universe_provider, regime_series=regime_series,
+            composite_grid=composite_grid)
     return report
 
 
@@ -351,6 +355,10 @@ def main() -> None:
     p.add_argument("--regime", choices=["simple", "hmm"], default="simple",
                    help="R4: run with the simple filter (default) or the "
                         "walk-forward HMM to compare head-to-head")
+    p.add_argument("--composite-grid", choices=["composite", "composite_b1"],
+                   default="composite_b1",
+                   help="grid for 3b: composite_b1 (flow-F ladder B1, 81 combos,"
+                        " default) or the full composite grid (486 combos, slow)")
     args = p.parse_args()
 
     store = BitemporalStore(data_root())
@@ -377,7 +385,8 @@ def main() -> None:
     vix = vix_series_asof(view)
     report = run_phase3(bars, vix if len(vix) else None, use_grid=args.grid,
                         variants=tuple(args.variants.split(",")),
-                        universe_provider=provider, regime=args.regime)
+                        universe_provider=provider, regime=args.regime,
+                        composite_grid=args.composite_grid)
     text = render_report(report)
     out = REPO_ROOT / "reports"
     out.mkdir(exist_ok=True)
