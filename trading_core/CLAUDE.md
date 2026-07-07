@@ -38,7 +38,11 @@
 ## フェーズ運用
 - SPEC.md §9 ＋ addendum §H の受入基準を満たすまで次 Phase に進まない。
 - 現状: Phase 1〜2 実装済み、Phase 3a/3b の測定基盤実装済み（データ投入待ち）。
-  - Phase 1 の (b)(c) 監査: `python -m data.coverage_audit` / `python -m data.news_audit`（要Alpacaキー）
+  - バー取得: **Polygon（有料・主データ源）= 10年フル履歴＋廃止銘柄**
+    `python -m data.polygon_ingest --symbols ... --years 10 [--timeframes 1d]`。
+    Alpaca（無料IEX）は履歴約6年・廃止銘柄なしのため代替/検証用。News は Alpaca。
+  - Phase 1 の (b) 監査: `python -m data.coverage_audit --source polygon`（廃止銘柄はPolygonで充足）
+  - Phase 1 の (c) 監査: `python -m data.news_audit`（Alpaca News、要Alpacaキー）
   - VIX取込: `python -m data.vix_ingest`（FRED VIXCLS、キー不要）
   - Phase 3 測定: `python -m validation.phase3_runner`（`--grid` で fold毎グリッド＋台地選択）
 
