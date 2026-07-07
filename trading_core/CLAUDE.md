@@ -1,5 +1,8 @@
 # trading_core — Claude Code 作業規約
 
+> **セッション引き継ぎ時は必ず先に `HANDOFF.md` を読むこと**（現在地・次の手順・
+> 踏んだバグの教訓が全て記載されている）。
+
 ## 最重要
 - **正典の優先順位: `SPEC_ADDENDUM_v2.md` > `SPEC.md`**。矛盾する場合は v2 addendum を優先する。
   v2 は SPEC.md の改訂差分（R1執行=現物ロング＋指数CFDヘッジ / R2日足シグナル /
