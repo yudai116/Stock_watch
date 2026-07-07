@@ -74,7 +74,13 @@ def fetch_bars(
         df["symbol"] = symbols[0] if len(symbols) == 1 else df.get("symbol")
     for sym, g in df.groupby("symbol"):
         g = g.rename(columns={"timestamp": "ts"})
-        out[str(sym)] = g[["ts", "open", "high", "low", "close", "volume"]].reset_index(drop=True)
+        g = g[["ts", "open", "high", "low", "close", "volume"]].reset_index(drop=True)
+        if timeframe == "1d":
+            # normalize daily stamps to UTC midnight so bars from different
+            # sources (Alpaca stamps 04:00/05:00 UTC, Polygon normalized)
+            # dedupe on ts instead of silently double-counting days
+            g["ts"] = g["ts"].dt.normalize()
+        out[str(sym)] = g
     return out
 
 
