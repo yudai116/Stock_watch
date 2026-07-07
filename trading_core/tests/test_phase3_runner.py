@@ -61,3 +61,35 @@ def test_build_inputs_requires_benchmark(panel):
     bars, vix = panel
     with pytest.raises(ValueError, match="benchmark"):
         build_inputs({k: v for k, v in bars.items() if k != "QQQ"}, vix)
+
+
+def test_holdout_reserved_from_folds(panel):
+    """SPEC §8.3-5: no WFA fold may touch the holdout window."""
+    bars, vix = panel
+    report = run_phase3(bars, vix, use_grid=False, variants=("3a",))
+    r = report["variants"]["3a"]
+    holdout_start = pd.Timestamp(r["holdout_start"])
+    for _start, end in r["folds"]:
+        assert pd.Timestamp(end, tz="UTC") <= holdout_start
+
+
+def test_benchmarks_never_tradable(panel):
+    """QQQ/SMH are regime/hedge instruments, not stock candidates."""
+    bars, vix = panel
+    bars = dict(bars)
+    bars["SMH"] = _bars(0.0010, 7, start=200.0)
+    inputs = build_inputs(bars, vix, features_params={
+        "atr_period": 14, "donchian_entry_period": 20, "mr_rsi_period": 5})
+    assert "QQQ" not in inputs["features"] and "SMH" not in inputs["features"]
+    assert "QQQ" not in inputs["rs_rank"].columns
+    assert "SMH" not in inputs["rs_rank"].columns
+
+
+def test_holdout_one_shot_eval(panel):
+    from validation.phase3_runner import default_params, evaluate_holdout
+
+    bars, vix = panel
+    out = evaluate_holdout("3a", bars, vix, default_params("3a"))
+    assert "passed" in out["gate"]
+    assert out["metrics"].get("sharpe") is not None
+    assert out["qqq"].get("sharpe") is not None

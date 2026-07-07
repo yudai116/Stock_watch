@@ -127,3 +127,19 @@ def test_simple_regime_vol_proxy_fallback():
     labels = simple_regime(close, vix=None)      # realized-vol proxy path
     assert set(labels.unique()) <= {"bull", "bear", "range"}
     assert len(labels) > 0
+
+
+def test_simple_regime_handles_mismatched_vix_stamps():
+    """PRODUCTION regression: store VIX is stamped at 21:00 UTC while the QQQ
+    close index sits at next-day midnight. A naive reindex().ffill() yields
+    all-NaN vol -> 'bull' never fires -> silent zero-trade backtests."""
+    close, vix = _qqq_and_vix()
+    # move VIX onto its production stamps: previous day 21:00 UTC
+    vix_shifted = pd.Series(vix.values, index=vix.index - pd.Timedelta(hours=3))
+    labels = simple_regime(close, vix_shifted)
+    labels_exact = simple_regime(close, vix)
+    assert (labels == "bull").sum() > 0                  # bulls exist
+    # asof alignment must give (nearly) the same answer as exact stamps
+    common = labels.index.intersection(labels_exact.index)
+    agree = (labels.loc[common] == labels_exact.loc[common]).mean()
+    assert agree > 0.95

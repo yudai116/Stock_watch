@@ -95,8 +95,10 @@ def build_market_features(market_close: pd.Series, vix: pd.Series,
     X = pd.DataFrame({
         "market_return": ret,
         "realized_vol": rv,
-        "vix": vix.reindex(ret.index).ffill(),
-        "breadth": breadth_series.reindex(ret.index).ffill(),
+        # as-of alignment (see simple_regime): last available value at each
+        # market day, robust to differing intraday stamps across sources
+        "vix": vix.sort_index().reindex(ret.index, method="ffill"),
+        "breadth": breadth_series.sort_index().reindex(ret.index, method="ffill"),
     })
     if sentiment_z is not None:
         X["news_sentiment_z"] = sentiment_z.reindex(ret.index)

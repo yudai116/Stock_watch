@@ -33,8 +33,12 @@ def simple_regime(qqq_close: pd.Series, vix: pd.Series | None = None) -> pd.Seri
     threshold = float(cfg["vix_threshold"])
 
     ma = qqq_close.rolling(ma_days).mean()
-    vol = (vix.reindex(qqq_close.index).ffill() if vix is not None
-           else realized_vol_proxy(qqq_close))
+    # time-based as-of alignment: the VIX series is stamped at ITS OWN close
+    # times (e.g. 21:00 UTC), the QQQ close index at next-day midnight —
+    # method="ffill" takes the latest already-available VIX value (PIT-safe).
+    # A plain reindex().ffill() would yield all-NaN on non-matching stamps.
+    vol = (vix.sort_index().reindex(qqq_close.index, method="ffill")
+           if vix is not None else realized_vol_proxy(qqq_close))
 
     labels = pd.Series(index=qqq_close.index, dtype=object)
     above = qqq_close > ma

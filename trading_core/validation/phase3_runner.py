@@ -39,6 +39,9 @@ from validation.walk_forward import aggregate_oos, make_folds, wf_efficiency
 
 UTC = timezone.utc
 BARS_PER_YEAR = 252
+# benchmark/hedge instruments: used for regime, RS ranking and hedging,
+# NEVER tradable as stock candidates
+BENCHMARKS = ("QQQ", "SMH")
 
 
 # ------------------------------------------------------------ input prep
@@ -65,18 +68,19 @@ def build_inputs(daily_bars: dict[str, pd.DataFrame],
 
     regime = simple_regime(bench_close, vix)
 
+    tradable = [s for s in closes if s != benchmark and s not in BENCHMARKS]
+
     cfg = load_config("params")["features"]
     rs_days = int(cfg["rs_rank_days"])
-    rs = pd.DataFrame({s: relative_strength(c, bench_close, rs_days)
-                       for s, c in closes.items() if s != benchmark})
+    rs = pd.DataFrame({s: relative_strength(closes[s], bench_close, rs_days)
+                       for s in tradable})
     rs_rank = rs.rank(axis=1, pct=True)
 
     beta_win = int(load_config("params")["hedge"]["beta_window_days"])
-    betas = {s: rolling_beta(c, bench_close, beta_win)
-             for s, c in closes.items() if s != benchmark}
+    betas = {s: rolling_beta(closes[s], bench_close, beta_win) for s in tradable}
 
-    features = ({s: build_signal_frame(b, features_params)
-                 for s, b in daily_bars.items() if s != benchmark}
+    features = ({s: build_signal_frame(daily_bars[s], features_params)
+                 for s in tradable}
                 if features_params is not None else {})
     return {"regime": regime, "rs_rank": rs_rank, "betas": betas,
             "features": features, "bench_close": bench_close,
@@ -102,7 +106,7 @@ def _run_once(daily_bars: dict[str, pd.DataFrame], strategy) -> pd.Series:
 def make_strategy(variant: str, inputs: dict, params: dict):
     if variant == "3a":
         return RotationStrategy(regime=inputs["regime"], params=params,
-                                benchmark_symbols=(inputs["benchmark"],))
+                                benchmark_symbols=BENCHMARKS)
     return SwingStrategy(features=inputs["features"], regime=inputs["regime"],
                          rs_rank=inputs["rs_rank"], params=params,
                          betas=inputs["betas"])
@@ -123,9 +127,14 @@ def evaluate_variant(variant: str, daily_bars: dict[str, pd.DataFrame],
     base_params = default_params(variant)
     inputs = build_inputs(daily_bars, vix,
                           features_params=base_params if variant == "3b" else None)
-    all_closes = sorted(set().union(
-        *[set(day_close_index(b)) for b in daily_bars.values()]))
-    folds = make_folds(pd.DatetimeIndex(all_closes))
+    all_closes = pd.DatetimeIndex(sorted(set().union(
+        *[set(day_close_index(b)) for b in daily_bars.values()])))
+    # SPEC §8.3-5: the most recent holdout_years are UNTOUCHED by every WFA
+    # fold / grid selection; they are evaluated exactly once, after all
+    # ablations, via evaluate_holdout().
+    holdout_years = float(load_config("params")["validation"]["holdout_years"])
+    holdout_start = all_closes.max() - pd.Timedelta(days=int(holdout_years * 365.25))
+    folds = make_folds(all_closes[all_closes < holdout_start])
 
     fold_oos, fold_is, qqq_oos_folds, oos_returns = [], [], [], []
     chosen_params_per_fold = []
@@ -186,7 +195,30 @@ def evaluate_variant(variant: str, daily_bars: dict[str, pd.DataFrame],
                                        oos.get("sharpe", 0.0)),
         "overfit_alert": overfit_alert(is_agg.get("sharpe", 0.0)),
         "branch": classify_branch(oos.get("sharpe", 0.0), gate["passed"]),
+        "holdout_start": holdout_start,
+        "folds": [(str(f.test_start.date()), str(f.test_end.date())) for f in folds],
     }
+
+
+def evaluate_holdout(variant: str, daily_bars: dict[str, pd.DataFrame],
+                     vix: pd.Series | None, params: dict) -> dict:
+    """FINAL one-shot holdout evaluation (SPEC §8.3-5). Run ONCE, after all
+    ablations are settled — never used for any selection decision."""
+    p = merged_params(params) if variant == "3b" else params
+    inputs = build_inputs(daily_bars, vix,
+                          features_params=p if variant == "3b" else None)
+    all_closes = pd.DatetimeIndex(sorted(set().union(
+        *[set(day_close_index(b)) for b in daily_bars.values()])))
+    holdout_years = float(load_config("params")["validation"]["holdout_years"])
+    holdout_start = all_closes.max() - pd.Timedelta(days=int(holdout_years * 365.25))
+    curve = _run_once(daily_bars, make_strategy(variant, inputs, p))
+    m = slice_curve_metrics(curve, holdout_start, all_closes.max() + pd.Timedelta(days=1))
+    bench = inputs["bench_close"]
+    b_seg = bench[bench.index >= holdout_start]
+    qqq_m = equity_metrics(b_seg, BARS_PER_YEAR) if len(b_seg) >= 5 else {}
+    return {"variant": variant, "holdout_start": holdout_start,
+            "metrics": m, "qqq": qqq_m,
+            "gate": qqq_gate(m, qqq_m) if m and qqq_m else {"passed": False}}
 
 
 def run_phase3(daily_bars: dict[str, pd.DataFrame],
@@ -212,6 +244,9 @@ def render_report(report: dict) -> str:
         oos, gate, dsr = r["oos"], r["gate"], r["dsr"]
         lines += [
             f"## Variant {v}",
+            f"holdout reserved from: {str(r['holdout_start'].date())} "
+            f"(untouched; final one-shot eval only)",
+            f"OOS folds: {r['folds']}",
             f"| metric | OOS | pass line |",
             f"|---|---|---|",
             f"| Sharpe | {oos.get('sharpe', 0):.2f} | >= {t['sharpe_min']} |",
