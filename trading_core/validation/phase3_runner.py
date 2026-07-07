@@ -58,15 +58,19 @@ def close_series(bars: pd.DataFrame) -> pd.Series:
 def build_inputs(daily_bars: dict[str, pd.DataFrame],
                  vix: pd.Series | None = None,
                  benchmark: str = "QQQ",
-                 features_params: dict | None = None) -> dict:
+                 features_params: dict | None = None,
+                 regime_series: pd.Series | None = None) -> dict:
     """Common point-in-time inputs. ``features_params`` (composite only)
-    triggers building the per-symbol daily signal frames."""
+    triggers building the per-symbol daily signal frames.
+    ``regime_series`` overrides the default simple filter (R4: used to run
+    the HMM head-to-head against the simple regime under identical settings)."""
     if benchmark not in daily_bars:
         raise ValueError(f"benchmark {benchmark} bars required (hedge + gate)")
     closes = {s: close_series(b) for s, b in daily_bars.items()}
     bench_close = closes[benchmark]
 
-    regime = simple_regime(bench_close, vix)
+    regime = (regime_series if regime_series is not None
+              else simple_regime(bench_close, vix))
 
     tradable = [s for s in closes if s != benchmark and s not in BENCHMARKS]
 
@@ -124,13 +128,34 @@ def default_params(variant: str) -> dict:
 
 # ------------------------------------------------------------- evaluation
 
+def hmm_regime_series(daily_bars: dict[str, pd.DataFrame],
+                      vix: pd.Series | None, benchmark: str = "QQQ") -> pd.Series:
+    """R4: walk-forward HMM regimes from market-level inputs only (no news).
+    Heavy (monthly refits over the sample); computed once per run."""
+    from features.daily_features import breadth as breadth_fn
+    from features.regime_hmm import build_market_features, walk_forward_regimes
+    from features.simple_regime import realized_vol_proxy
+
+    closes = {s: close_series(b) for s, b in daily_bars.items()}
+    bench_close = closes[benchmark]
+    tradable = {s: c for s, c in closes.items()
+                if s != benchmark and s not in BENCHMARKS}
+    br = breadth_fn(tradable, 50)
+    vol = (vix.sort_index().reindex(bench_close.index, method="ffill")
+           if vix is not None else realized_vol_proxy(bench_close))
+    X = build_market_features(bench_close, vol, br)
+    return walk_forward_regimes(X)
+
+
 def evaluate_variant(variant: str, daily_bars: dict[str, pd.DataFrame],
                      vix: pd.Series | None, use_grid: bool,
                      logger: TrialLogger, run_id: str,
-                     universe_provider=None) -> dict:
+                     universe_provider=None,
+                     regime_series: pd.Series | None = None) -> dict:
     base_params = default_params(variant)
     inputs = build_inputs(daily_bars, vix,
-                          features_params=base_params if variant == "3b" else None)
+                          features_params=base_params if variant == "3b" else None,
+                          regime_series=regime_series)
     all_closes = pd.DatetimeIndex(sorted(set().union(
         *[set(day_close_index(b)) for b in daily_bars.values()])))
     # SPEC §8.3-5: the most recent holdout_years are UNTOUCHED by every WFA
@@ -149,7 +174,8 @@ def evaluate_variant(variant: str, daily_bars: dict[str, pd.DataFrame],
 
             def eval_train(p):
                 pp = merged_params(p) if variant == "3b" else p
-                inp = (build_inputs(daily_bars, vix, features_params=pp)
+                inp = (build_inputs(daily_bars, vix, features_params=pp,
+                                    regime_series=regime_series)
                        if variant == "3b" else inputs)
                 curve = _run_once(daily_bars,
                                   make_strategy(variant, inp, pp, universe_provider))
@@ -166,7 +192,8 @@ def evaluate_variant(variant: str, daily_bars: dict[str, pd.DataFrame],
                        params={k: v for k, v in params.items()}, metrics={})
 
         inp = (inputs if variant == "3a" or params == base_params
-               else build_inputs(daily_bars, vix, features_params=params))
+               else build_inputs(daily_bars, vix, features_params=params,
+                                 regime_series=regime_series))
         curve = _run_once(daily_bars,
                           make_strategy(variant, inp, params, universe_provider))
         m_oos = slice_curve_metrics(curve, f.test_start, f.test_end)
@@ -231,18 +258,24 @@ def run_phase3(daily_bars: dict[str, pd.DataFrame],
                vix: pd.Series | None = None,
                use_grid: bool = False,
                variants: tuple = ("3a", "3b"),
-               universe_provider=None) -> dict:
+               universe_provider=None,
+               regime: str = "simple") -> dict:
     logger = TrialLogger()
     run_id = f"phase3-{datetime.now(UTC):%Y%m%d-%H%M%S}"
     universe_mode = (f"PIT quarterly ({universe_provider.n_quarters} quarters)"
                      if universe_provider is not None
                      else "STATIC all-stored symbols (SURVIVORSHIP-BIASED)")
+    regime_series = None
+    if regime == "hmm":
+        print("fitting walk-forward HMM regimes (R4)... this takes a while")
+        regime_series = hmm_regime_series(daily_bars, vix)
     report = {"run_id": run_id, "use_grid": use_grid,
-              "universe_mode": universe_mode, "variants": {}}
+              "universe_mode": universe_mode, "regime_mode": regime,
+              "variants": {}}
     for v in variants:
         report["variants"][v] = evaluate_variant(
             v, daily_bars, vix, use_grid, logger, run_id,
-            universe_provider=universe_provider)
+            universe_provider=universe_provider, regime_series=regime_series)
     return report
 
 
@@ -252,7 +285,8 @@ def render_report(report: dict) -> str:
     t = load_config("params")["targets"]
     lines = [f"# Phase 3 Report — {report['run_id']}",
              f"grid: {report['use_grid']}",
-             f"universe: {report.get('universe_mode', 'unknown')}", ""]
+             f"universe: {report.get('universe_mode', 'unknown')}",
+             f"regime: {report.get('regime_mode', 'simple')}", ""]
     if "SURVIVORSHIP" in report.get("universe_mode", ""):
         lines += ["> **WARNING**: static universe of currently-listed names — "
                   "results are UPWARD-BIASED. Build the PIT universe "
@@ -277,9 +311,24 @@ def render_report(report: dict) -> str:
             f"(strategy Sharpe {gate['strategy_sharpe']:.2f} vs QQQ {gate['qqq_sharpe']:.2f}; "
             f"MaxDD {gate['strategy_max_dd']:.1%} vs {gate['qqq_max_dd']:.1%})",
             f"Overfit alert (IS Sharpe): {'YES' if r['overfit_alert'] else 'no'}",
+            _passline_verdict(oos, r, dsr, t),
             f"**Branch: [{r['branch']}]**", "",
         ]
     return "\n".join(lines)
+
+
+def _passline_verdict(oos: dict, r: dict, dsr: dict, t: dict) -> str:
+    """One-line R5 pass-line summary so a branch label never hides a miss
+    (e.g. branch [A] on Sharpe+gate while CAGR is still below minimum)."""
+    checks = {
+        "sharpe": oos.get("sharpe", 0) >= t["sharpe_min"],
+        "cagr": oos.get("cagr", 0) >= t["cagr_min"],
+        "max_dd": oos.get("max_dd", -1) >= -t["max_dd_pct"] / 100.0,
+        "wf_eff": r["wf_efficiency"] >= t["wf_efficiency_min"],
+        "dsr@95": dsr["dsr"] >= 0.95,
+    }
+    marks = " / ".join(f"{k} {'OK' if v else 'NG'}" for k, v in checks.items())
+    return f"pass lines (R5): {marks}"
 
 
 def main() -> None:
@@ -299,6 +348,9 @@ def main() -> None:
     p.add_argument("--static-universe", action="store_true",
                    help="explicitly accept a survivorship-biased static "
                         "universe (results flagged in the report)")
+    p.add_argument("--regime", choices=["simple", "hmm"], default="simple",
+                   help="R4: run with the simple filter (default) or the "
+                        "walk-forward HMM to compare head-to-head")
     args = p.parse_args()
 
     store = BitemporalStore(data_root())
@@ -325,11 +377,13 @@ def main() -> None:
     vix = vix_series_asof(view)
     report = run_phase3(bars, vix if len(vix) else None, use_grid=args.grid,
                         variants=tuple(args.variants.split(",")),
-                        universe_provider=provider)
+                        universe_provider=provider, regime=args.regime)
     text = render_report(report)
     out = REPO_ROOT / "reports"
     out.mkdir(exist_ok=True)
-    (out / "phase3_report.md").write_text(text, encoding="utf-8")
+    suffix = "" if args.regime == "simple" else f"_{args.regime}"
+    grid_suffix = "_grid" if args.grid else ""
+    (out / f"phase3_report{suffix}{grid_suffix}.md").write_text(text, encoding="utf-8")
     print(text)
 
 

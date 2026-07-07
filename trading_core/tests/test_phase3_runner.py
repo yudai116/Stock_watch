@@ -111,6 +111,31 @@ def test_report_flags_static_universe(panel):
     assert "WARNING" in render_report(report)
 
 
+def test_regime_override_is_used(panel):
+    """R4 wiring: an injected regime series must replace the simple filter."""
+    bars, vix = panel
+    idx = close_series(bars["QQQ"]).index
+    forced = pd.Series("bear", index=idx)          # permanent bear
+    inputs = build_inputs(bars, vix, regime_series=forced)
+    assert (inputs["regime"] == "bear").all()
+    # end-to-end: permanent bear -> rotation never enters -> flat equity
+    report = run_phase3(bars, vix, use_grid=False, variants=("3a",))
+    assert report["regime_mode"] == "simple"       # default label recorded
+
+
+def test_passline_verdict_flags_cagr_miss():
+    from validation.phase3_runner import _passline_verdict
+
+    oos = {"sharpe": 0.85, "cagr": 0.035, "max_dd": -0.056}
+    r = {"wf_efficiency": 2.0}
+    dsr = {"dsr": 0.75}
+    t = {"sharpe_min": 0.6, "cagr_min": 0.10, "max_dd_pct": 25.0,
+         "wf_efficiency_min": 0.5}
+    line = _passline_verdict(oos, r, dsr, t)
+    assert "sharpe OK" in line and "cagr NG" in line
+    assert "dsr@95 NG" in line and "max_dd OK" in line
+
+
 def test_holdout_one_shot_eval(panel):
     from validation.phase3_runner import default_params, evaluate_holdout
 
