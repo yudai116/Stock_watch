@@ -16,20 +16,29 @@ eligibility:
   min_history_days: 126                    # need >= 6 months of bars before inclusion
   market_cap_rank_within_sectors: 60       # take top-N by dollar-volume proxy before final cut
 
-# Target sector taxonomy (US tech). Keyword matching is applied to
-# exchange/industry metadata available at as_of; the seed lists below are
-# hints only, NOT a fixed universe (D5: fixed 25 tickers abolished).
+# Target sector taxonomy (US tech). The seed lists are the CANDIDATE POOL
+# (~100 names incl. delisted/acquired) from which the quarterly PIT rebalance
+# selects 25-40 by liquidity/size — NOT a fixed universe (D5). A pool 2-4x
+# the target size is required for the selection to be meaningful.
 sectors:
   semiconductors:
-    seed: [NVDA, AMD, AVGO, QCOM, MU, ARM, AMAT, LRCX, KLAC, MRVL, ASML, TSM, INTC, SMCI, MCHP, SWKS, MPWR, ENTG, ONTO, TXN]
+    seed: [NVDA, AMD, AVGO, QCOM, MU, ARM, AMAT, LRCX, KLAC, MRVL, ASML, TSM,
+           INTC, SMCI, MCHP, SWKS, MPWR, ENTG, ONTO, TXN, ADI, NXPI, QRVO,
+           TER, RMBS, CRUS, LSCC, COHR, IPGP, WOLF, SLAB, SITM, ACLS, FORM,
+           # delisted / acquired (Polygon backfill)
+           XLNX, MXIM, CY, IPHI, BRCM, ALTR, MLNX, CAVM, IDTI, MSCC]
   ai_cloud_software:
-    seed: [MSFT, GOOGL, META, AAPL, AMZN, PLTR, CRM, DDOG, CRWD, SNOW, SOUN, IONQ, NOW, PANW, ORCL]
+    seed: [MSFT, GOOGL, META, AAPL, AMZN, PLTR, CRM, DDOG, CRWD, SNOW, SOUN,
+           IONQ, NOW, PANW, ORCL, ADBE, INTU, WDAY, TEAM, MDB, NET, OKTA, ZS,
+           TWLO, PYPL, SHOP, U, DOCU, ZM, ROKU, TTD, ANET, FTNT, ESTC, GTLB,
+           # delisted / acquired
+           ATVI, VMW, TWTR, CTXS, NUAN, SPLK]
   space_defense:
-    seed: [RKLB, LUNR, KTOS, HII, BA, NOC, LMT, RTX]
+    seed: [RKLB, LUNR, KTOS, HII, BA, NOC, LMT, RTX, AVAV, RDW]
   fusion_clean_energy:
-    seed: [CEG, VST, GEV, OKLO, SMR]
+    seed: [CEG, VST, GEV, OKLO, SMR, NRG, FSLR, ENPH]
   memory_storage:
-    seed: [WDC, STX]
+    seed: [WDC, STX, DELL, HPQ, HPE, PSTG, NTAP]
   materials:
     seed: []
 
