@@ -136,3 +136,18 @@ sentiment:
 adoption:
   calmar_improvement_min: 0.15
   ablation_order: [fundamental_quality, news_gates, sentiment_hmm, trends]
+
+# ---- Phase 5: live/paper operation of the adopted [D] strategy (3d) --------
+live:
+  core_symbol: QQQ
+  invest_fraction: 0.95
+  min_order_frac: 0.01            # ignore rebalance deltas < 1% of equity
+  min_history_days: 210           # 200d MA warmup before any decision
+  paper_initial_cash: 100000
+  # addendum G-3: kill switch = validated MaxDD (18.8%) x 1.25
+  killswitch_dd_pct: 23.5
+  # reference stats for the paper-vs-backtest comparison (holdout one-shot)
+  reference:
+    sharpe: 0.99
+    cagr: 0.155
+    max_dd: -0.117
