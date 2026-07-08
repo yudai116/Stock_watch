@@ -113,6 +113,10 @@ def make_strategy(variant: str, inputs: dict, params: dict,
         return RotationStrategy(regime=inputs["regime"], params=params,
                                 benchmark_symbols=BENCHMARKS,
                                 universe_provider=universe_provider)
+    if variant == "3d":
+        from signals.regime_overlay import RegimeOverlayStrategy
+        return RegimeOverlayStrategy(regime=inputs["regime"],
+                                     symbol=inputs["benchmark"])
     return SwingStrategy(features=inputs["features"], regime=inputs["regime"],
                          rs_rank=inputs["rs_rank"], params=params,
                          betas=inputs["betas"],
@@ -121,6 +125,8 @@ def make_strategy(variant: str, inputs: dict, params: dict,
 
 def default_params(variant: str) -> dict:
     """Grid mid-point as the fixed baseline parameter set."""
+    if variant == "3d":
+        return {}                       # flow-F [D]: zero searched parameters
     grid = grid_runner.grid_for("rotation" if variant == "3a" else "composite")
     mid = {k: v[len(v) // 2] for k, v in grid.items()}
     return merged_params(mid) if variant == "3b" else mid
@@ -170,7 +176,7 @@ def evaluate_variant(variant: str, daily_bars: dict[str, pd.DataFrame],
     chosen_params_per_fold = []
 
     for f in folds:
-        if use_grid:
+        if use_grid and variant != "3d":     # 3d has nothing to search
             grid_name = "rotation" if variant == "3a" else composite_grid
 
             def eval_train(p):
