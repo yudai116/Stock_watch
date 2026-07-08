@@ -175,18 +175,37 @@ def evaluate_variant(variant: str, daily_bars: dict[str, pd.DataFrame],
     fold_oos, fold_is, qqq_oos_folds, oos_returns = [], [], [], []
     chosen_params_per_fold = []
 
+    # Full-period equity curves are fold-independent (folds only SLICE them),
+    # and composite features depend only on the period parameters — cache
+    # both so a grid costs one run per unique combo, not per combo per fold.
+    curve_cache: dict[tuple, pd.Series] = {}
+    inputs_cache: dict[tuple, dict] = {}
+
+    def _inputs_for(pp: dict) -> dict:
+        if variant != "3b":
+            return inputs
+        key = (pp.get("donchian_entry_period"), pp.get("atr_period"),
+               pp.get("mr_rsi_period"))
+        if key not in inputs_cache:
+            inputs_cache[key] = build_inputs(daily_bars, vix, features_params=pp,
+                                             regime_series=regime_series)
+        return inputs_cache[key]
+
+    def _curve_for(pp: dict) -> pd.Series:
+        key = tuple(sorted((k, str(v)) for k, v in pp.items()))
+        if key not in curve_cache:
+            curve_cache[key] = _run_once(
+                daily_bars, make_strategy(variant, _inputs_for(pp), pp,
+                                          universe_provider))
+        return curve_cache[key]
+
     for f in folds:
         if use_grid and variant != "3d":     # 3d has nothing to search
             grid_name = "rotation" if variant == "3a" else composite_grid
 
             def eval_train(p):
                 pp = merged_params(p) if variant == "3b" else p
-                inp = (build_inputs(daily_bars, vix, features_params=pp,
-                                    regime_series=regime_series)
-                       if variant == "3b" else inputs)
-                curve = _run_once(daily_bars,
-                                  make_strategy(variant, inp, pp, universe_provider))
-                m = slice_curve_metrics(curve, f.train_start, f.train_end)
+                m = slice_curve_metrics(_curve_for(pp), f.train_start, f.train_end)
                 return m or {"calmar": -9.0, "max_dd": -1.0, "sharpe": -9.0}
 
             sel = grid_runner.run_grid(eval_train, grid_name,
@@ -198,11 +217,7 @@ def evaluate_variant(variant: str, daily_bars: dict[str, pd.DataFrame],
             logger.log(run_id=run_id, phase=f"baseline_{variant}",
                        params={k: v for k, v in params.items()}, metrics={})
 
-        inp = (inputs if variant == "3a" or params == base_params
-               else build_inputs(daily_bars, vix, features_params=params,
-                                 regime_series=regime_series))
-        curve = _run_once(daily_bars,
-                          make_strategy(variant, inp, params, universe_provider))
+        curve = _curve_for(params)
         m_oos = slice_curve_metrics(curve, f.test_start, f.test_end)
         m_is = slice_curve_metrics(curve, f.train_start, f.train_end)
         if m_oos:
