@@ -37,8 +37,17 @@ def simple_regime(qqq_close: pd.Series, vix: pd.Series | None = None) -> pd.Seri
     # times (e.g. 21:00 UTC), the QQQ close index at next-day midnight —
     # method="ffill" takes the latest already-available VIX value (PIT-safe).
     # A plain reindex().ffill() would yield all-NaN on non-matching stamps.
-    vol = (vix.sort_index().reindex(qqq_close.index, method="ffill")
-           if vix is not None else realized_vol_proxy(qqq_close))
+    #
+    # Adversarial-review fix M2: decisions use the PREVIOUS session's VIX.
+    # FRED publishes VIXCLS with a lag, so a live decision after day D's
+    # close can only see day D-1's VIX. Applying shift(1) AFTER alignment
+    # makes backtest and live identical by construction, independent of the
+    # runner's wall-clock time. The realized-vol fallback is price-derived
+    # (usable same-day) and is intentionally not lagged.
+    if vix is not None:
+        vol = vix.sort_index().reindex(qqq_close.index, method="ffill").shift(1)
+    else:
+        vol = realized_vol_proxy(qqq_close)
 
     labels = pd.Series(index=qqq_close.index, dtype=object)
     above = qqq_close > ma

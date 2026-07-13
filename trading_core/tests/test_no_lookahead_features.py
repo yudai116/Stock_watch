@@ -100,15 +100,34 @@ def _qqq_and_vix(n=520, seed=11):
 
 
 def test_simple_regime_rule():
+    """Definition check. Post-review M2: the VIX used for day t's decision is
+    the PREVIOUS session's value (live parity with FRED's publication lag)."""
     close, vix = _qqq_and_vix()
     labels = simple_regime(close, vix)
     ma = close.rolling(200).mean()
-    # verify the definition on a sample of days
+    vix_lagged = vix.shift(1)
     for ts in labels.index[::37]:
-        if close[ts] > ma[ts] and vix[ts] < 25.0:
+        if pd.isna(vix_lagged[ts]):
+            continue
+        if close[ts] > ma[ts] and vix_lagged[ts] < 25.0:
             assert labels[ts] == "bull"
         elif close[ts] < ma[ts]:
             assert labels[ts] == "bear"
+
+
+def test_simple_regime_uses_previous_session_vix():
+    """M2 regression: a VIX spike on day t must NOT affect day t's label —
+    only day t+1's (matching what a live decision can actually see)."""
+    n = 260
+    idx = pd.bdate_range("2022-01-03", periods=n, tz="UTC")
+    close = pd.Series(np.linspace(100, 140, n), index=idx)   # firmly above MA
+    vix = pd.Series(15.0, index=idx)
+    spike_day = idx[230]
+    vix[spike_day] = 60.0                                     # one-day spike
+    labels = simple_regime(close, vix)
+    assert labels[spike_day] == "bull"                        # not visible yet
+    assert labels[idx[231]] == "range"                        # visible next day
+    assert labels[idx[232]] == "bull"                         # spike passed
 
 
 def test_simple_regime_ignores_future():

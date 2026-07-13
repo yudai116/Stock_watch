@@ -158,7 +158,8 @@ def evaluate_variant(variant: str, daily_bars: dict[str, pd.DataFrame],
                      logger: TrialLogger, run_id: str,
                      universe_provider=None,
                      regime_series: pd.Series | None = None,
-                     composite_grid: str = "composite") -> dict:
+                     composite_grid: str = "composite",
+                     dsr_n_override: int | None = None) -> dict:
     base_params = default_params(variant)
     inputs = build_inputs(daily_bars, vix,
                           features_params=base_params if variant == "3b" else None,
@@ -239,7 +240,12 @@ def evaluate_variant(variant: str, daily_bars: dict[str, pd.DataFrame],
     qqq_oos = aggregate_oos(qqq_oos_folds)
     gate = qqq_gate(oos, qqq_oos)
     oos_r = pd.concat(oos_returns) if oos_returns else pd.Series(dtype=float)
-    dsr = deflated_sharpe(oos_r, n_trials=max(1, logger.count_trials()))
+    # M4 (adversarial review): the cumulative trial log grows on every run,
+    # making N non-deterministic. An explicit override pins N to the actual
+    # selection family (documented in the adjudication); the cumulative count
+    # remains the conservative default.
+    n_trials = dsr_n_override if dsr_n_override else max(1, logger.count_trials())
+    dsr = deflated_sharpe(oos_r, n_trials=n_trials)
     return {
         "variant": variant,
         "params_per_fold": chosen_params_per_fold,
@@ -282,7 +288,8 @@ def run_phase3(daily_bars: dict[str, pd.DataFrame],
                variants: tuple = ("3a", "3b"),
                universe_provider=None,
                regime: str = "simple",
-               composite_grid: str = "composite") -> dict:
+               composite_grid: str = "composite",
+               dsr_n_override: int | None = None) -> dict:
     logger = TrialLogger()
     run_id = f"phase3-{datetime.now(UTC):%Y%m%d-%H%M%S}"
     universe_mode = (f"PIT quarterly ({universe_provider.n_quarters} quarters)"
@@ -300,7 +307,7 @@ def run_phase3(daily_bars: dict[str, pd.DataFrame],
         report["variants"][v] = evaluate_variant(
             v, daily_bars, vix, use_grid, logger, run_id,
             universe_provider=universe_provider, regime_series=regime_series,
-            composite_grid=composite_grid)
+            composite_grid=composite_grid, dsr_n_override=dsr_n_override)
     return report
 
 
@@ -380,6 +387,9 @@ def main() -> None:
                    default="composite_b1",
                    help="grid for 3b: composite_b1 (flow-F ladder B1, 81 combos,"
                         " default) or the full composite grid (486 combos, slow)")
+    p.add_argument("--dsr-n", type=int, default=None,
+                   help="pin the DSR trial count N to the documented selection "
+                        "family (M4); default = cumulative trial log")
     args = p.parse_args()
 
     store = BitemporalStore(data_root())
@@ -407,7 +417,8 @@ def main() -> None:
     report = run_phase3(bars, vix if len(vix) else None, use_grid=args.grid,
                         variants=tuple(args.variants.split(",")),
                         universe_provider=provider, regime=args.regime,
-                        composite_grid=args.composite_grid)
+                        composite_grid=args.composite_grid,
+                        dsr_n_override=args.dsr_n)
     text = render_report(report)
     out = REPO_ROOT / "reports"
     out.mkdir(exist_ok=True)
