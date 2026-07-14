@@ -298,15 +298,20 @@ def main() -> None:
     runp.add_argument("--mode", choices=["paper", "saxo"], default="paper")
     runp.add_argument("--skip-ingest", action="store_true")
     runp.add_argument("--allow-live", action="store_true")
+    runp.add_argument("--no-notify", action="store_true",
+                      help="suppress the Discord notification for this run")
     sub.add_parser("status")
     sub.add_parser("report")
     sub.add_parser("reset-killswitch")
+    sub.add_parser("test-notify")
     args = p.parse_args()
 
     store = BitemporalStore(data_root())
     state = LiveState()
 
     if args.cmd == "run":
+        from execution.notifier import format_run_summary, send_discord
+
         if not args.skip_ingest:
             _ingest_latest()
         saxo = None
@@ -316,8 +321,16 @@ def main() -> None:
             if saxo.env == "live" and not args.allow_live:
                 raise SystemExit("refusing LIVE trading without --allow-live "
                                  "(paper >= 3 months + G gates first)")
-        out = run_once(store, state, saxo_client=saxo)
+        try:
+            out = run_once(store, state, saxo_client=saxo)
+        except Exception as e:
+            if not args.no_notify:
+                send_discord(f"❌ trading_core 実行エラー: {e}\n"
+                             f"（判定は行われていません。ログを確認してください）")
+            raise
         print(json.dumps(out, indent=2, default=str))
+        if not args.no_notify:
+            send_discord(format_run_summary(out))
         if out.get("halted"):
             print("!! SYSTEM HALTED (kill switch). Review, then "
                   "`python -m execution.live_runner reset-killswitch`")
@@ -336,6 +349,12 @@ def main() -> None:
     elif args.cmd == "reset-killswitch":
         state.reset_killswitch()
         print("kill switch cleared. Trading resumes on next run.")
+    elif args.cmd == "test-notify":
+        from execution.notifier import send_discord
+        ok = send_discord("✅ trading_core: Discord通知のテストです。"
+                          "この通知が見えていれば設定完了。")
+        print("sent OK" if ok else
+              "FAILED — .env に DISCORD_WEBHOOK_URL を設定してください")
 
 
 if __name__ == "__main__":

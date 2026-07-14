@@ -24,6 +24,23 @@ uv run python -m execution.live_runner run --mode paper
 schtasks /create /tn "trading_core_paper" /sc daily /st 07:00 /tr "powershell -NoProfile -Command \"cd C:\projects\projects\auto-trader\Stock_watch\trading_core; uv run python -m execution.live_runner run --mode paper >> reports\paper_log.txt 2>&1\""
 ```
 
+## Discord通知（毎朝の実行結果が届く）
+
+1. Discordアプリ → 通知を受け取りたいサーバー → **サーバー設定 → 連携サービス →
+   ウェブフック → 新しいウェブフック** → チャンネルを選び **URLをコピー**
+2. `.env` に1行追加:
+   ```
+   DISCORD_WEBHOOK_URL=コピーしたURL
+   ```
+3. テスト送信:
+   ```powershell
+   uv run python -m execution.live_runner test-notify
+   ```
+   Discordに「✅ テスト」が届けば完了。以後、毎朝の自動実行ごとに
+   レジーム・アクション・資産・約定が1通届く（＝ハートビート。
+   **朝に通知が来ない日はスケジューラが動かなかったサイン**）。
+   キルスイッチ発動時は 🚨、実行エラー時は ❌ が届く。
+
 ## 状態確認・レポート
 
 ```powershell
