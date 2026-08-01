@@ -1,0 +1,43 @@
+# Execution cost model, v2 (SPEC_ADDENDUM_v2 R1).
+# Two instrument profiles:
+#   cash_equity : Saxo cash stock — commission 0.08% / min $1, NO financing.
+#                 Used for ALL long stock positions.
+#   index_cfd   : Saxo index-tracker CFD (QQQ/SMH) — spread + financing.
+#                 Used ONLY for the bear-regime hedge short.
+# Update figures from Saxo's live schedule before Phase 5; keep history in git.
+
+cash_equity:
+  commission:
+    pct_of_notional: 0.0008        # 0.08% per side
+    min_usd: 1.0
+  spread:
+    half_spread_pct: 0.0002        # liquid US large caps
+  slippage:
+    low_pct: 0.0005                # SPEC §7 floor
+    high_pct: 0.0010
+    default_pct: 0.0008
+  financing:
+    enabled: false                 # cash stock: no overnight financing
+
+index_cfd:
+  commission:
+    pct_of_notional: 0.0           # Saxo index CFDs: cost is in the spread
+    min_usd: 0.0
+  spread:
+    half_spread_pct: 0.0003
+  slippage:
+    low_pct: 0.0005
+    high_pct: 0.0010
+    default_pct: 0.0008
+  financing:
+    enabled: true
+    benchmark_rate_annual: 0.0433  # SOFR; update from live data
+    long_markup_annual: 0.035      # Offer + 350bps (Saxo Classic)
+    # R1: shorts MAY receive benchmark - markdown, but we conservatively book
+    # ZERO credit and ZERO charge for short index hedges.
+    short_rate_annual: 0.0
+    day_count: 360
+
+fx:
+  account_currency: USD
+  conversion_fee_pct: 0.0

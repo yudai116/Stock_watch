@@ -1,0 +1,153 @@
+# Parameter space, v2 (SPEC_ADDENDUM_v2). Signals/features/regime are DAILY (R2).
+# Primary optimizer is coarse grid + plateau selection (R3); GA remains
+# available for experiments but is NOT the primary path.
+
+# ---- R3: coarse grid, <= 6 parameters per strategy (HARD LIMIT) ----------
+grid_search:
+  composite:            # Phase 3b full strategy (6 params, 3-5 levels each)
+    donchian_entry_period: [20, 35, 55]
+    chandelier_k: [2.5, 3.0, 3.5]
+    rs_top_fraction: [0.2, 0.35, 0.5]
+    risk_per_trade_pct: [0.5, 0.75, 1.0]
+    time_stop_days: [10, 15, 20]
+    partial_take_profit: [none, half_at_2R]
+  composite_b1:         # flow-F ladder rung B1: 6 -> 4 free params
+    donchian_entry_period: [20, 35, 55]
+    chandelier_k: [2.5, 3.0, 3.5]
+    rs_top_fraction: [0.2, 0.35, 0.5]
+    risk_per_trade_pct: [0.5, 0.75, 1.0]
+    time_stop_days: [15]           # pinned (single level)
+    partial_take_profit: [none]    # pinned (single level)
+  rotation:             # Phase 3a weekly RS rotation (3 params only)
+    lookback_days: [63, 126, 189]
+    n_holdings: [5, 8, 10]
+    rebalance_days: [5, 10]        # trading days between rebalances (5 = weekly)
+
+# ---- legacy GA space (secondary; kept for experiments, R3) ----------------
+ga_search:
+  donchian_entry_period: {type: int, low: 20, high: 55}
+  atr_period: {type: int, low: 14, high: 28}
+  chandelier_k: {type: float, low: 2.5, high: 3.5}
+  time_stop_days: {type: int, low: 10, high: 20}
+  partial_take_profit: {type: choice, options: [none, half_at_2R]}
+  rs_top_fraction: {type: float, low: 0.2, high: 0.5}
+  volume_z_min: {type: float, low: 0.0, high: 1.5}
+  mr_enabled: {type: choice, options: [true, false]}
+  mr_rsi_period: {type: int, low: 2, high: 14}
+  mr_rsi_entry: {type: float, low: 10, high: 35}
+  mr_zscore_entry: {type: float, low: -2.5, high: -1.0}
+  risk_per_trade_pct: {type: float, low: 0.5, high: 1.0}
+
+fixed:
+  # Strategy constants NOT searched by grid/GA
+  atr_period: 14
+  volume_z_min: 0.5
+  mr_enabled: false                 # baseline: TF only; MR is an experiment
+  mr_rsi_period: 5
+  mr_rsi_entry: 25.0
+  mr_zscore_entry: -1.5
+
+  # Gates (SPEC §5.4): fixed
+  earnings_blackout_days: 3
+  news_shock_neg_threshold: -0.6
+  news_shock_stop_tighten_factor: 0.7
+  squeeze_guard_pos_threshold: 0.6
+
+  # Confidence multiplier (SPEC §6.3): range fixed
+  confidence_multiplier_min: 0.5
+  confidence_multiplier_max: 1.5
+
+  # Portfolio limits (SPEC §6.2)
+  max_concurrent_positions: 8
+  max_sector_positions: 3
+  portfolio_heat_max_pct: 6.0
+  dd_soft_pct: 10.0
+  dd_hard_pct: 20.0
+  dd_scale_floor: 0.3
+
+# ---- R1: bear-regime index hedge (replaces single-stock shorts) -----------
+hedge:
+  instrument: QQQ                   # or SMH for semis-heavy books
+  ratio: 0.5                        # target fraction of long beta to offset
+  min_ratio: 0.3
+  max_ratio: 0.7
+  beta_window_days: 60
+  rebalance_threshold: 0.10         # ignore drifts < 10% of target qty
+
+# ---- R4: simple regime filter (benchmark the HMM must beat OOS) -----------
+simple_regime:
+  ma_days: 200
+  vix_threshold: 25.0               # also used against realized-vol proxy
+
+hmm:
+  inputs_baseline: [market_return, realized_vol, vix, breadth]
+  inputs_altdata: [news_sentiment_z, negative_article_ratio]
+  n_states_range: [3, 6]
+  covariance_type: full
+  refit_frequency: monthly
+  min_train_days: 756
+
+features:
+  realized_vol_days: 20
+  rs_long_days: 200
+  ma_slope_period: 50
+  zscore_window: 100
+  rs_rank_days: 126                 # cross-sectional RS lookback (daily)
+
+validation:
+  wfa_folds: 4
+  wfa_anchored: true
+  train_fraction: 0.8
+  cpcv_groups: 8
+  cpcv_test_groups: 2
+  purge_days: 15
+  embargo_days: 5
+  holdout_years: 1.5
+  dsr_confidence: 0.95
+
+objective:
+  primary: calmar
+  dd_penalty_threshold_pct: 20.0
+  reject_if_dsr_leq: 0.0
+
+# ---- R5: pass lines (OOS, cost-deducted) + branch thresholds (flow F) -----
+targets:
+  sharpe_min: 0.6                   # practical minimum
+  sharpe_good: 0.8
+  cagr_min: 0.10
+  max_dd_pct: 25.0                  # practical maximum
+  max_dd_good_pct: 18.0
+  wf_efficiency_min: 0.5
+  is_sharpe_overfit_alert: 2.0      # IS Sharpe above this = overfitting alarm
+  qqq_gate: true                    # must beat QQQ B&H Sharpe AND MaxDD
+branching:
+  sharpe_a: 0.8                     # [A] >= this + QQQ gate pass
+  sharpe_b_low: 0.4                 # [B] between b_low and a
+                                    # [C] below b_low or all variants fail gate
+
+sentiment:
+  model_name: ProsusAI/finbert
+  # IMPORTANT: replace with the actual commit hash after the first download
+  # (huggingface hub -> Files -> copy commit SHA). The score cache is keyed on
+  # this string; backtests must never run against a moving "main".
+  model_revision: "PIN_ME_ON_FIRST_DOWNLOAD"
+  news_latency_minutes: 5
+
+adoption:
+  calmar_improvement_min: 0.15
+  ablation_order: [fundamental_quality, news_gates, sentiment_hmm, trends]
+
+# ---- Phase 5: live/paper operation of the adopted [D] strategy (3d) --------
+live:
+  core_symbol: QQQ
+  invest_fraction: 0.95
+  min_order_frac: 0.01            # ignore rebalance deltas < 1% of equity
+  min_history_days: 210           # 200d MA warmup before any decision
+  paper_initial_cash: 100000
+  # addendum G-3: kill switch = validated MaxDD (18.8%) x 1.25
+  killswitch_dd_pct: 23.5
+  # reference stats for the paper-vs-backtest comparison (holdout one-shot)
+  reference:
+    sharpe: 0.99
+    cagr: 0.155
+    max_dd: -0.117
