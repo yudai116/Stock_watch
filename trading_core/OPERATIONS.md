@@ -3,26 +3,38 @@
 > 本番戦略: **3d レジームオーバーレイ**（`reports/phase3_final_adjudication.md`）
 > ルール: bull=QQQに95%投資 / range=保持 / bear・crisis=現金化 / 調整パラメータ0個
 
-## 毎日やること（自動化推奨・1コマンド）
+## 毎日の実行（推奨: `run_daily.bat` をダブルクリック or スタートアップ登録）
 
-米国市場の引け後（日本時間の朝）に1回:
+`trading_core\run_daily.bat` を**ダブルクリックするだけ**で1日分が走る
+（PowerShellを開いてコマンドを打つ必要はない）。中身は
+「QQQ日足とVIXの取得 → 前回の注文を寄付きで約定 → レジーム判定 →
+必要なら翌日執行の注文を作成 → 帳簿記録 → Discord通知」。
+同じ日に何度動かしても1回しか売買しない（冪等）ので、起動のたびに走らせて安全。
 
-```powershell
-cd C:\projects\projects\auto-trader\Stock_watch\trading_core
-uv run python -m execution.live_runner run --mode paper
-```
+### スタートアップ登録（PCを起動するたび自動実行・1回だけ設定）
 
-これ1つで「QQQ日足とVIXの取得 → 前日に出した注文を今日の寄付き価格で約定 →
-レジーム判定 → 必要なら翌日執行の注文を作成 → 帳簿記録」まで全部走る。
-土日・祝日に動かしても無害（新しいバーがなければ何もしない）。
-
-### Windows タスクスケジューラ登録（1回だけ）
-
-管理者PowerShellで（毎朝7:00 JST。夏時間期は6:00でも可）:
+常時起動でないPCでは「起動時実行」が一番確実（起動＝ログイン時に必ず走る）。
+PowerShellで下記を1回貼ると、スタートアップフォルダにショートカットを作る:
 
 ```powershell
-schtasks /create /tn "trading_core_paper" /sc daily /st 07:00 /tr "powershell -NoProfile -Command \"cd C:\projects\projects\auto-trader\Stock_watch\trading_core; uv run python -m execution.live_runner run --mode paper >> reports\paper_log.txt 2>&1\""
+$bat = "C:\projects\projects\auto-trader\Stock_watch\trading_core\run_daily.bat"
+$startup = [Environment]::GetFolderPath('Startup')
+$ws = New-Object -ComObject WScript.Shell
+$sc = $ws.CreateShortcut("$startup\trading_core_daily.lnk")
+$sc.TargetPath = $bat
+$sc.WorkingDirectory = (Split-Path $bat)
+$sc.Save()
 ```
+
+以後、PCを起動してログインするたびに自動で1日分が走り、Discordに結果が届く。
+
+### （任意）古い7時タスクの削除
+
+7時固定のタスクを使っていて不要になった場合:
+```powershell
+schtasks /delete /tn "trading_core_paper" /f
+```
+起動時実行と併用しても冪等なので害はないが、混乱を避けるなら削除してよい。
 
 ## Discord通知（毎朝の実行結果が届く）
 
